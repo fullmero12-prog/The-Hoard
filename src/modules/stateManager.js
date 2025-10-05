@@ -85,6 +85,81 @@ var StateManager = (function () {
     }
   }
 
+  /** Resets a player's corridor progress and currencies */
+  function resetPlayerRun(playerid) {
+    const p = initPlayer(playerid);
+    p.ancestor_id = null;
+    p.focus = DEFAULT_PLAYER_STATE.focus;
+    p.currentRoom = 0;
+    p.scrip = 0;
+    p.fse = 0;
+    p.squares = 0;
+    p.rerollTokens = 0;
+    p.boons = [];
+    p.relics = [];
+    p.upgrades = [];
+    p.firstClearAwarded = false;
+    return p;
+  }
+
+  /** Sets the current cleared room number */
+  function setCurrentRoom(playerid, value) {
+    const p = getPlayer(playerid);
+    const room = normalizeNumber(value);
+    p.currentRoom = room < 0 ? 0 : room;
+    return p.currentRoom;
+  }
+
+  /** Increments the current room counter and returns the new value */
+  function incrementRoom(playerid) {
+    const p = getPlayer(playerid);
+    const current = normalizeNumber(p.currentRoom);
+    p.currentRoom = current + 1;
+    return p.currentRoom;
+  }
+
+  /** Returns the player's corridor metadata */
+  function getCorridor(playerid) {
+    const p = getPlayer(playerid);
+    return {
+      currentRoom: normalizeNumber(p.currentRoom),
+      corridorLength: normalizeNumber(p.corridorLength)
+    };
+  }
+
+  /** Applies a bundle of currencies in one call */
+  function applyCurrencyBundle(playerid, bundle) {
+    if (!bundle) {
+      return getCurrencies(playerid);
+    }
+
+    if (bundle.scrip) {
+      addCurrency(playerid, 'scrip', bundle.scrip);
+    }
+    if (bundle.fse) {
+      addCurrency(playerid, 'fse', bundle.fse);
+    }
+    if (bundle.squares) {
+      addCurrency(playerid, 'squares', bundle.squares);
+    }
+    if (bundle.rerollTokens) {
+      addCurrency(playerid, 'rerollTokens', bundle.rerollTokens);
+    }
+
+    return getCurrencies(playerid);
+  }
+
+  /** Returns the player's current currency totals */
+  function getCurrencies(playerid) {
+    const p = getPlayer(playerid);
+    return {
+      scrip: normalizeNumber(p.scrip),
+      fse: normalizeNumber(p.fse),
+      squares: normalizeNumber(p.squares),
+      rerollTokens: normalizeNumber(p.rerollTokens)
+    };
+  }
+
   /** Deducts Scrip for shop purchases */
   function spendScrip(playerid, amount) {
     const p = getPlayer(playerid);
@@ -121,6 +196,12 @@ var StateManager = (function () {
     getPlayer,
     setPlayer,
     addCurrency,
+    resetPlayerRun,
+    setCurrentRoom,
+    incrementRoom,
+    getCorridor,
+    applyCurrencyBundle,
+    getCurrencies,
     spendScrip,
     resetAll,
     debugPrint

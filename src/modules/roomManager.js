@@ -64,19 +64,34 @@ var RoomManager = (function () {
    * Triggers rewards and opens shops at milestones.
    */
   function advanceRoom(playerid, roomType) {
-    StateManager.initPlayer(playerid);
-    var p = StateManager.getPlayer(playerid);
     var safeType = sanitizeRoomType(roomType);
     var bundle = REWARDS[safeType] || REWARDS.room;
     var playerName = getPlayerName(playerid);
-    p.currentRoom += 1;
+
+    StateManager.initPlayer(playerid);
+
+    var clearedRoom = 0;
+    if (typeof StateManager.incrementRoom === 'function') {
+      clearedRoom = StateManager.incrementRoom(playerid);
+    } else {
+      var fallback = StateManager.getPlayer(playerid);
+      fallback.currentRoom = (fallback.currentRoom || 0) + 1;
+      clearedRoom = fallback.currentRoom;
+    }
 
     applyRewards(playerid, safeType);
 
+    var p = StateManager.getPlayer(playerid);
+
+    var totals = typeof StateManager.getCurrencies === 'function'
+      ? StateManager.getCurrencies(playerid)
+      : { scrip: p.scrip, fse: p.fse };
+
     UIManager.whisper(
       playerName,
-      'Room ' + p.currentRoom + ' Cleared',
-      '➤ +' + bundle.scrip + ' Scrip, +' + bundle.fse + ' FSE.'
+      'Room ' + clearedRoom + ' Cleared',
+      '➤ +' + bundle.scrip + ' Scrip, +' + bundle.fse + ' FSE.<br>' +
+      'Total — Scrip: <b>' + totals.scrip + '</b> | FSE: <b>' + totals.fse + '</b>'
     );
 
     try {
@@ -123,8 +138,6 @@ var RoomManager = (function () {
         '✪ +' + REWARDS.firstClearBonusFSE + ' FSE.'
       );
     }
-
-    StateManager.initPlayer(playerid);
   }
 
   /**
@@ -133,15 +146,19 @@ var RoomManager = (function () {
    */
   function startRun(playerid) {
     StateManager.initPlayer(playerid);
-    var p = StateManager.getPlayer(playerid);
-    p.currentRoom = 0;
-    p.scrip = 0;
-    p.fse = 0;
-    p.squares = 0;
-    p.boons = [];
-    p.relics = [];
-    p.boonOffered = false;
-    p.firstClearAwarded = false;
+    if (typeof StateManager.resetPlayerRun === 'function') {
+      StateManager.resetPlayerRun(playerid);
+    } else {
+      var p = StateManager.getPlayer(playerid);
+      p.currentRoom = 0;
+      p.scrip = 0;
+      p.fse = 0;
+      p.squares = 0;
+      p.boons = [];
+      p.relics = [];
+      p.boonOffered = false;
+      p.firstClearAwarded = false;
+    }
 
     UIManager.whisper(
       getPlayerName(playerid),
@@ -164,10 +181,6 @@ var RoomManager = (function () {
       if (cmd === '!nextr') {
         var type = args[1] || 'room';
         advanceRoom(msg.playerid, type);
-      }
-
-      if (cmd === '!startrun') {
-        startRun(msg.playerid);
       }
     });
   }
