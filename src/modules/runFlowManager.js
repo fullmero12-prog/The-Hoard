@@ -152,6 +152,39 @@ var RunFlowManager = (function () {
     return null;
   }
 
+  function hasAncestorSelectionForWeapon(weapon) {
+    var options = ANCESTOR_SETS[weapon] || [];
+    if (!options.length) {
+      return false;
+    }
+
+    var roster = (state && state.HoardRun && state.HoardRun.players) ? state.HoardRun.players : null;
+    if (!roster) {
+      return false;
+    }
+
+    var lookup = {};
+    var i;
+    for (i = 0; i < options.length; i += 1) {
+      lookup[options[i].toLowerCase()] = true;
+    }
+
+    for (var pid in roster) {
+      if (!roster.hasOwnProperty(pid)) {
+        continue;
+      }
+      var entry = roster[pid];
+      if (entry && entry.ancestor_id) {
+        var anc = String(entry.ancestor_id).toLowerCase();
+        if (lookup[anc]) {
+          return true;
+        }
+      }
+    }
+
+    return false;
+  }
+
   // ------------------------------------------------------------
   // Core Actions
   // ------------------------------------------------------------
@@ -166,8 +199,7 @@ var RunFlowManager = (function () {
     run.currentRoom = 0; // 0 = pre-battle setup room (Weapon/Ancestor phase)
     run.lastPrompt = null;
 
-    sendDirect('Welcome to the Hoard Run',
-      '<b>The Hoard stirs…</b><br>' +
+    var body = '<b>The Hoard stirs…</b><br>' +
       'Before you step inside, you must choose your weapon.<br><br>' +
       'Select one of the following to attune to your chosen focus:<br><br>' +
       formatButtons([
@@ -176,17 +208,15 @@ var RunFlowManager = (function () {
         { label: '🏹 Bow', command: '!selectweapon Bow' },
         { label: '🔮 Orb', command: '!selectweapon Orb' },
         { label: '📚 Staff', command: '!selectweapon Staff' }
-      ])
-    );
+      ]);
+
+    // Let everyone see/press the buttons
+    sendChat('Hoard Run', '/direct ' + formatPanel('Welcome to the Hoard Run', body));
 
     log('[RunFlow] New Hoard Run started — awaiting weapon selection.');
   }
 
   function handleSelectWeapon(playerid, arg) {
-    if (typeof isGM === 'function' && !isGM(playerid)) {
-      return;
-    }
-
     var run = getRun();
     if (!run.started) {
       whisperGM('Weapon Selection', '⚠️ No active run. Use <b>!startrun</b> first.');
@@ -209,88 +239,64 @@ var RunFlowManager = (function () {
   }
 
   function handleSelectAncestor(playerid, arg) {
-    if (typeof isGM === 'function' && !isGM(playerid)) {
-      return;
-    }
-
     var run = getRun();
     if (!run.started || !run.weapon) {
       whisperGM('Ancestor Selection', '⚠️ Start a run and choose a weapon first.');
       return;
     }
 
-    var chosenRaw = (arg || '').trim();
-    if (!chosenRaw) {
-      whisperGM('Ancestor Selection', '⚠️ Provide an ancestor name.');
-      return;
-    }
+    var name = (arg || '').trim().replace(/^"|"$/g, '');
+    name = name.replace(/_/g, ' ');
+    if (!name) { whisperGM('Ancestor Selection', '⚠️ Provide an ancestor name.'); return; }
 
-    var chosen = chosenRaw.replace(/_/g, ' ');
     var options = ANCESTOR_SETS[run.weapon] || [];
-    var valid = null;
-    var i;
-    for (i = 0; i < options.length; i += 1) {
-      if (options[i].toLowerCase() === chosen.toLowerCase()) {
-        valid = options[i];
-        break;
+    var canon = null;
+    if (options && typeof options.find === 'function') {
+      canon = options.find(function(a){ return a.toLowerCase() === name.toLowerCase(); });
+    }
+    if (!canon) {
+      var idx;
+      for (idx = 0; idx < options.length; idx += 1) {
+        if (options[idx].toLowerCase() === name.toLowerCase()) {
+          canon = options[idx];
+          break;
+        }
       }
     }
+    if (!canon) { whisperGM('Ancestor Selection', '⚠️ '+name+' is not available for the '+run.weapon+'.'); return; }
 
-    if (!valid) {
-      whisperGM('Ancestor Selection', '⚠️ ' + chosen + ' is not available for the ' + run.weapon + '.');
-      return;
+    // Save on the PLAYER
+    if (typeof StateManager !== 'undefined' && StateManager.getPlayer){
+      var ps = StateManager.getPlayer(playerid);
+      ps.ancestor_id = canon;
     }
 
-    run.ancestor = valid;
+    // Confirm to the player who clicked
+    var pname = (getObj('player', playerid) || {get:function(){ return 'Player'; }}).get('_displayname');
+    sendChat('Hoard Run', '/w "'+pname+'" ' + formatPanel(
+      'Ancestor Chosen',
+      '🌟 Ancestor blessing secured: <b>'+canon+'</b>.<br>'+
+      'You will be offered a free boon at the end of each room (shop boons cost Scrip).'
+    ));
 
+    // If Vladren, install the kit for THIS player and whisper GM the bind button
     try {
-      if (typeof AncestorKits !== 'undefined' && AncestorKits.Vladren && valid === 'Vladren Moroi') {
-        // Create the kit + handout as before (stats optional)
-        AncestorKits.Vladren.install(playerid, {
-          // pb: 3,
-          // spellMod: 4
-        });
-        // ✅ Whisper the slick “bind to selected PC” button to the GM
-        if (typeof AncestorKits.Vladren.promptBindToSelectedPC === 'function') {
-          AncestorKits.Vladren.promptBindToSelectedPC();
-        } else {
-          if (typeof promptBindToSelectedPC === 'function') {
-            promptBindToSelectedPC();
-          }
+      if (typeof AncestorKits !== 'undefined' && AncestorKits.Vladren && canon === 'Vladren Moroi') {
+        AncestorKits.Vladren.install(playerid, {});  // creates kit + handout for the player
+        if (AncestorKits.Vladren.promptBindToSelectedPC) {
+          AncestorKits.Vladren.promptBindToSelectedPC(); // /w gm panel with [Mirror Buttons to Selected PC]
+        } else if (typeof promptBindToSelectedPC === 'function') {
+          promptBindToSelectedPC();
         }
       }
-    } catch (e) {
-      log('[RunFlow] Vladren bind prompt error: ' + e.message);
-    }
+    } catch(e){ log('[RunFlow] Vladren install/prompt error: '+e.message); }
 
-    run.lastPrompt = null;
-
-    if (typeof StateManager !== 'undefined' && typeof StateManager.getPlayer === 'function') {
-      var gmPlayer = StateManager.getPlayer(playerid) || {};
-      gmPlayer.ancestor_id = valid;
-      if (typeof StateManager.setPlayer === 'function') {
-        StateManager.setPlayer(playerid, gmPlayer);
-      } else {
-        if (!state.HoardRun) {
-          state.HoardRun = {};
-        }
-        if (!state.HoardRun.players) {
-          state.HoardRun.players = {};
-        }
-        state.HoardRun.players[playerid] = gmPlayer;
+    // Optional: if they are already in a post-fight stage, offer the boon now
+    if (run.currentRoom >= 1) {
+      if (typeof BoonManager !== 'undefined' && BoonManager.offerBoons){
+        BoonManager.offerBoons(playerid, canon, 'free'); // end-of-room = free
       }
     }
-
-    var info = ANCESTOR_INFO[valid];
-    var head = info ? '<b>' + _.escape(info.title) + '</b>' : '<b>' + _.escape(valid) + '</b>';
-    var blurb = info ? '<div style="margin-top:4px;color:#bbb">' + _.escape(info.desc) + '</div>' : '';
-
-    sendDirect('Ancestor Chosen',
-      '🌟 Ancestor blessing secured: ' + head + blurb + '<br>' +
-      'You gain <b>1 boon at the end of each room</b> (outside shops).'
-    );
-
-    log('[RunFlow] Ancestor selected: ' + valid);
   }
 
   function handleNextRoom(playerid, arg) {
@@ -318,7 +324,7 @@ var RunFlowManager = (function () {
         return;
       }
 
-      if (!run.ancestor) {
+      if (!hasAncestorSelectionForWeapon(run.weapon)) {
         var list = ANCESTOR_SETS[run.weapon] || [];
 
         if (!list.length) {
@@ -332,26 +338,32 @@ var RunFlowManager = (function () {
           return;
         }
 
-        var html = list.map(function (a) {
-          var info = ANCESTOR_INFO[a] || { title: a, desc: '' };
-          var safe = a.replace(/\s+/g, '_');
-          return (
-            '<div style="margin:6px 0 12px 0; padding:8px; border:1px solid #444; background:#111;">' +
-              '<div style="font-weight:bold; color:#fff;">' + _.escape(info.title) + '</div>' +
-              '<div style="margin-top:4px; color:#bbb;">' + _.escape(info.desc) + '</div>' +
-              '<div style="margin-top:8px;">[Select ' + a + '](!selectancestor ' + safe + ')</div>' +
-            '</div>'
-          );
-        }).join('');
+        if (run.lastPrompt !== 'ancestor') {
+          var html = list.map(function (a) {
+            var info = ANCESTOR_INFO[a] || { title: a, desc: '' };
+            var commandName = a.replace(/"/g, '\"');
+            return (
+              '<div style="margin:6px 0 12px 0; padding:8px; border:1px solid #444; background:#111;">' +
+                '<div style="font-weight:bold; color:#fff;">' + _.escape(info.title) + '</div>' +
+                '<div style="margin-top:4px; color:#bbb;">' + _.escape(info.desc) + '</div>' +
+                '<div style="margin-top:8px;">[Select ' + _.escape(a) + '](!selectancestor "' + commandName + '")</div>' +
+              '</div>'
+            );
+          }).join('');
 
-        sendDirect('Choose your Ancestor',
-          'Choose your guiding spirit (weapon: <b>' + run.weapon + '</b>):<br><br>' + html
-        );
+          sendDirect('Choose your Ancestor',
+            'Players: choose your guiding spirit (weapon: <b>' + run.weapon + '</b>):<br><br>' + html
+          );
+          run.lastPrompt = 'ancestor';
+        }
+
         log('[RunFlow] Awaiting ancestor selection for ' + run.weapon + '.');
         return;
       }
 
-      run.lastPrompt = null;
+      if (run.lastPrompt === 'ancestor') {
+        run.lastPrompt = null;
+      }
       run.currentRoom += 1;
 
       if (run.currentRoom > 1) {
@@ -365,11 +377,10 @@ var RunFlowManager = (function () {
           '🌀 You may now choose a new <b>Boon</b> inspired by your Ancestor.'
         );
 
-        if (typeof BoonManager !== 'undefined' && run.ancestor && run.currentRoom > 1) {
-          var safe = run.ancestor.replace(/\s+/g, '_');
+        if (typeof BoonManager !== 'undefined' && run.currentRoom > 1) {
           sendDirect('Boon Opportunity',
-            '✨ ' + _.escape(run.ancestor) + ' offers a new boon choice.<br>' +
-            '[Draw Boons](!offerboons ' + safe + ' free)'
+            '✨ Your ancestors offer new boon choices.<br>' +
+            '[Draw Boons](!offerboons)'
           );
         }
       }
