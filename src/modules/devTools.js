@@ -85,6 +85,31 @@ var DevTools = (function () {
   }
 
   /**
+   * Draw a random relic using the current deck plumbing.
+   * Helpful for verifying that the DeckManager fallback data
+   * lines up with the Roll20 card decks.
+   */
+  function testRelicDraw() {
+    if (typeof DeckManager === 'undefined' || typeof DeckManager.drawByRarity !== 'function') {
+      sendChat('Hoard Run', '/w gm ⚠️ DeckManager not available for relic draw test.');
+      return;
+    }
+
+    var rarities = ['Common', 'Greater', 'Signature'];
+    var index = randomInteger(rarities.length) - 1;
+    var rarity = rarities[index];
+    var relic = DeckManager.drawByRarity('Relics', rarity);
+
+    if (!relic) {
+      sendChat('Hoard Run', '/w gm ⚠️ No relic available for rarity ' + rarity + '.');
+      return;
+    }
+
+    var name = typeof relic.get === 'function' ? relic.get('name') : relic.name;
+    sendChat('Hoard Run', '/w gm Drew a ' + rarity + ' relic: ' + name);
+  }
+
+  /**
    * Command router
    */
   function handleInput(msg) {
@@ -111,6 +136,9 @@ var DevTools = (function () {
       case '!testshop':
         testShop();
         break;
+      case '!testrelic':
+        testRelicDraw();
+        break;
     }
   }
 
@@ -122,7 +150,7 @@ var DevTools = (function () {
       return;
     }
     on('chat:message', handleInput);
-    sendChat('Hoard Run', '/w gm 🧰 DevTools loaded. Commands: !resetstate, !debugstate, !testshop');
+    sendChat('Hoard Run', '/w gm 🧰 DevTools loaded. Commands: !resetstate, !debugstate, !testshop, !testrelic');
     isRegistered = true;
   }
 
@@ -130,6 +158,7 @@ var DevTools = (function () {
     register: register,
     resetState: resetState,
     debugState: debugState,
-    testShop: testShop
+    testShop: testShop,
+    testRelicDraw: testRelicDraw
   };
 })();
