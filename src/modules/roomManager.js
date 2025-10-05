@@ -153,7 +153,7 @@ var RoomManager = (function () {
   // ------------------------------------------------------------
   // Command Registration
   // ------------------------------------------------------------
-  function registerCommands() {
+  function register() {
     on('chat:message', function (msg) {
       if (msg.type !== 'api') {
         return;
@@ -176,9 +176,7 @@ var RoomManager = (function () {
     startRun: startRun,
     advanceRoom: advanceRoom,
     applyRewards: applyRewards,
-    registerCommands: registerCommands
+    register: register
   };
 
 })();
-
-on('ready', RoomManager.registerCommands);

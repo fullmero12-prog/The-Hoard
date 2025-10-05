@@ -357,7 +357,7 @@ var ShopManager = (function () {
   }
 
   /** Command registration */
-  function registerCommands() {
+  function register() {
     StateManager.init();
     on("chat:message", (msg) => {
       if (msg.type !== "api") return;
@@ -396,10 +396,8 @@ var ShopManager = (function () {
     purchase,
     reroll,
     tradeSquares,
-    registerCommands
+    register
   };
 
 })();
-
-on("ready", ShopManager.registerCommands);
 

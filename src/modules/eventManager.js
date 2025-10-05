@@ -135,17 +135,14 @@ var EventManager = (function () {
   // ------------------------------------------------------------
   // Public API
   // ------------------------------------------------------------
+  function register() {
+    registerPageWatcher();
+  }
+
   return {
     registerPageWatcher: registerPageWatcher,
-    handlePageChange: handlePageChange
+    handlePageChange: handlePageChange,
+    register: register
   };
 
 })();
-
-// ------------------------------------------------------------
-// Initialization
-// ------------------------------------------------------------
-on('ready', function () {
-  EventManager.registerPageWatcher();
-  sendChat('Hoard Run', '/w gm EventManager active. Page-based triggers online.');
-});
