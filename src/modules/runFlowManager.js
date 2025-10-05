@@ -80,10 +80,12 @@ var RunFlowManager = (function () {
 
   function formatButtons(buttons) {
     if (typeof UIManager !== 'undefined' && typeof UIManager.buttons === 'function') {
-      return UIManager.buttons(buttons);
+      rendered = UIManager.buttons(buttons);
+      return rendered;
     }
-    return buttons.map(function (b) {
-      return '[' + b.label + '](!' + (b.command || '').replace(/^!/, '') + ')';
+    rendered = buttons.map(function (b) {
+      var command = (b.command || '').replace(/^!/, '');
+      return '[' + b.label + '](!' + command + ')';
     }).join('<br>');
   }
 
