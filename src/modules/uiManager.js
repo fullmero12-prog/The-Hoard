@@ -45,8 +45,9 @@ var UIManager = (function () {
    */
   function buttons(buttons) {
     return buttons.map(function (b) {
-      return '[' + b.label + '](' + b.command + ')';
-    }).join(' ');
+      var command = (b.command || '').replace(/^!/, '');
+      return '[' + b.label + '](!' + command + ')';
+    }).join('<br>');
   }
 
   /**

@@ -83,10 +83,11 @@ var RunFlowManager = (function () {
     var rendered;
     if (typeof UIManager !== 'undefined' && typeof UIManager.buttons === 'function') {
       rendered = UIManager.buttons(buttons);
-      return rendered.replace(/\)\s*\[/g, ')<br>[');
+      return rendered;
     }
     rendered = buttons.map(function (b) {
-      return '[' + b.label + '](' + b.command + ')';
+      var command = (b.command || '').replace(/^!/, '');
+      return '[' + b.label + '](!' + command + ')';
     }).join('<br>');
     return rendered;
   }
