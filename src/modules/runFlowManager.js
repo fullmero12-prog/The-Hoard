@@ -149,18 +149,22 @@ var RunFlowManager = (function () {
 
     var run = resetRunState();
     run.started = true;
+    run.currentRoom = 0; // 0 = pre-battle setup room (Weapon/Ancestor phase)
 
-    var body = 'Choose your weapon to begin your journey:<br><br>' +
+    sendDirect('Welcome to the Hoard Run',
+      '<b>The Hoard stirs…</b><br>' +
+      'Before you step inside, you must choose your weapon.<br><br>' +
+      'Select one of the following to attune to your chosen focus:<br><br>' +
       formatButtons([
-        { label: 'Select Staff', command: '!selectweapon Staff' },
-        { label: 'Select Orb', command: '!selectweapon Orb' },
-        { label: 'Select Greataxe', command: '!selectweapon Greataxe' },
-        { label: 'Select Rapier', command: '!selectweapon Rapier' },
-        { label: 'Select Bow', command: '!selectweapon Bow' }
-      ]);
+        { label: '⚔️ Greataxe', command: '!selectweapon Greataxe' },
+        { label: '🗡️ Rapier', command: '!selectweapon Rapier' },
+        { label: '🏹 Bow', command: '!selectweapon Bow' },
+        { label: '🔮 Orb', command: '!selectweapon Orb' },
+        { label: '📚 Staff', command: '!selectweapon Staff' }
+      ])
+    );
 
-    sendDirect('Welcome to the Hoard Run', body);
-    log('[RunFlow] Run started. Awaiting weapon selection.');
+    log('[RunFlow] New Hoard Run started — awaiting weapon selection.');
   }
 
   function handleSelectWeapon(playerid, arg) {
