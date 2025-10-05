@@ -34,30 +34,36 @@ var RunFlowManager = (function () {
     Bow: ['Azuren', 'Lian Veilbinder']
   };
 
-  var ANCESTOR_BLURBS = {
+  var ANCESTOR_INFO = {
     'Azuren': {
-      title: 'Azuren — The Stormheart',
-      desc: 'Master of wind and storm. Empowers mobility, deflection, and ranged control.'
+      title: 'Azuren, Ascendant of the Endless Bolt',
+      desc: 'Lightning artillery with Charges, line/burst nukes, and long-range Barrages.',
+      refs: 'Azuren.md'
     },
     'Sutra Vayla': {
-      title: 'Sutra Vayla — The Mindroot',
-      desc: 'Wielder of psychic calm. Focused on discipline, shielding, and insight.'
-    },
-    'Seraphine Emberwright': {
-      title: 'Seraphine Emberwright — The Phoenix Binder',
-      desc: 'Channels renewal and fire. Rewards aggression and self-healing.'
+      title: 'Sutra Vayla, the Harmonized Mantra',
+      desc: 'Mantra forms (Bolt/Bond/Ward) that add radiant splash, tethers, or warding temp HP/speed.',
+      refs: 'Sutra Vayla.md'
     },
     'Vladren Moroi': {
-      title: 'Vladren Moroi — The Blood Sovereign',
-      desc: 'Harnesses vitality through sacrifice. Thrives when near death.'
-    },
-    'Morvox, Tiny Tyrant': {
-      title: 'Morvox, Tiny Tyrant — The Iron Whelp',
-      desc: 'Defies odds with overwhelming presence. Bolsters allies through fury.'
+      title: 'Vladren Moroi, the Crimson Tide',
+      desc: 'Temp-HP engine; necrotic drain (Transfusion), damage shunts (Pool), and burst heal/damage.',
+      refs: 'Vladren Moroi.md'
     },
     'Lian Veilbinder': {
-      title: 'Lian Veilbinder — The Shadowed Blade',
-      desc: 'Dances between light and dark. Prefers precision and calculated strikes.'
+      title: 'Lian the Veilbinder, Mistress of Mirrors',
+      desc: 'Stack Veils via spells/hits; invis on demand; Detonate to blind/stun with psychic damage.',
+      refs: 'Lian Veilbinder.md'
+    },
+    'Morvox, Tiny Tyrant': {
+      title: 'Morvox, Tiny Tyrant of the Umbral Staff',
+      desc: 'Build Malice from spell hits/fails; Dark Star + Event Horizon control; big single-target burst.',
+      refs: 'Morvox, Tiny Tyrant.md'
+    },
+    'Seraphine Emberwright': {
+      title: 'Seraphine Emberwright, Phoenix of the Nine Coals',
+      desc: 'Heat/Overheat loop, Vent nova + ignited terrain, and staff strings; fire boon escalations.',
+      refs: 'Seraphine Emberwright.md'
     }
   };
 
@@ -206,38 +212,43 @@ var RunFlowManager = (function () {
       return;
     }
 
-    var name = (arg || '').trim().replace(/^"|"$/g, '').replace(/_/g, ' ');
-    log('[RunFlow] Ancestor command arg: ' + name);
-    if (!name) {
+    var chosenRaw = (arg || '').trim();
+    if (!chosenRaw) {
       whisperGM('Ancestor Selection', '⚠️ Provide an ancestor name.');
       return;
     }
 
+    var chosen = chosenRaw.replace(/_/g, ' ');
     var options = ANCESTOR_SETS[run.weapon] || [];
-    var selected = null;
+    var valid = null;
     var i;
     for (i = 0; i < options.length; i += 1) {
-      if (options[i].toLowerCase() === name.toLowerCase()) {
-        selected = options[i];
+      if (options[i].toLowerCase() === chosen.toLowerCase()) {
+        valid = options[i];
         break;
       }
     }
 
-    if (!selected) {
-      whisperGM('Ancestor Selection', '⚠️ ' + name + ' is not available for the ' + run.weapon + '.');
+    if (!valid) {
+      whisperGM('Ancestor Selection', '⚠️ ' + chosen + ' is not available for the ' + run.weapon + '.');
       return;
     }
 
-    run.ancestor = selected;
+    run.ancestor = valid;
 
-    var blurb = ANCESTOR_BLURBS[run.ancestor];
+    var info = ANCESTOR_INFO[valid];
+    var head = info ? '<b>' + info.title + '</b>' : '<b>' + valid + '</b>';
+    var blurb = '';
+    if (info) {
+      blurb = '<div style="margin-top:4px;color:#cfc">' + _.escape(info.desc) + '</div>';
+    }
 
     sendDirect('Ancestor Chosen',
-      '🌟 <b>Ancestor blessing secured:</b> ' + run.ancestor + '<br>' +
-      (blurb ? '<i>' + blurb.desc + '</i><br><br>' : '') +
-      'Begin your journey under their guidance!'
+      '🌟 Ancestor blessing secured: ' + head + blurb + '<br>' +
+      'You will gain <b>1 Boon</b> at the end of <b>every room</b> (outside shops).'
     );
-    log('[RunFlow] Ancestor selected: ' + run.ancestor);
+
+    log('[RunFlow] Ancestor selected: ' + valid);
   }
 
   function handleNextRoom(playerid, arg) {
@@ -264,25 +275,19 @@ var RunFlowManager = (function () {
 
     if (!run.ancestor) {
       var weaponAncestors = (ANCESTOR_SETS[run.weapon] || []).map(function (a) {
-        var blurbInfo = ANCESTOR_BLURBS[a];
-        var blurbHTML = '';
-        if (blurbInfo) {
-          blurbHTML = '<div style="margin-top:4px;padding:4px;background:#0a0;color:#eee;"><b>' +
-            blurbInfo.title + '</b><br><span style="color:#cfc;">' + blurbInfo.desc + '</span></div>';
+        var info = ANCESTOR_INFO[a];
+        var safe = a.replace(/\s+/g, '_');
+        var head = info ? '<b>' + info.title + '</b>' : '<b>' + a + '</b>';
+        var blurb = '';
+        if (info) {
+          blurb = '<div style="margin:4px 0 10px 0;color:#cfc">' + _.escape(info.desc) + '</div>';
         }
-        return {
-          label: 'Select ' + a,
-          command: '!selectancestor "' + a + '"',
-          blurb: blurbHTML
-        };
-      });
+        return head + '<br>' + blurb + '[Select ' + a + '](!selectancestor ' + safe + ')';
+      }).join('<br><br>');
 
-      var body = 'Choose your Ancestor (weapon: <b>' + run.weapon + '</b>):<br><br>' +
-        weaponAncestors.map(function (a) {
-          return '[' + a.label + '](' + a.command + ')' + a.blurb;
-        }).join('<br>');
-
-      sendDirect('Ancestor Selection', body);
+      sendDirect('Choose your Ancestor',
+        'Choose your guiding spirit (weapon: <b>' + run.weapon + '</b>):<br><br>' + weaponAncestors
+      );
       log('[RunFlow] Awaiting ancestor selection for ' + run.weapon + '.');
       return;
     }
@@ -298,9 +303,12 @@ var RunFlowManager = (function () {
         '🌀 You may now choose a new <b>Boon</b> inspired by your Ancestor.'
       );
 
-      if (typeof BoonManager !== 'undefined' && run.ancestor) {
-        sendChat('Hoard Run', '/direct ' + formatPanel('Boon Selection',
-          'Use <b>!offerboons ' + run.ancestor + '</b> to choose your next boon from your Ancestor’s path.'));
+      if (typeof BoonManager !== 'undefined' && run.ancestor && run.currentRoom > 1) {
+        var safeAncestor = run.ancestor.replace(/\s+/g, '_');
+        sendDirect('Boon Opportunity',
+          '✨ ' + _.escape(run.ancestor) + ' offers you a new boon choice.<br>' +
+          '[Draw Boons](!offerboons ' + safeAncestor + ')'
+        );
       }
     }
 
