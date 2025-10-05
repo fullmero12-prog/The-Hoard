@@ -12,24 +12,6 @@ var DevTools = (function () {
   var isRegistered = false;
 
   /**
-   * Whisper a message to a specific player when possible.
-   * Falls back to the GM whisper if the player lookup fails.
-   */
-  function whisperPlayer(playerid, message) {
-    if (!playerid) {
-      sendChat('Hoard Run', '/w gm ' + message);
-      return;
-    }
-
-    var player = getObj('player', playerid);
-    if (player) {
-      sendChat('Hoard Run', '/w "' + player.get('displayname') + '" ' + message);
-    } else {
-      sendChat('Hoard Run', '/w gm ' + message);
-    }
-  }
-
-  /**
    * Reset the entire Hoard Run state.
    * Clears all progress, currencies, boons, etc.
    */
@@ -112,11 +94,6 @@ var DevTools = (function () {
 
     var content = (msg.content || '').trim();
     if (!content) {
-      return;
-    }
-
-    if (typeof playerIsGM === 'function' && !playerIsGM(msg.playerid)) {
-      whisperPlayer(msg.playerid, '⚠️ DevTools commands are GM-only.');
       return;
     }
 
