@@ -36,12 +36,37 @@ on('ready', function () {
   // Module Initialization Order
   // ----------------------------------------------------------
   try {
-    if (typeof StateManager !== 'undefined') StateManager.registerCommands();
-    if (typeof DeckManager !== 'undefined') DeckManager.registerCommands();
+    if (
+      typeof StateManager !== 'undefined' &&
+      typeof StateManager.registerCommands === 'function'
+    ) {
+      StateManager.registerCommands();
+    }
+    if (
+      typeof DeckManager !== 'undefined' &&
+      typeof DeckManager.registerCommands === 'function'
+    ) {
+      DeckManager.registerCommands();
+    }
     if (typeof UIManager !== 'undefined') log('UIManager loaded.');
-    if (typeof RoomManager !== 'undefined') RoomManager.registerCommands();
-    if (typeof BoonManager !== 'undefined') BoonManager.registerCommands();
-    if (typeof ShopManager !== 'undefined') ShopManager.registerCommands();
+    if (
+      typeof RoomManager !== 'undefined' &&
+      typeof RoomManager.registerCommands === 'function'
+    ) {
+      RoomManager.registerCommands();
+    }
+    if (
+      typeof BoonManager !== 'undefined' &&
+      typeof BoonManager.registerCommands === 'function'
+    ) {
+      BoonManager.registerCommands();
+    }
+    if (
+      typeof ShopManager !== 'undefined' &&
+      typeof ShopManager.registerCommands === 'function'
+    ) {
+      ShopManager.registerCommands();
+    }
   } catch (err) {
     log('\u26a0\ufe0f HoardRun init error: ' + err);
   }
