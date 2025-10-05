@@ -400,8 +400,12 @@ var RunFlowManager = (function () {
           if (ancestors.length) {
             var ancestorButtons = ancestors.map(function (a) {
               var label = _.escape(a);
-              var commandName = a.replace(/"/g, '\"');
-              return { label: 'Select ' + label, command: '!selectancestor "' + commandName + '"' };
+              // Roll20 strips quoted button arguments, so encode spaces as underscores
+              // and strip stray quotes to keep the ancestor identifier intact.
+              var commandName = String(a || '')
+                .replace(/\s+/g, '_')
+                .replace(/"/g, '');
+              return { label: 'Select ' + label, command: '!selectancestor ' + commandName };
             });
             whisperPanel(pid, 'Choose Your Ancestor',
               '🌟 Bind to an ancestor to unlock room-end boons:<br><br>' + formatButtons(ancestorButtons)
