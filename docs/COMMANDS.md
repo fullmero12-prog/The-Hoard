@@ -16,6 +16,6 @@
 
 ## Developer Utilities (GM Only)
 - `!resetstate` — Wipe all Hoard Run data from the persistent state object.
-- `!debugstate [playerName|playerId]` — Whisper the current Hoard Run JSON (optionally filtered to a player).
+- `!debugstate [playerName|playerId]` — Whisper the current Hoard Run state block (optionally filtered to a player).
 - `!testshop` — Generate a mock Bing, Bang & Bongo shop for the first online player.
 - `!testrelic` — Roll a random relic using DeckManager (falls back to static data if decks are missing).
