@@ -47,7 +47,7 @@ var BoonManager = (function () {
       if (typeof UIManager !== 'undefined' && typeof UIManager.gmLog === 'function') {
         UIManager.gmLog('BoonManager: DeckManager.drawByWeight() not available.');
       } else {
-        sendChat('Hoard Run', '/w gm BoonManager: DeckManager.drawByWeight() not available.');
+        gmSay('BoonManager: DeckManager.drawByWeight() not available.');
       }
       return [];
     }
@@ -82,7 +82,7 @@ var BoonManager = (function () {
       if (typeof UIManager !== 'undefined' && typeof UIManager.gmLog === 'function') {
         UIManager.gmLog('⚠️ No boon cards were drawn from ' + getDeckBase(chosenAncestor) + '.');
       } else {
-        sendChat('Hoard Run', '/w gm ⚠️ No boon cards were drawn from ' + getDeckBase(chosenAncestor) + '.');
+        gmSay('⚠️ No boon cards were drawn from ' + getDeckBase(chosenAncestor) + '.');
       }
       return;
     }
@@ -92,7 +92,7 @@ var BoonManager = (function () {
     if (typeof UIManager !== 'undefined' && typeof UIManager.whisper === 'function') {
       UIManager.whisper(name, 'Ancestor Boons', 'Choose one boon from the menu above.<br>' + buildPricingNote());
     } else {
-      sendChat('Hoard Run', '/w ' + name + ' Choose one boon from the menu above. ' + buildPricingNote());
+      whisperRaw(name, 'Choose one boon from the menu above. ' + buildPricingNote());
     }
   }
 
@@ -134,7 +134,7 @@ var BoonManager = (function () {
       if (typeof UIManager !== 'undefined' && typeof UIManager.gmLog === 'function') {
         UIManager.gmLog('BoonManager: Invalid card id ' + cardId + '.');
       } else {
-        sendChat('Hoard Run', '/w gm BoonManager: Invalid card id ' + cardId + '.');
+        gmSay('BoonManager: Invalid card id ' + cardId + '.');
       }
       return;
     }
@@ -169,7 +169,7 @@ var BoonManager = (function () {
     if (typeof UIManager !== 'undefined' && typeof UIManager.whisper === 'function') {
       UIManager.whisper(playerName, 'Boon Purchased', message);
     } else {
-      sendChat('Hoard Run', '/w ' + playerName + ' ' + message);
+      whisperRaw(playerName, message);
     }
   }
 
@@ -205,4 +205,22 @@ var BoonManager = (function () {
   };
 
 })();
+
+  function gmSay(msg) {
+    var payload = '/w gm ' + msg;
+    if (typeof HRChat !== 'undefined' && HRChat && typeof HRChat.say === 'function') {
+      HRChat.say(payload);
+    } else {
+      sendChat('Hoard Run', payload);
+    }
+  }
+
+  function whisperRaw(target, msg) {
+    var payload = '/w ' + target + ' ' + msg;
+    if (typeof HRChat !== 'undefined' && HRChat && typeof HRChat.say === 'function') {
+      HRChat.say(payload);
+    } else {
+      sendChat('Hoard Run', payload);
+    }
+  }
 

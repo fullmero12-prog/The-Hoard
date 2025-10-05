@@ -46,7 +46,16 @@ var EventManager = (function () {
    * @param {string} msg
    */
   function gmLog(msg) {
-    if (VERBOSE) sendChat('Hoard Run', '/w gm ' + msg);
+    if (!VERBOSE) {
+      return;
+    }
+
+    var payload = '/w gm ' + msg;
+    if (typeof HRChat !== 'undefined' && HRChat && typeof HRChat.say === 'function') {
+      HRChat.say(payload);
+    } else {
+      sendChat('Hoard Run', payload);
+    }
   }
 
   // ------------------------------------------------------------

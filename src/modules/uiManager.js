@@ -50,7 +50,12 @@ var UIManager = (function () {
    * @param {string} bodyHTML
    */
   function whisper(playerName, title, bodyHTML) {
-    sendChat('Hoard Run', '/w ' + playerName + ' ' + panel(title, bodyHTML));
+    var payload = '/w ' + playerName + ' ' + panel(title, bodyHTML);
+    if (typeof HRChat !== 'undefined' && HRChat && typeof HRChat.say === 'function') {
+      HRChat.say(payload);
+    } else {
+      sendChat('Hoard Run', payload);
+    }
   }
 
   /**
@@ -58,7 +63,12 @@ var UIManager = (function () {
    * @param {string} msg
    */
   function gmLog(msg) {
-    sendChat('Hoard Run', '/w gm ' + msg);
+    var payload = '/w gm ' + msg;
+    if (typeof HRChat !== 'undefined' && HRChat && typeof HRChat.say === 'function') {
+      HRChat.say(payload);
+    } else {
+      sendChat('Hoard Run', payload);
+    }
   }
 
   // ------------------------------------------------------------
