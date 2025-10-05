@@ -43,6 +43,52 @@ on('ready', function () {
 
   log('=== Hoard Run ' + VERSION + ' initializing... ===');
 
+  // === Hoard Run Command Listener ===
+  on('chat:message', (msg) => {
+    if (msg.type !== 'api') return;
+
+    const args = msg.content.trim().split(/\s+/);
+    const command = args.shift().toLowerCase();
+
+    // --- !startrun ---
+    if (command === '!startrun') {
+      if (!state.HoardRun) state.HoardRun = {};
+      state.HoardRun.activeRun = {
+        currentRoom: 1,
+        scrip: 0,
+        fse: 0,
+        rerollTokens: 0,
+        squares: 0,
+        ancestor: 'Azuren',
+        started: true
+      };
+
+      sendChat('Hoard Run', '/w gm 🏁 <b>Run started!</b><br>Room 1 ready.<br>Scrip: 0 | FSE: 0 | Ancestor: Azuren');
+      log('[Hoard Run] Run started.');
+    }
+
+    // --- !nextroom ---
+    if (command === '!nextroom') {
+      if (!state.HoardRun?.activeRun?.started) {
+        sendChat('Hoard Run', '/w gm ⚠️ No active run. Use !startrun first.');
+        return;
+      }
+
+      const run = state.HoardRun.activeRun;
+      run.currentRoom += 1;
+      run.scrip += 20;
+      run.fse += 1;
+
+      sendChat('Hoard Run', `/w gm ▶️ Advanced to Room ${run.currentRoom}.<br>+20 Scrip, +1 FSE<br>Total — Scrip: ${run.scrip}, FSE: ${run.fse}`);
+    }
+
+    // --- !debugstate ---
+    if (command === '!debugstate') {
+      sendChat('Hoard Run', `/w gm <pre>${JSON.stringify(state.HoardRun, null, 2)}</pre>`);
+      log('[Hoard Run] State dump sent.');
+    }
+  });
+
   // ------------------------------------------------------------
   // Register all modules if available
   // ------------------------------------------------------------
