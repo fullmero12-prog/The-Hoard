@@ -244,6 +244,22 @@ var RunFlowManager = (function () {
     run.ancestor = valid;
     run.lastPrompt = null;
 
+    if (typeof StateManager !== 'undefined' && typeof StateManager.getPlayer === 'function') {
+      var gmPlayer = StateManager.getPlayer(playerid) || {};
+      gmPlayer.ancestor_id = valid;
+      if (typeof StateManager.setPlayer === 'function') {
+        StateManager.setPlayer(playerid, gmPlayer);
+      } else {
+        if (!state.HoardRun) {
+          state.HoardRun = {};
+        }
+        if (!state.HoardRun.players) {
+          state.HoardRun.players = {};
+        }
+        state.HoardRun.players[playerid] = gmPlayer;
+      }
+    }
+
     var info = ANCESTOR_INFO[valid];
     var head = info ? '<b>' + _.escape(info.title) + '</b>' : '<b>' + _.escape(valid) + '</b>';
     var blurb = info ? '<div style="margin-top:4px;color:#bbb">' + _.escape(info.desc) + '</div>' : '';
@@ -329,10 +345,9 @@ var RunFlowManager = (function () {
         );
 
         if (typeof BoonManager !== 'undefined' && run.ancestor && run.currentRoom > 1) {
-          var safe = run.ancestor.replace(/\s+/g, '_');
           sendDirect('Boon Opportunity',
             '✨ ' + _.escape(run.ancestor) + ' offers a new boon choice.<br>' +
-            '[Draw Boons](!offerboons ' + safe + ')'
+            '[Draw Boons](!offerboons)'
           );
         }
       }
