@@ -376,10 +376,12 @@ var RunFlowManager = (function () {
             var info = ANCESTOR_INFO[a] || { title: a, desc: '' };
             var commandName = a.replace(/"/g, '\"');
             return (
-              '<div style="margin:6px 0 12px 0; padding:8px; border:1px solid #444; background:#111;">' +
-                '<div style="font-weight:bold; color:#fff;">' + _.escape(info.title) + '</div>' +
-                '<div style="margin-top:4px; color:#bbb;">' + _.escape(info.desc) + '</div>' +
-                '<div style="margin-top:8px;">[Select ' + _.escape(a) + '](!selectancestor "' + commandName + '")</div>' +
+              '<div style=\'margin:6px 0 12px 0; padding:8px; border:1px solid #444; background:#111; display:flex; flex-direction:column;\'>' +
+                '<div style=\'flex:1 1 auto; display:flex; flex-direction:column;\'>' +
+                  '<div style=\'font-weight:bold; color:#fff;\'>' + _.escape(info.title) + '</div>' +
+                  '<div style=\'margin-top:4px; color:#bbb;\'>' + _.escape(info.desc) + '</div>' +
+                '</div>' +
+                '<div style=\'margin-top:auto; display:block; width:100%; padding-top:8px;\'>[Select ' + _.escape(a) + '](!selectancestor "' + commandName + '")</div>' +
               '</div>'
             );
           }).join('');
