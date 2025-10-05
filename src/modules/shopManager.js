@@ -18,7 +18,7 @@ var ShopManager = (function () {
     { min: 19, max: 20, rarity: "S" }
   ];
 
-  const RELIC_PRICES = { C: 25, G: 45, S: 80 };
+  const RELIC_PRICES = { C: 30, G: 50, S: 70 };
   const BOON_PRICES = { C: 45, G: 70, S: 90 };
   const COST_REROLL_SLOT = 15;
   const COST_REROLL_FULL = 35;
@@ -80,14 +80,35 @@ var ShopManager = (function () {
   }
 
   /** Creates a generic slot payload */
-  function buildSlot(type, rarity, card, price) {
-    return {
+  function buildSlot(type, rarity, card, price, extras) {
+    if (!card) {
+      return null;
+    }
+
+    var id = typeof card.id !== "undefined" ? card.id : "";
+    var name = typeof card.get === "function" ? card.get("name") : card.name;
+
+    var slot = {
       type,
       rarity,
-      cardId: card.id,
-      cardName: card.get("name"),
+      cardId: id,
+      cardName: name,
       price
     };
+
+    if (card.isStub) {
+      slot.isStub = true;
+      slot.cardData = card.data || null;
+      slot.deckSource = card.deckSource || null;
+    }
+
+    if (extras) {
+      Object.keys(extras).forEach(key => {
+        slot[key] = extras[key];
+      });
+    }
+
+    return slot;
   }
 
   /** Builds the special slot (boon or focus upgrade) */
@@ -148,7 +169,20 @@ var ShopManager = (function () {
         : "Relics.Signature";
     const card = DeckManager.drawOne(deckName);
     if (!card) return null;
-    return buildSlot("relic", rarity, card, RELIC_PRICES[rarity]);
+
+    const extras = {};
+    var price = RELIC_PRICES[rarity];
+    if (card.isStub && card.data && typeof card.data.price === "number") {
+      price = card.data.price;
+    }
+
+    if (card.isStub) {
+      extras.isStub = true;
+      extras.cardData = card.data;
+      extras.deckSource = card.deckSource;
+    }
+
+    return buildSlot("relic", rarity, card, price, extras);
   }
 
   /** Generates the 5-slot shop layout */
@@ -247,21 +281,27 @@ var ShopManager = (function () {
     }
 
     const card = getObj("card", cardId);
-    if (!card) {
+    if (!card && !slot.isStub) {
       whisper(playerid, "Could not find that card.");
       playerState.scrip += slot.price;
       return;
     }
 
+    const record = { id: cardId, name: slot.cardName };
+    if (slot.cardData) {
+      record.data = slot.cardData;
+      record.rarity = slot.rarity;
+    }
+
     if (slot.type === "relic") {
-      playerState.relics.push({ id: cardId, name: slot.cardName });
+      playerState.relics.push(record);
     } else if (slot.type === "boon") {
-      playerState.boons.push({ id: cardId, name: slot.cardName });
+      playerState.boons.push(record);
     } else if (slot.type === "upgrade") {
       if (!playerState.upgrades) {
         playerState.upgrades = [];
       }
-      playerState.upgrades.push({ id: cardId, name: slot.cardName });
+      playerState.upgrades.push(record);
     }
 
     shop.slots.splice(index, 1);
