@@ -1,11 +1,11 @@
 # Hoard Run Commands
 
 ## Corridor Flow
-- `!startrun` — Begin a new Hoard Run for the issuing player. Resets currencies, inventory, and room progress via `StateManager`.
+- `!startrun` — Begin a new Hoard Run for the issuing player. Resets currencies, inventory, and room progress.
 - `!selectweapon <Weapon>` — Lock in the party's starting focus (Staff, Orb, Greataxe, Rapier, Bow).
 - `!selectancestor <Name>` — Bind the Ancestor boon package tied to the chosen weapon.
-- `!nextroom` — Advance the scripted Hoard Run flow (ancestor prompts, free boon phase, room counter). Delegates currency and corridor tracking to `StateManager` so totals stay in sync with manual advances.
-- `!nextr room|miniboss|boss` — Advance to the next room type using `RoomManager`. Shares the same `StateManager` helpers as `!nextroom`, so rewards and progress only trigger once per command.
+- `!nextroom` — Advance the scripted Hoard Run flow (ancestor prompts, free boon phase, room counter).
+- `!nextr room|miniboss|boss` — Advance to the next room type in the legacy corridor system and award rewards.
 
 ## Shops & Economy
 - `!openshop` — Summon Bing, Bang & Bongo's shop interface for purchases.
