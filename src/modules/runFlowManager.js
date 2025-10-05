@@ -4,7 +4,7 @@
 // What this does (in simple terms):
 //   Directs the opening beats of a Hoard Run campaign.
 //   Handles starting the run, weapon selection, ancestor binding,
-//   the first free boon phase, and steady room progression.
+//   introduces ancestors, and steady room progression with post-room boons.
 //   Designed to complement existing managers (Boon/Event/Relic).
 // ------------------------------------------------------------
 
@@ -17,7 +17,6 @@ var RunFlowManager = (function () {
     currentRoom: 0,
     weapon: null,
     ancestor: null,
-    freeBoonUsed: false,
     scrip: 0,
     fse: 0,
     rerollTokens: 0,
@@ -33,6 +32,33 @@ var RunFlowManager = (function () {
     Greataxe: ['Vladren Moroi', 'Morvox, Tiny Tyrant'],
     Rapier: ['Lian Veilbinder', 'Vladren Moroi'],
     Bow: ['Azuren', 'Lian Veilbinder']
+  };
+
+  var ANCESTOR_BLURBS = {
+    'Azuren': {
+      title: 'Azuren — The Stormheart',
+      desc: 'Master of wind and storm. Empowers mobility, deflection, and ranged control.'
+    },
+    'Sutra Vayla': {
+      title: 'Sutra Vayla — The Mindroot',
+      desc: 'Wielder of psychic calm. Focused on discipline, shielding, and insight.'
+    },
+    'Seraphine Emberwright': {
+      title: 'Seraphine Emberwright — The Phoenix Binder',
+      desc: 'Channels renewal and fire. Rewards aggression and self-healing.'
+    },
+    'Vladren Moroi': {
+      title: 'Vladren Moroi — The Blood Sovereign',
+      desc: 'Harnesses vitality through sacrifice. Thrives when near death.'
+    },
+    'Morvox, Tiny Tyrant': {
+      title: 'Morvox, Tiny Tyrant — The Iron Whelp',
+      desc: 'Defies odds with overwhelming presence. Bolsters allies through fury.'
+    },
+    'Lian Veilbinder': {
+      title: 'Lian Veilbinder — The Shadowed Blade',
+      desc: 'Dances between light and dark. Prefers precision and calculated strikes.'
+    }
   };
 
   // ------------------------------------------------------------
@@ -89,20 +115,6 @@ var RunFlowManager = (function () {
     }).join('<br>');
   }
 
-  function promptAncestorSelection(run) {
-    var weaponAncestors = (ANCESTOR_SETS[run.weapon] || []).map(function (a) {
-      // encode spaces so Roll20 buttons can handle multi-word names
-      var safeName = a.replace(/\s+/g, '_');
-      return { label: 'Select ' + a, command: '!selectancestor ' + safeName };
-    });
-
-    var body = 'Choose your Ancestor (weapon: <b>' + run.weapon + '</b>):<br><br>' +
-      formatButtons(weaponAncestors);
-
-    sendDirect('Ancestor Selection', body);
-    log('[RunFlow] Awaiting ancestor selection for ' + run.weapon + '.');
-  }
-
   function sendDirect(title, bodyHTML) {
     sendChat('Hoard Run', '/direct ' + formatPanel(title, bodyHTML));
   }
@@ -127,15 +139,6 @@ var RunFlowManager = (function () {
       }
     }
     return null;
-  }
-
-  function grantFreeBoons(run) {
-    run.freeBoonUsed = true;
-    run.rerollTokens += 1;
-    sendDirect('Free Boon Phase',
-      '🎁 You gain <b>2 free Boons</b> and <b>+1 Reroll Token</b>.<br><br>' +
-      'Use <code>!offerboons ' + run.ancestor + '</code> to choose your starting boons.'
-    );
   }
 
   // ------------------------------------------------------------
@@ -199,7 +202,7 @@ var RunFlowManager = (function () {
       return;
     }
 
-    var name = (arg || '').trim().replace(/_/g, ' ');
+    var name = (arg || '').trim().replace(/^"|"$/g, '').replace(/_/g, ' ');
     log('[RunFlow] Ancestor command arg: ' + name);
     if (!name) {
       whisperGM('Ancestor Selection', '⚠️ Provide an ancestor name.');
@@ -207,37 +210,30 @@ var RunFlowManager = (function () {
     }
 
     var options = ANCESTOR_SETS[run.weapon] || [];
-    var isValid = false;
+    var selected = null;
     var i;
     for (i = 0; i < options.length; i += 1) {
       if (options[i].toLowerCase() === name.toLowerCase()) {
-        name = options[i];
-        isValid = true;
+        selected = options[i];
         break;
       }
     }
 
-    if (!isValid) {
+    if (!selected) {
       whisperGM('Ancestor Selection', '⚠️ ' + name + ' is not available for the ' + run.weapon + '.');
       return;
     }
 
-    run.ancestor = name;
+    run.ancestor = selected;
 
-    var info = typeof AncestorDataLoader !== 'undefined' ? AncestorDataLoader.get(name) : null;
-    if (info) {
-      sendChat('Hoard Run', '/w gm <b>' + name + ' — ' + info.title + '</b><br>' + info.summary);
-    } else {
-      sendChat('Hoard Run', '/w gm No info found for ' + name + '.');
-    }
+    var blurb = ANCESTOR_BLURBS[run.ancestor];
 
-    sendDirect('Ancestor Chosen', '🌟 Ancestor blessing secured: <b>' + name + '</b>.<br>' +
-      'When you enter Room 2, you will gain 2 free Boons and +1 Reroll token.');
-    log('[RunFlow] Ancestor selected: ' + name);
-
-    if (run.currentRoom === 2 && !run.freeBoonUsed) {
-      grantFreeBoons(run);
-    }
+    sendDirect('Ancestor Chosen',
+      '🌟 <b>Ancestor blessing secured:</b> ' + run.ancestor + '<br>' +
+      (blurb ? '<i>' + blurb.desc + '</i><br><br>' : '') +
+      'Begin your journey under their guidance!'
+    );
+    log('[RunFlow] Ancestor selected: ' + run.ancestor);
   }
 
   function handleNextRoom(playerid, arg) {
@@ -255,70 +251,56 @@ var RunFlowManager = (function () {
       return;
     }
 
-    var type = (arg || '').trim().toLowerCase();
-    var reward = { scrip: 20, fse: 1, squareChance: 0, label: 'Standard Room' };
+    run.currentRoom += 1;
 
-    if (type === 'miniboss') {
-      reward = { scrip: 20, fse: 2, squareChance: 0.5, label: 'Miniboss Room' };
-    } else if (type === 'boss') {
-      reward = { scrip: 40, fse: 5, squareChance: 0.5, label: 'Boss Room' };
-    }
-
-    if (run.currentRoom === 2 && !run.ancestor) {
-      promptAncestorSelection(run);
+    if (run.currentRoom === 1) {
+      sendDirect('Room 1 Ready', '⚔️ Choose your weapon first with <b>!selectweapon</b>.');
       return;
     }
 
-    var nextRoom = run.currentRoom + 1;
+    if (!run.ancestor) {
+      var weaponAncestors = (ANCESTOR_SETS[run.weapon] || []).map(function (a) {
+        var blurbInfo = ANCESTOR_BLURBS[a];
+        var blurbHTML = '';
+        if (blurbInfo) {
+          blurbHTML = '<div style="margin-top:4px;padding:4px;background:#0a0;color:#eee;"><b>' +
+            blurbInfo.title + '</b><br><span style="color:#cfc;">' + blurbInfo.desc + '</span></div>';
+        }
+        return {
+          label: 'Select ' + a,
+          command: '!selectancestor "' + a + '"',
+          blurb: blurbHTML
+        };
+      });
 
-    if (nextRoom === 2 && !run.ancestor) {
-      run.currentRoom = nextRoom;
-      promptAncestorSelection(run);
+      var body = 'Choose your Ancestor (weapon: <b>' + run.weapon + '</b>):<br><br>' +
+        weaponAncestors.map(function (a) {
+          return '[' + a.label + '](' + a.command + ')' + a.blurb;
+        }).join('<br>');
+
+      sendDirect('Ancestor Selection', body);
+      log('[RunFlow] Awaiting ancestor selection for ' + run.weapon + '.');
       return;
     }
 
-    if (nextRoom === 2 && run.ancestor && !run.freeBoonUsed) {
-      run.currentRoom = nextRoom;
-      grantFreeBoons(run);
-      return;
-    }
+    if (run.currentRoom > 1) {
+      run.scrip += 20;
+      run.fse += 1;
 
-    run.currentRoom = nextRoom;
-    run.scrip += reward.scrip;
-    run.fse += reward.fse;
-
-    var squareDropped = false;
-    if (reward.squareChance > 0 && Math.random() < reward.squareChance) {
-      run.squares += 1;
-      squareDropped = true;
-    }
-
-    var rewardSummary =
-      '🏆 <b>' + reward.label + ' Cleared!</b><br>' +
-      '+<b>' + reward.scrip + ' Scrip</b>, ' +
-      '+<b>' + reward.fse + ' FSE</b>' +
-      (reward.squareChance ? ', 💠 ' + (squareDropped ? 'Square acquired!' : 'Square chance rolled') : '') + '<br><br>';
-
-    sendDirect('Room Complete',
-      rewardSummary +
-      'Advancing to <b>Room ' + run.currentRoom + '</b>...'
-    );
-
-    if (typeof BoonManager !== 'undefined' && run.ancestor && run.currentRoom > 1) {
-      sendDirect('Boon Opportunity',
-        '✨ <b>' + run.ancestor + '</b> offers you a new boon choice.<br>' +
-        'Use <code>!offerboons ' + run.ancestor + '</code> to draw your options.<br>' +
-        '<small>(This boon is free — no Scrip cost outside shops.)</small>'
+      sendDirect('Room Complete',
+        '🏁 <b>Room ' + (run.currentRoom - 1) + '</b> cleared!<br>' +
+        '+20 Scrip, +1 FSE earned.<br><br>' +
+        'Total — Scrip: <b>' + run.scrip + '</b> | FSE: <b>' + run.fse + '</b><br><br>' +
+        '🌀 You may now choose a new <b>Boon</b> inspired by your Ancestor.'
       );
+
+      if (typeof BoonManager !== 'undefined' && run.ancestor) {
+        sendChat('Hoard Run', '/direct ' + formatPanel('Boon Selection',
+          'Use <b>!offerboons ' + run.ancestor + '</b> to choose your next boon from your Ancestor’s path.'));
+      }
     }
 
-    log('[RunFlow] Advanced to Room ' + run.currentRoom +
-      ' | Type: ' + reward.label +
-      ' | Scrip: ' + run.scrip +
-      ' | FSE: ' + run.fse +
-      ' | Squares: ' + run.squares +
-      (squareDropped ? ' (Square awarded)' : '') +
-      ' | Arg: ' + (type || 'standard'));
+    log('[RunFlow] Advanced to room ' + run.currentRoom + '.');
   }
 
   // ------------------------------------------------------------
