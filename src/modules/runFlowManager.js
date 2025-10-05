@@ -18,7 +18,8 @@ var RunFlowManager = (function () {
     weapon: null,
     ancestor: null,
     started: false,
-    lastPrompt: null
+    lastPrompt: null,
+    enteredFirstRoom: false
   };
 
   var WEAPONS = ['Staff', 'Orb', 'Greataxe', 'Rapier', 'Bow'];
@@ -199,6 +200,7 @@ var RunFlowManager = (function () {
 
     run.weapon = weapon;
     run.lastPrompt = null;
+    run.enteredFirstRoom = false;
 
     if (typeof StateManager !== 'undefined' && typeof StateManager.getPlayer === 'function') {
       StateManager.initPlayer(playerid);
@@ -208,6 +210,10 @@ var RunFlowManager = (function () {
         StateManager.setCurrentRoom(playerid, 0);
       } else {
         playerState.currentRoom = 0;
+      }
+      playerState.hasEnteredFirstRoom = false;
+      if (typeof StateManager.setPlayer === 'function') {
+        StateManager.setPlayer(playerid, playerState);
       }
     }
 
@@ -363,6 +369,29 @@ var RunFlowManager = (function () {
 
       var clearedRoom = null;
       var totals = null;
+
+      var playerState = null;
+      var hasEnteredFirstRoom = false;
+      if (typeof StateManager !== 'undefined' && typeof StateManager.getPlayer === 'function') {
+        StateManager.initPlayer(playerid);
+        playerState = StateManager.getPlayer(playerid);
+        hasEnteredFirstRoom = !!playerState.hasEnteredFirstRoom;
+      }
+
+      if (!hasEnteredFirstRoom && !run.enteredFirstRoom) {
+        if (playerState) {
+          playerState.hasEnteredFirstRoom = true;
+          if (typeof StateManager.setPlayer === 'function') {
+            StateManager.setPlayer(playerid, playerState);
+          }
+        }
+        run.enteredFirstRoom = true;
+        sendDirect('Room 1 Ready',
+          '⚔️ The first chamber opens. Run the encounter, then use <b>!nextroom</b> again to claim rewards.'
+        );
+        log('[RunFlow] Room 1 engaged. Awaiting completion before awarding rewards.');
+        return;
+      }
 
       if (typeof StateManager !== 'undefined') {
         if (typeof StateManager.incrementRoom === 'function') {

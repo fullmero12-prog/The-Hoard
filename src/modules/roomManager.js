@@ -70,13 +70,26 @@ var RoomManager = (function () {
 
     StateManager.initPlayer(playerid);
 
+    var playerState = StateManager.getPlayer(playerid);
+    if (!playerState.hasEnteredFirstRoom) {
+      playerState.hasEnteredFirstRoom = true;
+      if (typeof StateManager.setPlayer === 'function') {
+        StateManager.setPlayer(playerid, playerState);
+      }
+      UIManager.whisper(
+        playerName,
+        'Room 1 Ready',
+        '⚔️ The first chamber opens. Clear it, then use !nextr again to claim rewards.'
+      );
+      return;
+    }
+
     var clearedRoom = 0;
     if (typeof StateManager.incrementRoom === 'function') {
       clearedRoom = StateManager.incrementRoom(playerid);
     } else {
-      var fallback = StateManager.getPlayer(playerid);
-      fallback.currentRoom = (fallback.currentRoom || 0) + 1;
-      clearedRoom = fallback.currentRoom;
+      playerState.currentRoom = (playerState.currentRoom || 0) + 1;
+      clearedRoom = playerState.currentRoom;
     }
 
     applyRewards(playerid, safeType);
@@ -158,6 +171,7 @@ var RoomManager = (function () {
       p.relics = [];
       p.boonOffered = false;
       p.firstClearAwarded = false;
+      p.hasEnteredFirstRoom = false;
     }
 
     UIManager.whisper(

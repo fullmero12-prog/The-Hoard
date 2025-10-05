@@ -25,8 +25,9 @@ var StateManager = (function () {
     relics: [],
     upgrades: [],
     focus: 'Staff',
-    currentRoom: 1,
-    corridorLength: 6
+    currentRoom: 0,
+    corridorLength: 6,
+    hasEnteredFirstRoom: false
   };
 
   /** Initializes the global storage if it doesn't exist */
@@ -99,6 +100,7 @@ var StateManager = (function () {
     p.relics = [];
     p.upgrades = [];
     p.firstClearAwarded = false;
+    p.hasEnteredFirstRoom = false;
     return p;
   }
 
