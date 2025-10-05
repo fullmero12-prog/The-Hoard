@@ -13,3 +13,8 @@
 
 ## Currency Utilities
 - `!tradeSquares scrip|fse` — Convert Squares into the specified currency reward.
+
+## Developer Utilities (GM Only)
+- `!resetstate` — Wipe all Hoard Run data from the persistent state object.
+- `!debugstate [playerName|playerId]` — Whisper the current Hoard Run JSON (optionally filtered to a player).
+- `!testshop` — Generate a mock Bing, Bang & Bongo shop for the first online player.
