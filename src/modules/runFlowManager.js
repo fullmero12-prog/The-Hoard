@@ -34,30 +34,30 @@ var RunFlowManager = (function () {
     Bow: ['Azuren', 'Lian Veilbinder']
   };
 
-  var ANCESTOR_BLURBS = {
+  var ANCESTOR_INFO = {
     'Azuren': {
-      title: 'Azuren — The Stormheart',
+      title: 'The Stormheart',
       desc: 'Master of wind and storm. Empowers mobility, deflection, and ranged control.'
     },
     'Sutra Vayla': {
-      title: 'Sutra Vayla — The Mindroot',
-      desc: 'Wielder of psychic calm. Focused on discipline, shielding, and insight.'
+      title: 'The Woven Sun',
+      desc: 'Weaver of radiant barriers and healing light. Inspires protection and focus.'
     },
     'Seraphine Emberwright': {
-      title: 'Seraphine Emberwright — The Phoenix Binder',
-      desc: 'Channels renewal and fire. Rewards aggression and self-healing.'
+      title: 'The Foreglight',
+      desc: 'Radiant artist who channels flame into healing, renewal, and creative power.'
     },
     'Vladren Moroi': {
-      title: 'Vladren Moroi — The Blood Sovereign',
-      desc: 'Harnesses vitality through sacrifice. Thrives when near death.'
-    },
-    'Morvox, Tiny Tyrant': {
-      title: 'Morvox, Tiny Tyrant — The Iron Whelp',
-      desc: 'Defies odds with overwhelming presence. Bolsters allies through fury.'
+      title: 'The Blood Sage',
+      desc: 'Scholar of life and decay. Balances vitality through sacrifice and shadow.'
     },
     'Lian Veilbinder': {
-      title: 'Lian Veilbinder — The Shadowed Blade',
-      desc: 'Dances between light and dark. Prefers precision and calculated strikes.'
+      title: 'The Threadweaver',
+      desc: 'Manipulator of fate and illusion. Shifts outcomes with elegance and cunning.'
+    },
+    'Morvox, Tiny Tyrant': {
+      title: 'The Shard King',
+      desc: 'Greedy genius of crystal and willpower. Turns ambition into unstoppable force.'
     }
   };
 
@@ -206,38 +206,36 @@ var RunFlowManager = (function () {
       return;
     }
 
-    var name = (arg || '').trim().replace(/^"|"$/g, '').replace(/_/g, ' ');
-    log('[RunFlow] Ancestor command arg: ' + name);
-    if (!name) {
+    var chosen = (arg || '').trim().replace(/^"|"$/g, '').replace(/_/g, ' ');
+    if (!chosen) {
       whisperGM('Ancestor Selection', '⚠️ Provide an ancestor name.');
       return;
     }
 
-    var options = ANCESTOR_SETS[run.weapon] || [];
-    var selected = null;
+    var available = ANCESTOR_SETS[run.weapon] || [];
+    var valid = null;
     var i;
-    for (i = 0; i < options.length; i += 1) {
-      if (options[i].toLowerCase() === name.toLowerCase()) {
-        selected = options[i];
+    for (i = 0; i < available.length; i += 1) {
+      if (available[i].toLowerCase() === chosen.toLowerCase()) {
+        valid = available[i];
         break;
       }
     }
 
-    if (!selected) {
-      whisperGM('Ancestor Selection', '⚠️ ' + name + ' is not available for the ' + run.weapon + '.');
+    if (!valid) {
+      whisperGM('Ancestor Selection', '⚠️ ' + chosen + ' is not available for the ' + run.weapon + '.');
       return;
     }
 
-    run.ancestor = selected;
-
-    var blurb = ANCESTOR_BLURBS[run.ancestor];
+    run.ancestor = valid;
 
     sendDirect('Ancestor Chosen',
-      '🌟 <b>Ancestor blessing secured:</b> ' + run.ancestor + '<br>' +
-      (blurb ? '<i>' + blurb.desc + '</i><br><br>' : '') +
-      'Begin your journey under their guidance!'
+      '🌟 <b>Ancestor blessing secured:</b> <b>' + valid + '</b>.<br>' +
+      'You will now gain <b>1 Boon</b> after each completed room.<br><br>' +
+      'When you clear your first room, use <code>!offerboons</code> to select your free boon.'
     );
-    log('[RunFlow] Ancestor selected: ' + run.ancestor);
+
+    log('[RunFlow] Ancestor selected: ' + valid);
   }
 
   function handleNextRoom(playerid, arg) {
@@ -257,32 +255,17 @@ var RunFlowManager = (function () {
 
     run.currentRoom += 1;
 
-    if (run.currentRoom === 1) {
-      sendDirect('Room 1 Ready', '⚔️ Choose your weapon first with <b>!selectweapon</b>.');
-      return;
-    }
+    if (run.currentRoom === 1 && !run.ancestor) {
+      var ancestors = (ANCESTOR_SETS[run.weapon] || []).map(function (a) {
+        var info = ANCESTOR_INFO[a] || { title: '', desc: '' };
+        return '<b>' + a + '</b> — ' + info.title + '<br><i>' + info.desc + '</i><br>' +
+          '[Select ' + a + '](!selectancestor "' + a + '")<br><br>';
+      }).join('');
 
-    if (!run.ancestor) {
-      var weaponAncestors = (ANCESTOR_SETS[run.weapon] || []).map(function (a) {
-        var blurbInfo = ANCESTOR_BLURBS[a];
-        var blurbHTML = '';
-        if (blurbInfo) {
-          blurbHTML = '<div style="margin-top:4px;padding:4px;background:#0a0;color:#eee;"><b>' +
-            blurbInfo.title + '</b><br><span style="color:#cfc;">' + blurbInfo.desc + '</span></div>';
-        }
-        return {
-          label: 'Select ' + a,
-          command: '!selectancestor "' + a + '"',
-          blurb: blurbHTML
-        };
-      });
+      sendDirect('Choose Your Ancestor',
+        'Choose your guiding spirit (weapon: <b>' + run.weapon + '</b>):<br><br>' + ancestors
+      );
 
-      var body = 'Choose your Ancestor (weapon: <b>' + run.weapon + '</b>):<br><br>' +
-        weaponAncestors.map(function (a) {
-          return '[' + a.label + '](' + a.command + ')' + a.blurb;
-        }).join('<br>');
-
-      sendDirect('Ancestor Selection', body);
       log('[RunFlow] Awaiting ancestor selection for ' + run.weapon + '.');
       return;
     }
