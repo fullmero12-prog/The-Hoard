@@ -34,7 +34,7 @@ The Roll20 implementation should maintain separate decks for each category. Tag 
 
 * **Purpose**: Fast, strong in-run power spikes. Some can later be Minted.
 * **Rarity Spread**: Common, Greater, Signature.
-* **Shop Pricing**: C 25 Scrip, G 45 Scrip, S 80 Scrip.
+* **Shop Pricing**: C 30 Scrip, G 50 Scrip, S 70 Scrip (matches relics.js + DeckManager fallback data).
 * **Schema**:
   * Name
   * Rarity
