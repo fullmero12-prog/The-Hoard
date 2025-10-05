@@ -114,44 +114,6 @@ var RunFlowManager = (function () {
     }).join('<br>');
   }
 
-  function buildAncestorButtons(weapon) {
-    var options = ANCESTOR_SETS[weapon] || [];
-    function cmdFor(a) {
-      return '!selectancestor ' + JSON.stringify(a);
-    }
-    var hasUIButtons = (typeof UIManager !== 'undefined' && UIManager && typeof UIManager.buttons === 'function');
-
-    if (hasUIButtons) {
-      return UIManager.buttons(options.map(function (a) {
-        return { label: 'Select ' + a, command: cmdFor(a) };
-      }));
-    }
-
-    return options.map(function (a) {
-      var info = ANCESTOR_INFO[a] || { title: a, desc: '' };
-      return (
-        '<div style="margin:6px 0 12px 0; padding:8px; border:1px solid #444; background:#111;">' +
-          '<div style="font-weight:bold; color:#fff;">' + _.escape(info.title) + '</div>' +
-          '<div style="margin-top:4px; color:#bbb;">' + _.escape(info.desc) + '</div>' +
-          '<div style="margin-top:8px;">[Select ' + _.escape(a) + '](' + cmdFor(a) + ')</div>' +
-        '</div>'
-      );
-    }).join('');
-  }
-
-  function buildAncestorDetails(weapon) {
-    var options = ANCESTOR_SETS[weapon] || [];
-    return options.map(function (a) {
-      var info = ANCESTOR_INFO[a] || { title: a, desc: '' };
-      return (
-        '<div style="margin:6px 0 12px 0; padding:8px; border:1px solid #444; background:#111;">' +
-          '<div style="font-weight:bold; color:#fff;">' + _.escape(info.title) + '</div>' +
-          '<div style="margin-top:4px; color:#bbb;">' + _.escape(info.desc) + '</div>' +
-        '</div>'
-      );
-    }).join('');
-  }
-
   function sendDirect(title, bodyHTML) {
     if (typeof HRChat !== 'undefined' && HRChat && typeof HRChat.direct === 'function') {
       HRChat.direct(formatPanel(title, bodyHTML));
@@ -310,34 +272,25 @@ var RunFlowManager = (function () {
       return;
     }
 
-    var raw = (arg || '').trim();
-    raw = raw.replace(/^"|"$/g, '');
-    raw = raw.replace(/_/g, ' ');
+    var name = (arg || '').trim().replace(/^"|"$/g, '');
+    name = name.replace(/_/g, ' ');
+    if (!name) { whisperGM('Ancestor Selection', '⚠️ Provide an ancestor name.'); return; }
 
     var options = ANCESTOR_SETS[run.weapon] || [];
-    if (!raw && options.length === 1) {
-      raw = options[0];
-    }
-
-    if (!raw) {
-      whisperGM('Ancestor Selection', '⚠️ Provide an ancestor name.');
-      return;
-    }
-
     var canon = null;
-    var normalized = raw.toLowerCase();
-    var idx;
-    for (idx = 0; idx < options.length; idx += 1) {
-      if (options[idx].toLowerCase() === normalized) {
-        canon = options[idx];
-        break;
+    if (options && typeof options.find === 'function') {
+      canon = options.find(function(a){ return a.toLowerCase() === name.toLowerCase(); });
+    }
+    if (!canon) {
+      var idx;
+      for (idx = 0; idx < options.length; idx += 1) {
+        if (options[idx].toLowerCase() === name.toLowerCase()) {
+          canon = options[idx];
+          break;
+        }
       }
     }
-
-    if (!canon) {
-      whisperGM('Ancestor Selection', '⚠️ ' + raw + ' is not available for the ' + run.weapon + '.');
-      return;
-    }
+    if (!canon) { whisperGM('Ancestor Selection', '⚠️ '+name+' is not available for the '+run.weapon+'.'); return; }
 
     // Save on the PLAYER
     if (typeof StateManager !== 'undefined' && StateManager.getPlayer){
@@ -419,14 +372,21 @@ var RunFlowManager = (function () {
         }
 
         if (run.lastPrompt !== 'ancestor') {
-          var ancestorButtons = buildAncestorButtons(run.weapon);
-          var body = 'Players: choose your guiding spirit (weapon: <b>' + run.weapon + '</b>):<br><br>' + ancestorButtons;
-          var hasUIButtons = (typeof UIManager !== 'undefined' && UIManager && typeof UIManager.buttons === 'function');
-          if (hasUIButtons) {
-            body += '<div style="margin-top:12px;">' + buildAncestorDetails(run.weapon) + '</div>';
-          }
+          var html = list.map(function (a) {
+            var info = ANCESTOR_INFO[a] || { title: a, desc: '' };
+            var commandName = a.replace(/"/g, '\"');
+            return (
+              '<div style="margin:6px 0 12px 0; padding:8px; border:1px solid #444; background:#111;">' +
+                '<div style="font-weight:bold; color:#fff;">' + _.escape(info.title) + '</div>' +
+                '<div style="margin-top:4px; color:#bbb;">' + _.escape(info.desc) + '</div>' +
+                '<div style="margin-top:8px;">[Select ' + _.escape(a) + '](!selectancestor "' + commandName + '")</div>' +
+              '</div>'
+            );
+          }).join('');
 
-          sendDirect('Choose your Ancestor', body);
+          sendDirect('Choose your Ancestor',
+            'Players: choose your guiding spirit (weapon: <b>' + run.weapon + '</b>):<br><br>' + html
+          );
           run.lastPrompt = 'ancestor';
         }
 
