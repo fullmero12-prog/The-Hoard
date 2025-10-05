@@ -98,7 +98,13 @@ var BoonManager = (function () {
   }
 
   function renderOfferCards(playerName, ancestor, cards, freeMode){
-    var items = cards.map(function(c, i){
+    // Build a very simple panel header (safe)
+    var header = '<div style="border:1px solid #444;background:#111;color:#eee;padding:8px;">'
+               + '<div style="font-weight:bold;margin-bottom:6px;">Ancestor Boons — '
+               + _.escape(ancestor) + '</div>';
+
+    var chunks = cards.map(function(c, i){
+      // Title + rarity (escaped)
       var head = '<div style="font-weight:600;color:#fff">'+_.escape(c.name)+'</div>'
                + '<div style="font-size:11px;color:#aaa;margin-bottom:4px;">'+rarityLabel(c._rarity)+'</div>';
       var body = '<div style="color:#ccc;margin-bottom:6px;">'+_.escape(c.text_in_run||'')+'</div>';
@@ -114,7 +120,7 @@ var BoonManager = (function () {
 
     var html = panel('Ancestor Boons — '+_.escape(ancestor), items);
     if (typeof HRChat !== 'undefined' && HRChat.direct) HRChat.direct(html);
-    else sendChat('Hoard Run','/direct '+html);
+    else sendChat('Hoard Run', '/direct ' + html);
   }
 
   /** Offers boon choices to the specified player */
