@@ -36,10 +36,11 @@ on('ready', function () {
   // ------------------------------------------------------------
   // Prevent duplicate initialization
   // ------------------------------------------------------------
-  if (state.HoardRun.initialized) {
-    log('[Hoard Run] Sandbox reloaded — modules already initialized.');
-    return;
-  }
+  // Temporarily disabled guard to allow forced reinitialization during debugging.
+  // if (state.HoardRun.initialized) {
+  //   log('[Hoard Run] Sandbox reloaded — modules already initialized.');
+  //   return;
+  // }
 
   log('=== Hoard Run ' + VERSION + ' initializing... ===');
 
