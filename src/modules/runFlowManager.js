@@ -75,12 +75,10 @@ var RunFlowManager = (function () {
     if (typeof UIManager !== 'undefined' && typeof UIManager.panel === 'function') {
       return UIManager.panel(title, bodyHTML);
     }
-    return '<div style="border:1px solid #666;padding:5px;background:#111;color:#EEE;">' +
-      '<b>' + title + '</b><br>' + bodyHTML + '</div>';
+    return '**' + title + '**\n' + bodyHTML;
   }
 
   function formatButtons(buttons) {
-    var rendered;
     if (typeof UIManager !== 'undefined' && typeof UIManager.buttons === 'function') {
       rendered = UIManager.buttons(buttons);
       return rendered;
@@ -89,7 +87,6 @@ var RunFlowManager = (function () {
       var command = (b.command || '').replace(/^!/, '');
       return '[' + b.label + '](!' + command + ')';
     }).join('<br>');
-    return rendered;
   }
 
   function promptAncestorSelection(run) {
