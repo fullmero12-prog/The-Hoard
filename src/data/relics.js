@@ -4,12 +4,13 @@
 // What this does (in simple terms):
 //   Provides the static relic catalog for Roll20 to consume.
 //   The Roll20 sandbox cannot import JSON files directly, so this
-//   wraps the dataset in a JavaScript constant and registers a
-//   loader that copies the data into the persistent state object.
+//   wraps the dataset in a tiny module and registers a loader that
+//   copies the data into the persistent state object.
 // ------------------------------------------------------------
 
-const RelicDecks = {
-  Relics: [
+var RelicData = (function () {
+
+  var RELIC_CATALOG = [
     {
       "id": "relic_quickcast_signet_C",
       "name": "Quickcast Signet",
@@ -133,20 +134,48 @@ const RelicDecks = {
       "uses": { "cadence": "per_room", "value": 0 },
       "tags": ["Economy", "Currency", "Discount"]
     }
-  ]
-};
+  ];
 
-const RelicDataLoader = (() => {
+  function deepClone(obj) {
+    return JSON.parse(JSON.stringify(obj));
+  }
+
+  function buildBucketsFrom(entries) {
+    var buckets = {};
+    (entries || []).forEach(function (entry) {
+      var rarity = entry.rarity || 'Common';
+      if (!buckets[rarity]) {
+        buckets[rarity] = [];
+      }
+      buckets[rarity].push(deepClone(entry));
+    });
+    return buckets;
+  }
+
+  function getAll() {
+    return deepClone(RELIC_CATALOG);
+  }
+
+  function getRarityBuckets() {
+    return buildBucketsFrom(RELIC_CATALOG);
+  }
+
   function register() {
     if (!state.HoardRun) {
       state.HoardRun = {};
     }
-    const relics = (RelicDecks && RelicDecks.Relics) ? RelicDecks.Relics : [];
-    state.HoardRun.relics = relics.slice(0);
-    log(`[RelicDataLoader] Loaded ${relics.length} relics.`);
+
+    var relics = getAll();
+    state.HoardRun.relics = relics;
+    state.HoardRun.relicBuckets = buildBucketsFrom(relics);
+    log('[RelicDataLoader] Loaded ' + relics.length + ' relics.');
   }
 
   on('ready', register);
 
-  return { register };
+  return {
+    getAll: getAll,
+    getRarityBuckets: getRarityBuckets,
+    register: register
+  };
 })();
