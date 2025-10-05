@@ -13,6 +13,7 @@ on('ready', function () {
     'StateManager',
     'DeckManager',
     'UIManager',
+    'BoonDataLoader',
     'BoonManager',
     'ShopManager',
     'RoomManager',
