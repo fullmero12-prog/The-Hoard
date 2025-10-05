@@ -98,21 +98,37 @@ var BoonManager = (function () {
   }
 
   function renderOfferCards(playerName, ancestor, cards, freeMode){
-    var items = cards.map(function(c, i){
+    // Build a very simple panel header (safe)
+    var header = '<div style="border:1px solid #444;background:#111;color:#eee;padding:8px;">'
+               + '<div style="font-weight:bold;margin-bottom:6px;">Ancestor Boons — '
+               + _.escape(ancestor) + '</div>';
+
+    var chunks = cards.map(function(c, i){
+      // Title + rarity (escaped)
       var head = '<div style="font-weight:600;color:#fff">'+_.escape(c.name)+'</div>'
-               + '<div style="font-size:11px;color:#aaa;margin-bottom:4px;">'+rarityLabel(c._rarity)+'</div>';
-      var body = '<div style="color:#ccc;margin-bottom:6px;">'+_.escape(c.text_in_run||'')+'</div>';
-      var btn  = '[Choose](!chooseboon ' + i + ')';
-      return '<div style="border:1px solid #333;background:#0b0b0b;padding:8px;margin-bottom:8px;">'+head+body+btn+'</div>';
-    }).join('');
+               + '<div style="font-size:11px;color:#aaa;margin-bottom:4px;">'
+               + rarityLabel(c._rarity) + '</div>';
 
-    var note = freeMode
-      ? '<span style="color:#9fd;">This boon is <b>free</b> (end-of-room reward).</span>'
-      : '<span style="color:#ccc;">Costs: Common '+RARITY_PRICES.C+' · Greater '+RARITY_PRICES.G+' · Signature '+RARITY_PRICES.S+' Scrip.</span>';
+      // Body (escaped)
+      var body = '<div style="color:#ccc;margin-bottom:6px;">'
+               + _.escape(c.text_in_run || '') + '</div>';
 
-    var html = panel('Ancestor Boons — '+_.escape(ancestor), items + note);
+      // IMPORTANT: the button must be sent as raw chat markup, NOT escaped.
+      // Also: avoid nesting it inside other HTML tags that sometimes break parsing.
+      var button = '[Choose](!chooseboon ' + i + ')';
+
+      // Wrap text in a simple container, then append the raw button on its own line.
+      return '<div style="border:1px solid #333;background:#0b0b0b;padding:8px;margin-bottom:8px;">'
+           + head + body + '</div>\n' + button + '\n';
+    });
+
+    var footer = '</div>'; // close header panel
+
+    // Send as one /direct message; links are bare lines so Roll20 parses them.
+    var html = header + chunks.join('') + footer;
+
     if (typeof HRChat !== 'undefined' && HRChat.direct) HRChat.direct(html);
-    else sendChat('Hoard Run','/direct '+html);
+    else sendChat('Hoard Run', '/direct ' + html);
   }
 
   /** Offers boon choices to the specified player */
