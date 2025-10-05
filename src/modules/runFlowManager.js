@@ -224,6 +224,13 @@ var RunFlowManager = (function () {
 
     run.ancestor = name;
 
+    var info = typeof AncestorDataLoader !== 'undefined' ? AncestorDataLoader.get(name) : null;
+    if (info) {
+      sendChat('Hoard Run', '/w gm <b>' + name + ' — ' + info.title + '</b><br>' + info.summary);
+    } else {
+      sendChat('Hoard Run', '/w gm No info found for ' + name + '.');
+    }
+
     sendDirect('Ancestor Chosen', '🌟 Ancestor blessing secured: <b>' + name + '</b>.<br>' +
       'When you enter Room 2, you will gain 2 free Boons and +1 Reroll token.');
     log('[RunFlow] Ancestor selected: ' + name);
