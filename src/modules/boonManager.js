@@ -106,27 +106,19 @@ var BoonManager = (function () {
     var chunks = cards.map(function(c, i){
       // Title + rarity (escaped)
       var head = '<div style="font-weight:600;color:#fff">'+_.escape(c.name)+'</div>'
-               + '<div style="font-size:11px;color:#aaa;margin-bottom:4px;">'
-               + rarityLabel(c._rarity) + '</div>';
+               + '<div style="font-size:11px;color:#aaa;margin-bottom:4px;">'+rarityLabel(c._rarity)+'</div>';
+      var body = '<div style="color:#ccc;margin-bottom:6px;">'+_.escape(c.text_in_run||'')+'</div>';
 
-      // Body (escaped)
-      var body = '<div style="color:#ccc;margin-bottom:6px;">'
-               + _.escape(c.text_in_run || '') + '</div>';
+      // Prefer UIManager buttons so Roll20 renders proper command links.
+      var btn = (typeof UIManager !== 'undefined' && UIManager.buttons)
+        ? UIManager.buttons([{ label: 'Choose', command: '!chooseboon ' + i }])
+        : '[Choose](!chooseboon ' + i + ')';
 
-      // IMPORTANT: the button must be sent as raw chat markup, NOT escaped.
-      // Also: avoid nesting it inside other HTML tags that sometimes break parsing.
-      var button = '[Choose](!chooseboon ' + i + ')';
-
-      // Wrap text in a simple container, then append the raw button on its own line.
       return '<div style="border:1px solid #333;background:#0b0b0b;padding:8px;margin-bottom:8px;">'
-           + head + body + '</div>\n' + button + '\n';
-    });
+           + head + body + btn + '</div>';
+    }).join('');
 
-    var footer = '</div>'; // close header panel
-
-    // Send as one /direct message; links are bare lines so Roll20 parses them.
-    var html = header + chunks.join('') + footer;
-
+    var html = panel('Ancestor Boons — '+_.escape(ancestor), items);
     if (typeof HRChat !== 'undefined' && HRChat.direct) HRChat.direct(html);
     else sendChat('Hoard Run', '/direct ' + html);
   }
