@@ -15,13 +15,8 @@ var RunFlowManager = (function () {
   var _advancing = false;
 
   var DEFAULT_RUN_STATE = {
-    currentRoom: 0,
     weapon: null,
     ancestor: null,
-    scrip: 0,
-    fse: 0,
-    rerollTokens: 0,
-    squares: 0,
     started: false,
     lastPrompt: null
   };
@@ -163,8 +158,11 @@ var RunFlowManager = (function () {
 
     var run = resetRunState();
     run.started = true;
-    run.currentRoom = 0; // 0 = pre-battle setup room (Weapon/Ancestor phase)
     run.lastPrompt = null;
+
+    if (typeof StateManager !== 'undefined' && typeof StateManager.resetPlayerRun === 'function') {
+      StateManager.resetPlayerRun(playerid);
+    }
 
     sendDirect('Welcome to the Hoard Run',
       '<b>The Hoard stirs…</b><br>' +
@@ -200,8 +198,22 @@ var RunFlowManager = (function () {
     }
 
     run.weapon = weapon;
-    run.currentRoom = 1;
     run.lastPrompt = null;
+
+    if (typeof StateManager !== 'undefined' && typeof StateManager.getPlayer === 'function') {
+      StateManager.initPlayer(playerid);
+      var playerState = StateManager.getPlayer(playerid);
+      playerState.focus = weapon;
+      if (typeof StateManager.setCurrentRoom === 'function') {
+        StateManager.setCurrentRoom(playerid, 0);
+      } else {
+        playerState.currentRoom = 0;
+      }
+      playerState.hasEnteredFirstRoom = false;
+      if (typeof StateManager.setPlayer === 'function') {
+        StateManager.setPlayer(playerid, playerState);
+      }
+    }
 
     sendDirect('Weapon Chosen', '🗡️ Weapon locked: <b>' + weapon + '</b>.<br>Prepare for your first encounter!<br><br>' +
       'Entering <b>Room 1</b>...');
@@ -352,20 +364,78 @@ var RunFlowManager = (function () {
       }
 
       run.lastPrompt = null;
-      run.currentRoom += 1;
 
-      if (run.currentRoom > 1) {
-        run.scrip += 20;
-        run.fse += 1;
+      var clearedRoom = null;
+      var totals = null;
 
+      var advanceResult = null;
+      var rewardBundle = { scrip: 20, fse: 1 };
+
+      if (typeof StateManager !== 'undefined' && typeof StateManager.advanceRoom === 'function') {
+        advanceResult = StateManager.advanceRoom(playerid, rewardBundle);
+      }
+
+      if (advanceResult && advanceResult.firstEntry) {
+        sendDirect('Room 1 Ready',
+          '⚔️ The first chamber opens. Run the encounter, then use <b>!nextroom</b> again to claim rewards.'
+        );
+        log('[RunFlow] Room 1 engaged. Awaiting completion before awarding rewards.');
+        return;
+      }
+
+      if (advanceResult) {
+        clearedRoom = advanceResult.clearedRoom;
+        totals = advanceResult.totals;
+      } else if (typeof StateManager !== 'undefined') {
+        if (typeof StateManager.initPlayer === 'function') {
+          StateManager.initPlayer(playerid);
+        }
+
+        if (typeof StateManager.getPlayer === 'function') {
+          var legacyPlayer = StateManager.getPlayer(playerid);
+          if (legacyPlayer && !legacyPlayer.hasEnteredFirstRoom) {
+            legacyPlayer.hasEnteredFirstRoom = true;
+            if (typeof StateManager.setPlayer === 'function') {
+              StateManager.setPlayer(playerid, legacyPlayer);
+            }
+            sendDirect('Room 1 Ready',
+              '⚔️ The first chamber opens. Run the encounter, then use <b>!nextroom</b> again to claim rewards.'
+            );
+            log('[RunFlow] Room 1 engaged. Awaiting completion before awarding rewards.');
+            return;
+          }
+
+          legacyPlayer.currentRoom = (legacyPlayer.currentRoom || 0) + 1;
+          clearedRoom = legacyPlayer.currentRoom;
+
+          if (typeof StateManager.addCurrency === 'function') {
+            StateManager.addCurrency(playerid, 'scrip', rewardBundle.scrip);
+            StateManager.addCurrency(playerid, 'fse', rewardBundle.fse);
+          }
+
+          if (typeof StateManager.getCurrencies === 'function') {
+            totals = StateManager.getCurrencies(playerid);
+          }
+        }
+      }
+
+      if (clearedRoom === null) {
+        clearedRoom = 0;
+      }
+
+      if (totals === null) {
+        totals = { scrip: 0, fse: 0 };
+      }
+
+      if (clearedRoom > 0) {
         sendDirect('Room Complete',
-          '🏁 <b>Room ' + (run.currentRoom - 1) + '</b> cleared!<br>' +
+          '🏁 <b>Room ' + clearedRoom + '</b> cleared!<br>' +
           '+20 Scrip, +1 FSE earned.<br><br>' +
-          'Total — Scrip: <b>' + run.scrip + '</b> | FSE: <b>' + run.fse + '</b><br><br>' +
+          'Total — Scrip: <b>' + totals.scrip + '</b> | FSE: <b>' + totals.fse + '</b><br><br>' +
           '🌀 You may now choose a new <b>Boon</b> inspired by your Ancestor.'
         );
 
-        if (typeof BoonManager !== 'undefined' && run.ancestor && run.currentRoom > 1) {
+        if (typeof BoonManager !== 'undefined' && run.ancestor && clearedRoom >= 1) {
           var safe = run.ancestor.replace(/\s+/g, '_');
           sendDirect('Boon Opportunity',
             '✨ ' + _.escape(run.ancestor) + ' offers a new boon choice.<br>' +
@@ -374,7 +444,7 @@ var RunFlowManager = (function () {
         }
       }
 
-      log('[RunFlow] Advanced to room ' + run.currentRoom + '.');
+      log('[RunFlow] Room ' + clearedRoom + ' cleared. Next up: ' + (clearedRoom + 1) + '.');
     } finally {
       _advancing = false;
     }
