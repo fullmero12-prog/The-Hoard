@@ -231,12 +231,10 @@ var AncestorKits = (function(ns){
     if (!pcId) { sendChat('Hoard Run','/w gm ⚠️ Select the PC token first, then click again.'); return; }
 
     var ok = attachButtonsToPC(pcId);
-    if (ok) {
-      var pc = getObj('character', pcId);
-      sendChat('Hoard Run','/w gm ✅ Mirrored Vladren actions to **'+ (pc ? pc.get('name') : 'PC') +'**.');
-    } else {
-      sendChat('Hoard Run','/w gm ❌ Could not mirror actions (no character?).');
-    }
+    var pc = getObj('character', pcId);
+    sendChat('Hoard Run', '/w gm ' + (ok
+      ? ('✅ Mirrored Vladren actions to <b>' + (pc ? pc.get('name') : 'PC') + '</b>.')
+      : '❌ Could not mirror actions (no character?).'));
   });
 
   // namespace export
