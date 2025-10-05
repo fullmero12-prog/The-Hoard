@@ -102,15 +102,17 @@ var BoonManager = (function () {
       var head = '<div style="font-weight:600;color:#fff">'+_.escape(c.name)+'</div>'
                + '<div style="font-size:11px;color:#aaa;margin-bottom:4px;">'+rarityLabel(c._rarity)+'</div>';
       var body = '<div style="color:#ccc;margin-bottom:6px;">'+_.escape(c.text_in_run||'')+'</div>';
-      var btn  = '[Choose](!chooseboon ' + i + ')';
-      return '<div style="border:1px solid #333;background:#0b0b0b;padding:8px;margin-bottom:8px;">'+head+body+btn+'</div>';
+
+      // Prefer UIManager buttons so Roll20 renders proper command links.
+      var btn = (typeof UIManager !== 'undefined' && UIManager.buttons)
+        ? UIManager.buttons([{ label: 'Choose', command: '!chooseboon ' + i }])
+        : '[Choose](!chooseboon ' + i + ')';
+
+      return '<div style="border:1px solid #333;background:#0b0b0b;padding:8px;margin-bottom:8px;">'
+           + head + body + btn + '</div>';
     }).join('');
 
-    var note = freeMode
-      ? '<span style="color:#9fd;">This boon is <b>free</b> (end-of-room reward).</span>'
-      : '<span style="color:#ccc;">Costs: Common '+RARITY_PRICES.C+' · Greater '+RARITY_PRICES.G+' · Signature '+RARITY_PRICES.S+' Scrip.</span>';
-
-    var html = panel('Ancestor Boons — '+_.escape(ancestor), items + note);
+    var html = panel('Ancestor Boons — '+_.escape(ancestor), items);
     if (typeof HRChat !== 'undefined' && HRChat.direct) HRChat.direct(html);
     else sendChat('Hoard Run','/direct '+html);
   }
