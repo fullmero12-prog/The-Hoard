@@ -28,12 +28,14 @@ var RunFlowManager = (function () {
 
   var WEAPONS = ['Staff', 'Orb', 'Greataxe', 'Rapier', 'Bow'];
 
+  // Only the 6 you actually have right now.
+  // Empty arrays for the 3 melee/ranged weapons become “Coming soon”.
   var ANCESTOR_SETS = {
-    Staff: ['Azuren', 'Sutra Vayla'],
-    Orb: ['Sutra Vayla', 'Seraphine Emberwright'],
-    Greataxe: ['Vladren Moroi', 'Morvox, Tiny Tyrant'],
-    Rapier: ['Lian Veilbinder', 'Vladren Moroi'],
-    Bow: ['Azuren', 'Lian Veilbinder']
+    Orb: ['Sutra Vayla', 'Azuren', 'Vladren Moroi'],
+    Staff: ['Morvox, Tiny Tyrant', 'Lian Veilbinder', 'Seraphine Emberwright'],
+    Greataxe: [],
+    Rapier: [],
+    Bow: []
   };
 
   var ANCESTOR_INFO = {
@@ -243,15 +245,12 @@ var RunFlowManager = (function () {
     run.lastPrompt = null;
 
     var info = ANCESTOR_INFO[valid];
-    var head = info ? '<b>' + info.title + '</b>' : '<b>' + valid + '</b>';
-    var blurb = '';
-    if (info) {
-      blurb = '<div style="margin-top:4px;color:#cfc">' + _.escape(info.desc) + '</div>';
-    }
+    var head = info ? '<b>' + _.escape(info.title) + '</b>' : '<b>' + _.escape(valid) + '</b>';
+    var blurb = info ? '<div style="margin-top:4px;color:#bbb">' + _.escape(info.desc) + '</div>' : '';
 
     sendDirect('Ancestor Chosen',
       '🌟 Ancestor blessing secured: ' + head + blurb + '<br>' +
-      'You will gain <b>1 Boon</b> at the end of <b>every room</b> (outside shops).'
+      'You gain <b>1 boon at the end of each room</b> (outside shops).'
     );
 
     log('[RunFlow] Ancestor selected: ' + valid);
@@ -283,24 +282,35 @@ var RunFlowManager = (function () {
       }
 
       if (!run.ancestor) {
-        if (run.lastPrompt !== 'ancestor') {
-          var weaponAncestors = (ANCESTOR_SETS[run.weapon] || []).map(function (a) {
-            var info = ANCESTOR_INFO[a];
-            var safe = a.replace(/\s+/g, '_');
-            var head = info ? '<b>' + info.title + '</b>' : '<b>' + a + '</b>';
-            var blurb = '';
-            if (info) {
-              blurb = '<div style="margin:4px 0 10px 0;color:#cfc">' + _.escape(info.desc) + '</div>';
-            }
-            return head + '<br>' + blurb + '[Select ' + a + '](!selectancestor ' + safe + ')';
-          }).join('<br><br>');
+        var list = ANCESTOR_SETS[run.weapon] || [];
 
+        if (!list.length) {
           sendDirect('Choose your Ancestor',
-            'Choose your guiding spirit (weapon: <b>' + run.weapon + '</b>):<br><br>' + weaponAncestors
+            'No ancestors are available for <b>' + run.weapon + '</b> yet.<br>' +
+            '<i>Coming soon.</i><br><br>' +
+            'Pick a different weapon to test ancestor flow: ' +
+            '[Staff](!selectweapon Staff) | [Orb](!selectweapon Orb)'
           );
-          log('[RunFlow] Awaiting ancestor selection for ' + run.weapon + '.');
-          run.lastPrompt = 'ancestor';
+          log('[RunFlow] No ancestors for ' + run.weapon + ' (placeholder shown).');
+          return;
         }
+
+        var html = list.map(function (a) {
+          var info = ANCESTOR_INFO[a] || { title: a, desc: '' };
+          var safe = a.replace(/\s+/g, '_');
+          return (
+            '<div style="margin:6px 0 12px 0; padding:8px; border:1px solid #444; background:#111;">' +
+              '<div style="font-weight:bold; color:#fff;">' + _.escape(info.title) + '</div>' +
+              '<div style="margin-top:4px; color:#bbb;">' + _.escape(info.desc) + '</div>' +
+              '<div style="margin-top:8px;">[Select ' + a + '](!selectancestor ' + safe + ')</div>' +
+            '</div>'
+          );
+        }).join('');
+
+        sendDirect('Choose your Ancestor',
+          'Choose your guiding spirit (weapon: <b>' + run.weapon + '</b>):<br><br>' + html
+        );
+        log('[RunFlow] Awaiting ancestor selection for ' + run.weapon + '.');
         return;
       }
 
@@ -319,10 +329,10 @@ var RunFlowManager = (function () {
         );
 
         if (typeof BoonManager !== 'undefined' && run.ancestor && run.currentRoom > 1) {
-          var safeAncestor = run.ancestor.replace(/\s+/g, '_');
+          var safe = run.ancestor.replace(/\s+/g, '_');
           sendDirect('Boon Opportunity',
-            '✨ ' + _.escape(run.ancestor) + ' offers you a new boon choice.<br>' +
-            '[Draw Boons](!offerboons ' + safeAncestor + ')'
+            '✨ ' + _.escape(run.ancestor) + ' offers a new boon choice.<br>' +
+            '[Draw Boons](!offerboons ' + safe + ')'
           );
         }
       }
