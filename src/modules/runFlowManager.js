@@ -264,6 +264,11 @@ var RunFlowManager = (function () {
       reward = { scrip: 40, fse: 5, squareChance: 0.5, label: 'Boss Room' };
     }
 
+    if (run.currentRoom === 2 && !run.ancestor) {
+      promptAncestorSelection(run);
+      return;
+    }
+
     var nextRoom = run.currentRoom + 1;
 
     if (nextRoom === 2 && !run.ancestor) {
