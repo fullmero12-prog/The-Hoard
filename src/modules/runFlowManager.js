@@ -503,9 +503,13 @@ var RunFlowManager = (function () {
       return;
     }
 
-    var spaceIdx = content.indexOf(' ');
-    var command = spaceIdx === -1 ? content : content.slice(0, spaceIdx);
-    var argString = spaceIdx === -1 ? '' : content.slice(spaceIdx + 1);
+    var parsed = content.match(/^(\S+)(?:\s+([\s\S]+))?$/);
+    if (!parsed) {
+      return;
+    }
+
+    var command = parsed[1];
+    var argString = parsed[2] || '';
 
     switch (command.toLowerCase()) {
       case '!startrun':
