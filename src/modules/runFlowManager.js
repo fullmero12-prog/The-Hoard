@@ -244,6 +244,18 @@ var RunFlowManager = (function () {
     run.ancestor = valid;
     run.lastPrompt = null;
 
+    try {
+      if (typeof AncestorKits !== 'undefined' && AncestorKits.Vladren && valid === 'Vladren Moroi') {
+        AncestorKits.Vladren.install(playerid, {
+          // optionally pre-fill stats so the buttons don’t ask:
+          // pb: 3,
+          // spellMod: 4
+        });
+      }
+    } catch (e) {
+      log('[RunFlow] Vladren install error: ' + e.message);
+    }
+
     if (typeof StateManager !== 'undefined' && typeof StateManager.getPlayer === 'function') {
       var gmPlayer = StateManager.getPlayer(playerid) || {};
       gmPlayer.ancestor_id = valid;
