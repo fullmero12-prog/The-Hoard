@@ -194,22 +194,15 @@ var BoonManager = (function () {
   }
 
   /** Registers chat listeners */
-  function registerCommands() {
+  function register() {
     on('chat:message', handleChat);
-    if (typeof UIManager !== 'undefined' && typeof UIManager.gmLog === 'function') {
-      UIManager.gmLog('BoonManager ready. Use !offerboons [Ancestor] to present choices.');
-    } else {
-      sendChat('Hoard Run', '/w gm BoonManager ready. Use !offerboons [Ancestor] to present choices.');
-    }
   }
 
   return {
     offerBoons: offerBoons,
     chooseBoon: chooseBoon,
-    registerCommands: registerCommands
+    register: register
   };
 
 })();
-
-on('ready', BoonManager.registerCommands);
 
