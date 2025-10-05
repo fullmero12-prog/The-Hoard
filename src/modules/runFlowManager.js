@@ -18,7 +18,8 @@ var RunFlowManager = (function () {
     weapon: null,
     ancestor: null,
     started: false,
-    lastPrompt: null
+    lastPrompt: null,
+    currentRoom: 0
   };
 
   var WEAPONS = ['Staff', 'Orb', 'Greataxe', 'Rapier', 'Bow'];
@@ -148,7 +149,18 @@ var RunFlowManager = (function () {
   }
 
   function hasAncestorSelectionForWeapon(weapon) {
+    var run = getRun();
     var options = ANCESTOR_SETS[weapon] || [];
+
+    if (run.ancestor) {
+      var idx;
+      for (idx = 0; idx < options.length; idx += 1) {
+        if (options[idx].toLowerCase() === run.ancestor.toLowerCase()) {
+          return true;
+        }
+      }
+    }
+
     if (!options.length) {
       return false;
     }
@@ -192,12 +204,13 @@ var RunFlowManager = (function () {
     var run = resetRunState();
     run.started = true;
     run.lastPrompt = null;
+    run.currentRoom = 0;
 
     if (typeof StateManager !== 'undefined' && typeof StateManager.resetPlayerRun === 'function') {
       StateManager.resetPlayerRun(playerid);
     }
 
-    sendDirect('Welcome to the Hoard Run',
+    var body =
       '<b>The Hoard stirs…</b><br>' +
       'Before you step inside, you must choose your weapon.<br><br>' +
       'Select one of the following to attune to your chosen focus:<br><br>' +
@@ -209,8 +222,7 @@ var RunFlowManager = (function () {
         { label: '📚 Staff', command: '!selectweapon Staff' }
       ]);
 
-    // Let everyone see/press the buttons
-    sendChat('Hoard Run', '/direct ' + formatPanel('Welcome to the Hoard Run', body));
+    sendDirect('Welcome to the Hoard Run', body);
 
     log('[RunFlow] New Hoard Run started — awaiting weapon selection.');
   }
@@ -230,6 +242,8 @@ var RunFlowManager = (function () {
 
     run.weapon = weapon;
     run.lastPrompt = null;
+    run.ancestor = null;
+    run.currentRoom = 0;
 
     if (typeof StateManager !== 'undefined' && typeof StateManager.getPlayer === 'function') {
       StateManager.initPlayer(playerid);
@@ -282,7 +296,13 @@ var RunFlowManager = (function () {
     if (typeof StateManager !== 'undefined' && StateManager.getPlayer){
       var ps = StateManager.getPlayer(playerid);
       ps.ancestor_id = canon;
+      if (typeof StateManager.setPlayer === 'function') {
+        StateManager.setPlayer(playerid, ps);
+      }
     }
+
+    run.ancestor = canon;
+    run.lastPrompt = null;
 
     // Confirm to the player who clicked
     var pname = (getObj('player', playerid) || {get:function(){ return 'Player'; }}).get('_displayname');
@@ -377,7 +397,12 @@ var RunFlowManager = (function () {
       if (run.lastPrompt === 'ancestor') {
         run.lastPrompt = null;
       }
-      run.currentRoom += 1;
+      var currentRoom = parseInt(run.currentRoom, 10);
+      if (isNaN(currentRoom) || currentRoom < 0) {
+        currentRoom = 0;
+      }
+      currentRoom += 1;
+      run.currentRoom = currentRoom;
 
       var clearedRoom = null;
       var totals = null;
