@@ -57,8 +57,9 @@ var AncestorKits = (function(ns){
       });
     }
 
-    // Give control to the player
+    // Give control to the player and show in their Journal
     ch.set('controlledby', playerid);
+    ch.set('inplayerjournals', playerid);
 
     // Put the rules in the Bio (and a GM note marker)
     ch.set('bio', '<div style="font-family:inherit;font-size:13px;line-height:1.25;">'
@@ -133,6 +134,47 @@ var AncestorKits = (function(ns){
     ].join(' ');
   }
 
+  // --- get PC character id from the currently selected token
+  function pcIdFromSelected(msg){
+    if (!msg.selected || !msg.selected.length) return null;
+    var g = getObj('graphic', msg.selected[0]._id);
+    if (!g) return null;
+    return g.get('represents') || null;
+  }
+
+  // --- clone ability bodies onto a target PC character
+  function cloneAbilityTo(targetChar, name, action, isToken) {
+    var a = findObjs({ _type:'ability', _characterid: targetChar.id, name:name })[0];
+    if (!a) {
+      a = createObj('ability', { name:name, _characterid: targetChar.id, istokenaction: !!isToken, action: action });
+    } else {
+      a.set({ istokenaction: !!isToken, action: action });
+    }
+  }
+  function attachButtonsToPC(pcCharId) {
+    var pc = getObj('character', pcCharId);
+    if (!pc) return false;
+    cloneAbilityTo(pc, 'Crimson Pact (info)',              pactAbilityBody(), true);
+    cloneAbilityTo(pc, 'Transfusion (Bonus)',              transfusionAbilityBody(), true);
+    cloneAbilityTo(pc, 'Sanguine Pool (Reaction • 1/SR)',  poolAbilityBody(), true);
+    cloneAbilityTo(pc, 'Hemoplague (1/SR)',                hemoplagueAbilityBody(), true);
+    return true;
+  }
+
+  // --- whisper a slick GM prompt with a one-click bind button
+  function promptBindToSelectedPC(){
+    var body = [
+      '<div style="margin-bottom:6px;">Select the player\'s <b>PC token</b> on the map, then click:</div>',
+      '[Mirror Buttons to Selected PC](!bindvladren)',
+      '<div style="margin-top:8px;font-size:11px;color:#bbb;">This copies Vladren\'s four Token Actions onto the selected PC so they appear when that PC token is selected.</div>'
+    ].join('<br>');
+    var hasUI = (typeof UIManager !== 'undefined' && UIManager && typeof UIManager.panel === 'function');
+    var html = hasUI ? UIManager.panel('Bind Vladren to PC', body)
+      : '<div style="border:1px solid #444;background:#111;color:#eee;padding:8px;">'
+          + '<div style="font-weight:bold;margin-bottom:6px;">Bind Vladren to PC</div>'+ body +'</div>';
+    sendChat('Hoard Run', '/w gm ' + html);
+  }
+
   // ---------- public: install/reset ----------
   function install(playerid, opts){
     opts = opts || {};
@@ -180,9 +222,31 @@ var AncestorKits = (function(ns){
     }
   });
 
+  on('chat:message', function(msg){
+    if (msg.type !== 'api') return;
+    if (msg.content !== '!bindvladren') return;
+    if (!playerIsGM(msg.playerid)) { sendChat('Hoard Run','/w gm ⚠️ Only the GM can bind.'); return; }
+
+    var pcId = pcIdFromSelected(msg);
+    if (!pcId) { sendChat('Hoard Run','/w gm ⚠️ Select the PC token first, then click again.'); return; }
+
+    var ok = attachButtonsToPC(pcId);
+    if (ok) {
+      var pc = getObj('character', pcId);
+      sendChat('Hoard Run','/w gm ✅ Mirrored Vladren actions to **'+ (pc ? pc.get('name') : 'PC') +'**.');
+    } else {
+      sendChat('Hoard Run','/w gm ❌ Could not mirror actions (no character?).');
+    }
+  });
+
   // namespace export
   ns = ns || {};
-  ns.Vladren = { install: install, resetShortRest: resetShortRest, name: KIT_NAME };
+  ns.Vladren = {
+    install: install,
+    resetShortRest: resetShortRest,
+    promptBindToSelectedPC: promptBindToSelectedPC,
+    name: KIT_NAME
+  };
   return ns;
 
 })(typeof AncestorKits !== 'undefined' ? AncestorKits : {});

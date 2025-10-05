@@ -24,3 +24,4 @@
 - `!testrelic` — Roll a random relic using DeckManager (falls back to static data if decks are missing).
 - `!givevladren` — Installs the Vladren Moroi kit on the issuing GM for testing the ancestor token actions.
 - `!resetvladren` — Resets short-rest charges for Vladren Moroi features on the issuing GM.
+- `!bindvladren` — Mirrors Vladren Moroi's token action buttons onto the currently selected PC (GM only).
