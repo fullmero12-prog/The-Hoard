@@ -55,6 +55,16 @@ var StateManager = (function () {
     return state.HoardRun.players[playerid];
   }
 
+  /** Persists a player's data back into state */
+  function setPlayer(playerid, payload) {
+    init();
+    if (!state.HoardRun.players) {
+      state.HoardRun.players = {};
+    }
+    state.HoardRun.players[playerid] = payload;
+    return state.HoardRun.players[playerid];
+  }
+
   /** Adds currency (Scrip, FSE, Squares, etc.) */
   function addCurrency(playerid, type, amount) {
     const p = getPlayer(playerid);
@@ -94,6 +104,7 @@ var StateManager = (function () {
     init,
     initPlayer,
     getPlayer,
+    setPlayer,
     addCurrency,
     spendScrip,
     resetAll,
