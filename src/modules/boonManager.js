@@ -25,12 +25,23 @@ var BoonManager = (function () {
   };
 
   var OFFER_COUNT = 3;
-  var _pendingChoices = {};
 
-  // Canonical ancestor key: matches BoonDataLoader (Azuren, SutraVayla, VladrenMoroi, LianVeilbinder, Morvox, SeraphineEmberwright)
-  function canonAncestor(name) {
-    // remove all non-alphanumerics, no underscores
-    return (name || '').replace(/[^A-Za-z0-9]/g, '');
+  function canonAncestor(name){ return (name||'').replace(/[^A-Za-z0-9]/g,''); }
+
+  function rarityLabel(r){
+    return r === 'Signature' ? 'Signature' : (r === 'Greater' ? 'Greater' : 'Common');
+  }
+
+  function ensureOffers(){
+    if(!state.HoardRun) state.HoardRun = {};
+    if(!state.HoardRun.boonOffers) state.HoardRun.boonOffers = {};
+    return state.HoardRun.boonOffers;
+  }
+
+  // simple panel
+  function panel(title, body){
+    return '<div style="border:1px solid #444;background:#111;color:#eee;padding:8px;">'
+         + '<div style="font-weight:bold;margin-bottom:6px;">'+title+'</div>'+body+'</div>';
   }
 
   /** Returns the Roll20 display name (quoted for whispers) */
@@ -42,22 +53,18 @@ var BoonManager = (function () {
     return '"Unknown"';
   }
 
-  function pickRarity(weights) {
+  function pickRarity(weights){
     var r = Math.random();
-    if (r < weights.C) {
-      return 'Common';
-    }
-    if (r < weights.C + weights.G) {
-      return 'Greater';
-    }
+    if (r < weights.C) return 'Common';
+    if (r < weights.C + weights.G) return 'Greater';
     return 'Signature';
   }
 
-  function drawBoons(ancestor) {
+  function drawBoons(ancestor){
     var decksRoot = (state.HoardRun && state.HoardRun.boons) || {};
     var key = canonAncestor(ancestor);
     var deck = decksRoot[key];
-    if (!deck) {
+    if (!deck){
       gmSay('⚠️ No boon deck found for "' + ancestor + '" (key: ' + key + ').');
       return [];
     }
@@ -68,56 +75,48 @@ var BoonManager = (function () {
     };
 
     var picks = [];
-    for (var i = 0; i < OFFER_COUNT; i += 1) {
-      var rarity = pickRarity(RARITY_WEIGHTS);
-      var order = rarity === 'Common' ? ['Common', 'Greater', 'Signature']
-                 : rarity === 'Greater' ? ['Greater', 'Common', 'Signature']
-                 : ['Signature', 'Greater', 'Common'];
-
-      var chosen = null;
-      for (var j = 0; j < order.length; j += 1) {
-        var pool = pools[order[j]];
-        if (pool && pool.length) {
-          var idx = Math.floor(Math.random() * pool.length);
-          var source = pool.splice(idx, 1)[0];
-          if (!source) {
-            continue;
-          }
-          chosen = JSON.parse(JSON.stringify(source));
+    for (var i=0; i<OFFER_COUNT; i++){
+      var pref = pickRarity(RARITY_WEIGHTS);
+      var order = pref === 'Common' ? ['Common','Greater','Signature']
+                : pref === 'Greater' ? ['Greater','Common','Signature']
+                : ['Signature','Greater','Common'];
+      var chosen=null;
+      for (var j=0;j<order.length;j++){
+        var pool=pools[order[j]];
+        if(pool && pool.length){
+          var idx = Math.floor(Math.random()*pool.length);
+          chosen = pool.splice(idx,1)[0];
           chosen._rarity = order[j];
-          chosen._rarityCode = order[j].charAt(0);
-          chosen._ancestor = key;
-          chosen._ancestorName = ancestor;
-          chosen.get = function (prop) {
-            if (prop === 'name') {
-              return this.name;
-            }
-            if (prop === 'notes') {
-              return this.text_in_run || '';
-            }
-            if (prop === 'gmnotes') {
-              return JSON.stringify(this);
-            }
-            return this[prop];
-          };
+          chosen._idx = picks.length; // local index tag
           break;
         }
       }
-      if (!chosen) {
-        break;
-      }
+      if(!chosen) break;
       picks.push(chosen);
     }
     return picks;
   }
 
-  /** Builds a friendly reminder about boon pricing */
-  function buildPricingNote() {
-    return '<span style="color:#ccc;">Costs: Common ' + RARITY_PRICES.C + ' · Greater ' + RARITY_PRICES.G + ' · Signature ' + RARITY_PRICES.S + ' Scrip.</span>';
+  function renderOfferCards(playerName, ancestor, cards, freeMode){
+    var items = cards.map(function(c, i){
+      var head = '<div style="font-weight:600;color:#fff">'+_.escape(c.name)+'</div>'
+               + '<div style="font-size:11px;color:#aaa;margin-bottom:4px;">'+rarityLabel(c._rarity)+'</div>';
+      var body = '<div style="color:#ccc;margin-bottom:6px;">'+_.escape(c.text_in_run||'')+'</div>';
+      var btn  = '[Choose](!chooseboon ' + i + ')';
+      return '<div style="border:1px solid #333;background:#0b0b0b;padding:8px;margin-bottom:8px;">'+head+body+btn+'</div>';
+    }).join('');
+
+    var note = freeMode
+      ? '<span style="color:#9fd;">This boon is <b>free</b> (end-of-room reward).</span>'
+      : '<span style="color:#ccc;">Costs: Common '+RARITY_PRICES.C+' · Greater '+RARITY_PRICES.G+' · Signature '+RARITY_PRICES.S+' Scrip.</span>';
+
+    var html = panel('Ancestor Boons — '+_.escape(ancestor), items + note);
+    if (typeof HRChat !== 'undefined' && HRChat.direct) HRChat.direct(html);
+    else sendChat('Hoard Run','/direct '+html);
   }
 
   /** Offers boon choices to the specified player */
-  function offerBoons(playerid, ancestorArg) {
+  function offerBoons(playerid, ancestorArg, modeArg) {
     StateManager.initPlayer(playerid);
 
     var ps = StateManager.getPlayer(playerid) || {};
@@ -125,89 +124,63 @@ var BoonManager = (function () {
         ? ancestorArg.replace(/_/g, ' ')
         : (ps.ancestor_id || (state.HoardRun && state.HoardRun.runFlow && state.HoardRun.runFlow.ancestor) || 'Azuren');
 
+    var freeMode = true;
+    if (typeof modeArg === 'string') {
+      var m = modeArg.toLowerCase();
+      if (m === 'shop' || m === 'paid' || m === 'cost') freeMode = false;
+    }
+
     var cards = drawBoons(chosenAncestor);
     if (!cards.length) {
-      gmSay('⚠️ No boon cards were drawn from ' + canonAncestor(chosenAncestor) + '.');
+      gmSay('⚠️ No boon cards were drawn for ' + canonAncestor(chosenAncestor) + '.');
       return;
     }
 
-    _pendingChoices[playerid] = cards;
+    var offers = ensureOffers();
+    offers[playerid] = { ancestor: chosenAncestor, free: freeMode, cards: cards };
 
-    var name = getPlayerName(playerid);
-    if (DeckManager && DeckManager.presentChoices) {
-      DeckManager.presentChoices(name, cards, 'chooseboon');
-    } else {
-      gmSay('⚠️ DeckManager.presentChoices not available; implement inline rendering here.');
-    }
-
-    if (typeof UIManager !== 'undefined' && typeof UIManager.whisper === 'function') {
-      UIManager.whisper(name, 'Ancestor Boons', 'Choose one boon from the menu above.<br>' + buildPricingNote());
-    } else {
-      whisperRaw(name, 'Choose one boon from the menu above. ' + buildPricingNote());
-    }
+    renderOfferCards(getPlayerName(playerid), chosenAncestor, cards, freeMode);
   }
 
   /** Handles the player selecting a boon */
-  function chooseBoon(playerid, cardId) {
-    if (!cardId) {
+  function chooseBoon(playerid, choiceIdx) {
+    var offers = ensureOffers();
+    var offer = offers[playerid];
+    var i = parseInt(choiceIdx,10);
+
+    if (!offer || !offer.cards || isNaN(i) || i<0 || i>=offer.cards.length) {
+      gmSay('BoonManager: No active boon offer for you, or invalid choice.');
       return;
     }
 
-    var pending = _pendingChoices[playerid] || [];
-    var selectedIndex = -1;
-    var card = null;
+    var picked = offer.cards[i];
+    var rarity = picked._rarity || 'Common';
+    var cost = offer.free ? 0 : (RARITY_PRICES[rarity==='Signature'?'S':(rarity==='Greater'?'G':'C')] || 0);
 
-    for (var k = 0; k < pending.length; k += 1) {
-      if ((pending[k].id || '') === cardId) {
-        selectedIndex = k;
-        card = pending[k];
-        break;
-      }
-    }
-
-    if (!card) {
-      gmSay('BoonManager: Invalid card id ' + cardId + '.');
-      return;
-    }
-
-    var rarityName = card._rarity || card.rarity || 'Common';
-    var rarityCode = (card._rarityCode || rarityName.charAt(0) || 'C').toUpperCase();
-    var cost = RARITY_PRICES[rarityCode] || RARITY_PRICES.C;
-
-    if (!StateManager.spendScrip(playerid, cost)) {
-      return;
-    }
-
-    pending.splice(selectedIndex, 1);
-    if (pending.length) {
-      _pendingChoices[playerid] = pending;
-    } else {
-      delete _pendingChoices[playerid];
+    if (cost>0 && !StateManager.spendScrip(playerid, cost)) {
+      return; // spendScrip already warns
     }
 
     var ps = StateManager.getPlayer(playerid);
-    if (!ps.boons) {
-      ps.boons = [];
-    }
-
+    if (!ps.boons) ps.boons = [];
     ps.boons.push({
-      cardId: cardId,
-      name: card.name,
-      rarity: rarityCode,
-      ancestor: card._ancestorName || card.ancestor || 'Unknown',
+      id: picked.id || picked.name,
+      name: picked.name,
+      rarity: rarity,
+      ancestor: offer.ancestor,
       acquiredAt: new Date().toISOString(),
       cost: cost
     });
 
-    var playerName = getPlayerName(playerid);
-    var rarityLabel = rarityCode === 'S' ? 'Signature' : (rarityCode === 'G' ? 'Greater' : 'Common');
-    var message = '🌟 You gained <b>' + card.name + '</b> (' + rarityLabel + ') for ' + cost + ' Scrip!';
+    delete offers[playerid];
 
-    if (typeof UIManager !== 'undefined' && typeof UIManager.whisper === 'function') {
-      UIManager.whisper(playerName, 'Boon Purchased', message);
-    } else {
-      whisperRaw(playerName, message);
-    }
+    var playerName = getPlayerName(playerid);
+    var label = rarityLabel(rarity);
+    var message = '🌟 You gained <b>' + _.escape(picked.name) + '</b> (' + label + ')'
+                + (cost>0 ? (' for ' + cost + ' Scrip!') : ' for 0 Scrip (free reward).');
+
+    if (UIManager && UIManager.whisper) UIManager.whisper(playerName, 'Boon Gained', message);
+    else whisperRaw(playerName, message);
   }
 
   /** Chat command dispatcher */
@@ -220,13 +193,14 @@ var BoonManager = (function () {
     var command = parts.shift();
 
     if (command === '!offerboons') {
-      var ancestor = parts[0];
-      offerBoons(msg.playerid, ancestor);
+      var ancestor = parts[0];           // optional
+      var modeFlag = parts[1] || 'free'; // default end-of-room is free
+      offerBoons(msg.playerid, ancestor, modeFlag);
     }
 
     if (command === '!chooseboon') {
-      var cardId = parts[0];
-      chooseBoon(msg.playerid, cardId);
+      var idx = parts[0];
+      chooseBoon(msg.playerid, idx);
     }
   }
 
@@ -243,21 +217,21 @@ var BoonManager = (function () {
 
 })();
 
-  function gmSay(msg) {
-    var payload = '/w gm ' + msg;
-    if (typeof HRChat !== 'undefined' && HRChat && typeof HRChat.say === 'function') {
-      HRChat.say(payload);
-    } else {
-      sendChat('Hoard Run', payload);
-    }
+function gmSay(msg) {
+  var payload = '/w gm ' + msg;
+  if (typeof HRChat !== 'undefined' && HRChat && typeof HRChat.say === 'function') {
+    HRChat.say(payload);
+  } else {
+    sendChat('Hoard Run', payload);
   }
+}
 
-  function whisperRaw(target, msg) {
-    var payload = '/w ' + target + ' ' + msg;
-    if (typeof HRChat !== 'undefined' && HRChat && typeof HRChat.say === 'function') {
-      HRChat.say(payload);
-    } else {
-      sendChat('Hoard Run', payload);
-    }
+function whisperRaw(target, msg) {
+  var payload = '/w ' + target + ' ' + msg;
+  if (typeof HRChat !== 'undefined' && HRChat && typeof HRChat.say === 'function') {
+    HRChat.say(payload);
+  } else {
+    sendChat('Hoard Run', payload);
   }
+}
 

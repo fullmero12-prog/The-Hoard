@@ -11,8 +11,8 @@
 - `!openshop` — Summon Bing, Bang & Bongo's shop interface for purchases.
 
 ## Boons
-- `!offerboons <Ancestor>` — Present boon choices tied to the specified Ancestor.
-- `!chooseboon <CardID>` — Claim a boon from the current offering.
+- `!offerboons <Ancestor> [free|shop]` — Present boon choices tied to the specified Ancestor. Use `free` (default) for post-room rewards or `shop` to charge Scrip by rarity.
+- `!chooseboon <ChoiceIndex>` — Claim a boon from the current offering by its displayed index.
 
 ## Currency Utilities
 - `!tradeSquares scrip|fse` — Convert Squares into the specified currency reward.

@@ -345,9 +345,10 @@ var RunFlowManager = (function () {
         );
 
         if (typeof BoonManager !== 'undefined' && run.ancestor && run.currentRoom > 1) {
+          var safe = run.ancestor.replace(/\s+/g, '_');
           sendDirect('Boon Opportunity',
             '✨ ' + _.escape(run.ancestor) + ' offers a new boon choice.<br>' +
-            '[Draw Boons](!offerboons)'
+            '[Draw Boons](!offerboons ' + safe + ' free)'
           );
         }
       }
