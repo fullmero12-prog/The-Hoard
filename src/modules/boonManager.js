@@ -38,10 +38,48 @@ var BoonManager = (function () {
     return state.HoardRun.boonOffers;
   }
 
-  // simple panel
-  function panel(title, body){
-    return '<div style="border:1px solid #444;background:#111;color:#eee;padding:8px;">'
-         + '<div style="font-weight:bold;margin-bottom:6px;">'+title+'</div>'+body+'</div>';
+  // Converts lightweight **bold** to <b> in escaped text, so rules read nicely in HTML panels.
+  function mdInline(s){
+    if (!s) return '';
+    var esc = _.escape(s);
+    return esc.replace(/\*\*(.*?)\*\*/g, '<b>$1</b>');
+  }
+
+  function rarityStyle(r){
+    // Colors chosen for contrast on a dark UI.
+    // bg: soft tint; fg: readable text; br: border; badge: bright label.
+    var map = {
+      'Common'   : { bg:'#0f2d1f', fg:'#e7fff1', br:'#1f6844', badgeBg:'#1aa567', badgeFg:'#062a1b' },
+      'Greater'  : { bg:'#0e2140', fg:'#e6f2ff', br:'#1d4e89', badgeBg:'#2a7bdc', badgeFg:'#07172c' },
+      'Signature': { bg:'#3b2208', fg:'#fff2e0', br:'#7a4513', badgeBg:'#ff8a00', badgeFg:'#2a1402' }
+    };
+    return map[r] || map.Common;
+  }
+
+  function cardHTML(c, i){
+    var r = c._rarity || 'Common';
+    var st = rarityStyle(r);
+
+    var head =
+      '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">' +
+        '<div style="font-weight:700;font-size:14px;line-height:1.2;color:' + st.fg + '">' + _.escape(c.name) + '</div>' +
+        '<span style="padding:2px 6px;border-radius:6px;font-size:11px;font-weight:700;background:' + st.badgeBg + ';color:#fff;letter-spacing:0.3px;">' + _.escape(r) + '</span>' +
+      '</div>';
+
+    var body =
+      '<div style="color:' + st.fg + ';opacity:0.95;line-height:1.25;margin:6px 0 10px 0;">' +
+        mdInline(c.text_in_run || '') +
+      '</div>';
+
+    var btn = (typeof UIManager !== 'undefined' && UIManager && UIManager.buttons)
+        ? UIManager.buttons([{ label:'Choose', command:'!chooseboon ' + i }])
+        : '[Choose](!chooseboon ' + i + ')';
+
+    return (
+      '<div style="border:1px solid ' + st.br + ';background:' + st.bg + ';padding:10px 10px 12px 10px;border-radius:8px;margin:10px 0;">' +
+        head + body + btn +
+      '</div>'
+    );
   }
 
   /** Returns the Roll20 display name (quoted for whispers) */
@@ -98,29 +136,18 @@ var BoonManager = (function () {
   }
 
   function renderOfferCards(playerName, ancestor, cards, freeMode){
-    // Build a very simple panel header (safe)
-    var header = '<div style="border:1px solid #444;background:#111;color:#eee;padding:8px;">'
-               + '<div style="font-weight:bold;margin-bottom:6px;">Ancestor Boons — '
-               + _.escape(ancestor) + '</div>';
+    var title = 'Ancestor Boons — ' + _.escape(ancestor);
+    var content = cards.map(cardHTML).join('');
 
-    var chunks = cards.map(function(c, i){
-      // Title + rarity (escaped)
-      var head = '<div style="font-weight:600;color:#fff">'+_.escape(c.name)+'</div>'
-               + '<div style="font-size:11px;color:#aaa;margin-bottom:4px;">'+rarityLabel(c._rarity)+'</div>';
-      var body = '<div style="color:#ccc;margin-bottom:6px;">'+_.escape(c.text_in_run||'')+'</div>';
-
-      // Prefer UIManager buttons so Roll20 renders proper command links.
-      var btn = (typeof UIManager !== 'undefined' && UIManager.buttons)
-        ? UIManager.buttons([{ label: 'Choose', command: '!chooseboon ' + i }])
-        : '[Choose](!chooseboon ' + i + ')';
-
-      return '<div style="border:1px solid #333;background:#0b0b0b;padding:8px;margin-bottom:8px;">'
-           + head + body + btn + '</div>';
-    }).join('');
-
-    var html = panel('Ancestor Boons — '+_.escape(ancestor), items);
-    if (typeof HRChat !== 'undefined' && HRChat.direct) HRChat.direct(html);
-    else sendChat('Hoard Run', '/direct ' + html);
+    if (typeof sendDirect === 'function') {
+      sendDirect(title, content);
+    } else {
+      var shell = (typeof UIManager !== 'undefined' && UIManager && UIManager.panel)
+        ? UIManager.panel(title, content)
+        : '<div style="border:1px solid #444;background:#111;color:#eee;padding:8px;">'
+            + '<div style="font-weight:bold;margin-bottom:6px;">'+title+'</div>'+content+'</div>';
+      sendChat('Hoard Run', '/direct ' + shell);
+    }
   }
 
   /** Offers boon choices to the specified player */
