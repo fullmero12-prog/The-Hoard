@@ -273,7 +273,8 @@ var BoonDataLoader = (function () {
     },
 
     // 🌑 MORVOX — Tiny Tyrant of the Umbral Staff
-    Morvox: {
+    // Key matches canonAncestor('Morvox, Tiny Tyrant') so BoonManager can find the deck.
+    MorvoxTinyTyrant: {
       Common: [
         {
           id: 'morvox_malevolent_study',
