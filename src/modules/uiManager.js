@@ -28,14 +28,7 @@ var UIManager = (function () {
    * @returns {string} HTML block
    */
   function panel(title, bodyHTML) {
-    return (
-      '<div style="border:1px solid ' + COLORS.border +
-      ';background:' + COLORS.bg +
-      ';color:' + COLORS.text +
-      ';padding:6px;margin:4px 0;">' +
-      '<b style="color:' + COLORS.accent + '">' + title + '</b><br>' +
-      bodyHTML + '</div>'
-    );
+    return '**' + title + '**\n' + bodyHTML;
   }
 
   /**
@@ -45,8 +38,8 @@ var UIManager = (function () {
    */
   function buttons(buttons) {
     return buttons.map(function (b) {
-      return '[' + b.label + '](' + b.command + ')';
-    }).join(' ');
+      return '[' + b.label + '](!' + (b.command || '').replace(/^!/, '') + ')';
+    }).join('<br>');
   }
 
   /**

@@ -75,20 +75,16 @@ var RunFlowManager = (function () {
     if (typeof UIManager !== 'undefined' && typeof UIManager.panel === 'function') {
       return UIManager.panel(title, bodyHTML);
     }
-    return '<div style="border:1px solid #666;padding:5px;background:#111;color:#EEE;">' +
-      '<b>' + title + '</b><br>' + bodyHTML + '</div>';
+    return '**' + title + '**\n' + bodyHTML;
   }
 
   function formatButtons(buttons) {
-    var rendered;
     if (typeof UIManager !== 'undefined' && typeof UIManager.buttons === 'function') {
-      rendered = UIManager.buttons(buttons);
-      return rendered.replace(/\)\s*\[/g, ')<br>[');
+      return UIManager.buttons(buttons);
     }
-    rendered = buttons.map(function (b) {
-      return '[' + b.label + '](' + b.command + ')';
+    return buttons.map(function (b) {
+      return '[' + b.label + '](!' + (b.command || '').replace(/^!/, '') + ')';
     }).join('<br>');
-    return rendered;
   }
 
   function promptAncestorSelection(run) {
