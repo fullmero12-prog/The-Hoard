@@ -38,10 +38,12 @@ var BoonManager = (function () {
     return state.HoardRun.boonOffers;
   }
 
-  // simple panel
-  function panel(title, body){
-    return '<div style="border:1px solid #444;background:#111;color:#eee;padding:8px;">'
-         + '<div style="font-weight:bold;margin-bottom:6px;">'+title+'</div>'+body+'</div>';
+  // Converts lightweight **bold** to <b> in escaped text, so rules read nicely in HTML panels.
+  function mdInline(s){
+    if (!s) return '';
+    // escape then re-enable bold markers
+    var esc = _.escape(s);
+    return esc.replace(/\*\*(.*?)\*\*/g, '<b>$1</b>');
   }
 
   /** Returns the Roll20 display name (quoted for whispers) */
@@ -98,29 +100,37 @@ var BoonManager = (function () {
   }
 
   function renderOfferCards(playerName, ancestor, cards, freeMode){
-    // Build a very simple panel header (safe)
-    var header = '<div style="border:1px solid #444;background:#111;color:#eee;padding:8px;">'
-               + '<div style="font-weight:bold;margin-bottom:6px;">Ancestor Boons — '
-               + _.escape(ancestor) + '</div>';
+    // Build each boon as its own panel with a pink "Choose" button.
+    var sections = cards.map(function (c, i) {
+      var title =
+        '<div style="font-weight:700">' + _.escape(c.name) + '</div>' +
+        '<div style="font-size:11px;color:#aaa;margin-top:2px;">' + rarityLabel(c._rarity) + '</div>';
 
-    var chunks = cards.map(function(c, i){
-      // Title + rarity (escaped)
-      var head = '<div style="font-weight:600;color:#fff">'+_.escape(c.name)+'</div>'
-               + '<div style="font-size:11px;color:#aaa;margin-bottom:4px;">'+rarityLabel(c._rarity)+'</div>';
-      var body = '<div style="color:#ccc;margin-bottom:6px;">'+_.escape(c.text_in_run||'')+'</div>';
+      var body =
+        '<div style="margin:8px 0 10px 0;color:#ddd;line-height:1.2;">' +
+        mdInline(c.text_in_run || '') +
+        '</div>';
 
-      // Prefer UIManager buttons so Roll20 renders proper command links.
       var btn = (typeof UIManager !== 'undefined' && UIManager.buttons)
         ? UIManager.buttons([{ label: 'Choose', command: '!chooseboon ' + i }])
         : '[Choose](!chooseboon ' + i + ')';
 
-      return '<div style="border:1px solid #333;background:#0b0b0b;padding:8px;margin-bottom:8px;">'
-           + head + body + btn + '</div>';
+      return (typeof UIManager !== 'undefined' && UIManager.panel)
+        ? UIManager.panel(title, body + btn)
+        : ('<div style="border:1px solid #444;background:#111;color:#eee;padding:8px;margin-bottom:8px;">'
+            + '<div style="font-weight:bold;margin-bottom:6px;">' + title + '</div>' + body + btn + '</div>');
     }).join('');
 
-    var html = panel('Ancestor Boons — '+_.escape(ancestor), items);
-    if (typeof HRChat !== 'undefined' && HRChat.direct) HRChat.direct(html);
-    else sendChat('Hoard Run', '/direct ' + html);
+    var outerTitle = 'Ancestor Boons — ' + _.escape(ancestor);
+
+    if (typeof sendDirect === 'function') {
+      sendDirect(outerTitle, sections);
+    } else {
+      var wrapped = (typeof UIManager !== 'undefined' && UIManager.panel) ? UIManager.panel(outerTitle, sections)
+        : ('<div style="border:1px solid #444;background:#111;color:#eee;padding:8px;">'
+            + '<div style="font-weight:bold;margin-bottom:6px;">' + outerTitle + '</div>' + sections + '</div>');
+      sendChat('Hoard Run', '/direct ' + wrapped);
+    }
   }
 
   /** Offers boon choices to the specified player */
