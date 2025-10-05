@@ -54,7 +54,6 @@ var RoomManager = (function () {
 
     if (bundle.squareChance && Math.random() < bundle.squareChance) {
       StateManager.addCurrency(playerid, 'squares', 1);
-      UIManager.whisper(getPlayerName(playerid), 'Treasure', '✦ You found a Square!');
       if (typeof StateManager.getCurrencies === 'function') {
         totals = StateManager.getCurrencies(playerid);
       }
@@ -72,111 +71,41 @@ var RoomManager = (function () {
    */
   function advanceRoom(playerid, roomType) {
     var safeType = sanitizeRoomType(roomType);
-    var playerName = getPlayerName(playerid);
-
     var rewardBundle = REWARDS[safeType] || REWARDS.room;
+
     var result = null;
 
     if (typeof StateManager.advanceRoom === 'function') {
+      // Let StateManager do first-entry and room-count logic
       result = StateManager.advanceRoom(playerid, { scrip: rewardBundle.scrip, fse: rewardBundle.fse });
     } else {
+      // Fallback legacy path (kept minimal, no UI)
       StateManager.initPlayer(playerid);
-      var legacyPlayer = StateManager.getPlayer(playerid);
-      if (!legacyPlayer.hasEnteredFirstRoom) {
-        legacyPlayer.hasEnteredFirstRoom = true;
-        if (typeof StateManager.setPlayer === 'function') {
-          StateManager.setPlayer(playerid, legacyPlayer);
-        }
-        UIManager.whisper(
-          playerName,
-          'Room 1 Ready',
-          '⚔️ The first chamber opens. Clear it, then use !nextr again to claim rewards.'
-        );
-        return;
+      var p = StateManager.getPlayer(playerid);
+      if (!p.hasEnteredFirstRoom) {
+        p.hasEnteredFirstRoom = true;
+        if (StateManager.setPlayer) StateManager.setPlayer(playerid, p);
+        return { firstEntry: true, player: p };
       }
-
-      legacyPlayer.currentRoom = (legacyPlayer.currentRoom || 0) + 1;
+      p.currentRoom = (p.currentRoom || 0) + 1;
       StateManager.addCurrency(playerid, 'scrip', rewardBundle.scrip);
       StateManager.addCurrency(playerid, 'fse', rewardBundle.fse);
-
       result = {
         firstEntry: false,
-        clearedRoom: legacyPlayer.currentRoom,
-        totals: typeof StateManager.getCurrencies === 'function'
-          ? StateManager.getCurrencies(playerid)
-          : { scrip: legacyPlayer.scrip, fse: legacyPlayer.fse },
-        player: legacyPlayer
+        clearedRoom: p.currentRoom,
+        totals: (StateManager.getCurrencies) ? StateManager.getCurrencies(playerid) : { scrip: p.scrip, fse: p.fse },
+        player: p
       };
     }
 
-    if (result.firstEntry) {
-      UIManager.whisper(
-        playerName,
-        'Room 1 Ready',
-        '⚔️ The first chamber opens. Clear it, then use !nextr again to claim rewards.'
-      );
-      return;
+    // Apply post-clear squares only; still no UI.
+    if (!result.firstEntry) {
+      var totals = result.totals || { scrip: 0, fse: 0 };
+      var r = applyRewards(playerid, safeType, totals);
+      result.totals = r.totals || totals;
     }
 
-    var clearedRoom = result.clearedRoom;
-    var totals = result.totals || { scrip: 0, fse: 0 };
-
-    var rewardInfo = applyRewards(playerid, safeType, totals);
-    totals = rewardInfo.totals || totals;
-
-    var p = (result.player) ? result.player : StateManager.getPlayer(playerid);
-
-    UIManager.whisper(
-      playerName,
-      'Room ' + clearedRoom + ' Cleared',
-      '➤ +' + rewardBundle.scrip + ' Scrip, +' + rewardBundle.fse + ' FSE.<br>' +
-      'Total — Scrip: <b>' + totals.scrip + '</b> | FSE: <b>' + totals.fse + '</b>'
-    );
-
-    try {
-      if (typeof BoonManager !== 'undefined' && typeof BoonManager.offerBoons === 'function') {
-        if (safeType === 'room' || safeType === 'miniboss') {
-          BoonManager.offerBoons(playerid);
-          UIManager.whisper(
-            playerName,
-            'Boon Offer',
-            '🪄 A mysterious force offers you a new Boon...'
-          );
-        }
-      } else {
-        UIManager.gmLog('BoonManager not available or missing offerBoons().');
-      }
-    } catch (err) {
-      UIManager.gmLog('Error offering Boons: ' + err);
-    }
-
-    if (p.currentRoom === 3) {
-      UIManager.whisper(
-        playerName,
-        'Shop Available',
-        '🛒 Bing, Bang & Bongo await! Use !openshop.'
-      );
-      UIManager.gmLog('Shop available after Room 3. Move to Shop page to open.');
-    }
-
-    if (p.currentRoom === 5) {
-      UIManager.whisper(
-        playerName,
-        'Optional Shop',
-        '🛒 Optional shop unlocked. Use !openshop if desired.'
-      );
-      UIManager.gmLog('Optional shop available after Room 5. Move to Shop page to open.');
-    }
-
-    if (safeType === 'boss' && !p.firstClearAwarded) {
-      StateManager.addCurrency(playerid, 'fse', REWARDS.firstClearBonusFSE);
-      p.firstClearAwarded = true;
-      UIManager.whisper(
-        getPlayerName(playerid),
-        'First Clear Bonus',
-        '✪ +' + REWARDS.firstClearBonusFSE + ' FSE.'
-      );
-    }
+    return result;
   }
 
   /**
@@ -211,18 +140,8 @@ var RoomManager = (function () {
   // Command Registration
   // ------------------------------------------------------------
   function register() {
-    on('chat:message', function (msg) {
-      if (msg.type !== 'api') {
-        return;
-      }
-      var args = msg.content.split(' ');
-      var cmd = args[0];
-
-      if (cmd === '!nextr') {
-        var type = args[1] || 'room';
-        advanceRoom(msg.playerid, type);
-      }
-    });
+    // intentionally disabled: RunFlowManager owns chat commands
+    // (We leave RoomManager as a pure helper.)
   }
 
   return {

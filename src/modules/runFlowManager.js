@@ -291,9 +291,6 @@ var RunFlowManager = (function () {
   }
 
   function handleNextRoom(playerid, arg) {
-    // Let GM or players advance — if you want GM-only, re-enable the check below.
-    // if (typeof isGM === 'function' && !isGM(playerid)) return;
-
     if (_advancing) return;
     _advancing = true;
 
@@ -301,91 +298,81 @@ var RunFlowManager = (function () {
       var run = getRun();
       if (!run.started) { whisperText(playerid, '⚠️ No active run. Use <b>!startrun</b> first.'); return; }
 
-      var rewardBundle = { scrip: 20, fse: 1 };
-      var roster = (state && state.HoardRun && state.HoardRun.players) ? state.HoardRun.players : {};
-      var processed = false;
-      var maxCleared = run.currentRoom || 0;
+      if (!StateManager || !StateManager.getPlayer) { whisperText(playerid, '⚠️ StateManager not ready.'); return; }
+      var ps = StateManager.getPlayer(playerid);
+      if (!ps || !ps.focus) {
+        whisperPanel(playerid, 'Choose Your Weapon',
+          '⚠️ Select a weapon to attune with:<br><br>' + formatButtons([
+            { label: '⚔️ Greataxe', command: '!selectweapon Greataxe' },
+            { label: '🗡️ Rapier',   command: '!selectweapon Rapier'   },
+            { label: '🏹 Bow',      command: '!selectweapon Bow'      },
+            { label: '🔮 Orb',      command: '!selectweapon Orb'      },
+            { label: '📚 Staff',    command: '!selectweapon Staff'    }
+          ])
+        );
+        return;
+      }
 
-      var pid;
-      for (pid in roster) if (roster.hasOwnProperty(pid)) {
-        if (!StateManager || !StateManager.getPlayer || !StateManager.advanceRoom) continue;
+      // Use RoomManager (now pure) to determine the step
+      var result = (RoomManager && RoomManager.advanceRoom)
+        ? RoomManager.advanceRoom(playerid, 'room')
+        : StateManager.advanceRoom(playerid, { scrip: 20, fse: 1 }); // minimal fallback
 
-        var ps = StateManager.getPlayer(pid);
-        if (!ps || !ps.focus) {
-          // Nudge them to pick a weapon.
-          whisperPanel(pid, 'Choose Your Weapon',
-            '⚠️ Select a weapon to attune with:<br><br>' + formatButtons([
-              { label: '⚔️ Greataxe', command: '!selectweapon Greataxe' },
-              { label: '🗡️ Rapier',   command: '!selectweapon Rapier'   },
-              { label: '🏹 Bow',      command: '!selectweapon Bow'      },
-              { label: '🔮 Orb',      command: '!selectweapon Orb'      },
-              { label: '📚 Staff',    command: '!selectweapon Staff'    }
-            ])
-          );
-          continue;
-        }
-
-        var result = StateManager.advanceRoom(pid, rewardBundle);
-        processed = true;
-
-        // FIRST ENTRY into Room 1: do not grant rewards; prompt ancestor now.
-        if (result && result.firstEntry) {
-          whisperPanel(pid, 'Room 1 Ready',
-            '⚔️ The first chamber opens. Run the encounter, then use <b>!nextroom</b> again to claim rewards.'
-          );
-
-          if (!ps.ancestor_id) {
-            var ancestors = ANCESTOR_SETS[ps.focus] || [];
-            if (ancestors.length) {
-              var ancestorButtons = ancestors.map(function (a) {
-                var ident = String(a || '').replace(/\s+/g, '_').replace(/"/g, '');
-                return { label: 'Select ' + _.escape(a), command: '!selectancestor ' + ident };
-              });
-              whisperPanel(pid, 'Choose Your Ancestor',
-                '🌟 Bind to an ancestor to unlock room-end boons:<br><br>' + formatButtons(ancestorButtons)
-              );
-            }
-          }
-          continue; // important: do not update run.currentRoom here
-        }
-
-        // Normal room clear
-        var clearedRoom = (result && result.clearedRoom) || 0;
-        var totals = (result && result.totals) || { scrip: 0, fse: 0 };
-        if (clearedRoom > maxCleared) maxCleared = clearedRoom;
-
-        whisperPanel(pid, 'Room Complete',
-          '🏁 <b>Room ' + clearedRoom + '</b> cleared!<br>' +
-          '+20 Scrip, +1 FSE earned.<br><br>' +
-          'Total — Scrip: <b>' + totals.scrip + '</b> | FSE: <b>' + totals.fse + '</b>'
+      if (result && result.firstEntry) {
+        whisperPanel(playerid, 'Room 1 Ready',
+          '⚔️ The first chamber opens. Run the encounter, then use <b>!nextroom</b> again to claim rewards.'
         );
 
-        // End-of-room boon: free if ancestor exists; otherwise queue it.
-        if (ps.ancestor_id && BoonManager && BoonManager.offerBoons) {
-          BoonManager.offerBoons(pid, ps.ancestor_id, 'free');
-        } else if (!ps.ancestor_id) {
-          ps.pendingFreeBoon = true; // will be consumed when they pick an ancestor
-          if (StateManager.setPlayer) StateManager.setPlayer(pid, ps);
-
-          var anc = ANCESTOR_SETS[ps.focus] || [];
-          if (anc.length) {
-            var btns = anc.map(function (a) {
+        if (!ps.ancestor_id) {
+          var ancestors = ANCESTOR_SETS[ps.focus] || [];
+          if (ancestors.length) {
+            var ancestorButtons = ancestors.map(function (a) {
               var ident = String(a || '').replace(/\s+/g, '_').replace(/"/g, '');
               return { label: 'Select ' + _.escape(a), command: '!selectancestor ' + ident };
             });
-            whisperPanel(pid, 'Boon Opportunity',
-              '📘 Choose an ancestor to claim your free boon now:<br><br>' + formatButtons(btns)
+            whisperPanel(playerid, 'Choose Your Ancestor',
+              '🌟 Bind to an ancestor to unlock room-end boons:<br><br>' + formatButtons(ancestorButtons)
             );
           }
         }
+        return; // important: no rewards yet
       }
 
-      if (processed && maxCleared > (run.currentRoom || 0)) run.currentRoom = maxCleared;
+      // Normal room clear
+      var clearedRoom = (result && result.clearedRoom) || 0;
+      var totals = (result && result.totals) || { scrip: 0, fse: 0 };
 
-      if (!processed) whisperText(playerid, '⚠️ No players were advanced.');
-      else            sendDirect('Room Progression', '✅ Room event processed. Current cleared room: <b>' + run.currentRoom + '</b>.');
+      whisperPanel(playerid, 'Room Complete',
+        '🏁 <b>Room ' + clearedRoom + '</b> cleared!<br>' +
+        '+20 Scrip, +1 FSE earned.<br><br>' +
+        'Total — Scrip: <b>' + totals.scrip + '</b> | FSE: <b>' + totals.fse + '</b>'
+      );
 
-      log('[RunFlow] Global room progression resolved. Highest cleared room: ' + (run.currentRoom || 0) + '.');
+      // Offer free boon only if ancestor chosen; else queue it
+      ps = StateManager.getPlayer(playerid);
+      if (ps.ancestor_id && BoonManager && BoonManager.offerBoons) {
+        BoonManager.offerBoons(playerid, ps.ancestor_id, 'free');
+      } else {
+        ps.pendingFreeBoon = true;
+        if (StateManager.setPlayer) StateManager.setPlayer(playerid, ps);
+
+        var anc = ANCESTOR_SETS[ps.focus] || [];
+        if (anc.length) {
+          var btns = anc.map(function (a) {
+            var ident = String(a || '').replace(/\s+/g, '_').replace(/"/g, '');
+            return { label: 'Select ' + _.escape(a), command: '!selectancestor ' + ident };
+          });
+          whisperPanel(playerid, 'Boon Opportunity',
+            '📘 Choose an ancestor to claim your free boon now:<br><br>' + formatButtons(btns)
+          );
+        }
+      }
+
+      // keep a *local* notion of cleared room if you want, but
+      // don’t compute a global max across all players yet.
+      run.currentRoom = Math.max(run.currentRoom || 0, clearedRoom);
+      sendDirect('Room Progression', '✅ Room event processed. Current cleared room: <b>' + run.currentRoom + '</b>.');
+
     } finally {
       _advancing = false;
     }
