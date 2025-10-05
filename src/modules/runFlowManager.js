@@ -12,6 +12,7 @@ var RunFlowManager = (function () {
 
   var VERSION = '1.1.0';
   var isRegistered = false;
+  var _advancing = false;
 
   var DEFAULT_RUN_STATE = {
     currentRoom: 0,
@@ -21,7 +22,8 @@ var RunFlowManager = (function () {
     fse: 0,
     rerollTokens: 0,
     squares: 0,
-    started: false
+    started: false,
+    lastPrompt: null
   };
 
   var WEAPONS = ['Staff', 'Orb', 'Greataxe', 'Rapier', 'Bow'];
@@ -96,13 +98,6 @@ var RunFlowManager = (function () {
     return state.HoardRun.runFlow;
   }
 
-  function isGM(playerid) {
-    if (typeof playerIsGM === 'function') {
-      return playerIsGM(playerid);
-    }
-    return true;
-  }
-
   function formatPanel(title, bodyHTML) {
     if (typeof UIManager !== 'undefined' && typeof UIManager.panel === 'function') {
       return UIManager.panel(title, bodyHTML);
@@ -112,21 +107,29 @@ var RunFlowManager = (function () {
 
   function formatButtons(buttons) {
     if (typeof UIManager !== 'undefined' && typeof UIManager.buttons === 'function') {
-      rendered = UIManager.buttons(buttons);
+      var rendered = UIManager.buttons(buttons);
       return rendered;
     }
-    rendered = buttons.map(function (b) {
+    return buttons.map(function (b) {
       var command = (b.command || '').replace(/^!/, '');
       return '[' + b.label + '](!' + command + ')';
     }).join('<br>');
   }
 
   function sendDirect(title, bodyHTML) {
-    sendChat('Hoard Run', '/direct ' + formatPanel(title, bodyHTML));
+    if (typeof HRChat !== 'undefined' && HRChat && typeof HRChat.direct === 'function') {
+      HRChat.direct(formatPanel(title, bodyHTML));
+    } else {
+      sendChat('Hoard Run', '/direct ' + formatPanel(title, bodyHTML));
+    }
   }
 
   function whisperGM(title, bodyHTML) {
-    sendChat('Hoard Run', '/w gm ' + formatPanel(title, bodyHTML));
+    if (typeof HRChat !== 'undefined' && HRChat && typeof HRChat.say === 'function') {
+      HRChat.say('/w gm ' + formatPanel(title, bodyHTML));
+    } else {
+      sendChat('Hoard Run', '/w gm ' + formatPanel(title, bodyHTML));
+    }
   }
 
   function sanitizeWeapon(arg) {
@@ -152,13 +155,14 @@ var RunFlowManager = (function () {
   // ------------------------------------------------------------
 
   function handleStartRun(playerid) {
-    if (!isGM(playerid)) {
+    if (typeof isGM === 'function' && !isGM(playerid)) {
       return;
     }
 
     var run = resetRunState();
     run.started = true;
     run.currentRoom = 0; // 0 = pre-battle setup room (Weapon/Ancestor phase)
+    run.lastPrompt = null;
 
     sendDirect('Welcome to the Hoard Run',
       '<b>The Hoard stirs…</b><br>' +
@@ -177,7 +181,7 @@ var RunFlowManager = (function () {
   }
 
   function handleSelectWeapon(playerid, arg) {
-    if (!isGM(playerid)) {
+    if (typeof isGM === 'function' && !isGM(playerid)) {
       return;
     }
 
@@ -195,6 +199,7 @@ var RunFlowManager = (function () {
 
     run.weapon = weapon;
     run.currentRoom = 1;
+    run.lastPrompt = null;
 
     sendDirect('Weapon Chosen', '🗡️ Weapon locked: <b>' + weapon + '</b>.<br>Prepare for your first encounter!<br><br>' +
       'Entering <b>Room 1</b>...');
@@ -202,7 +207,7 @@ var RunFlowManager = (function () {
   }
 
   function handleSelectAncestor(playerid, arg) {
-    if (!isGM(playerid)) {
+    if (typeof isGM === 'function' && !isGM(playerid)) {
       return;
     }
 
@@ -235,6 +240,7 @@ var RunFlowManager = (function () {
     }
 
     run.ancestor = valid;
+    run.lastPrompt = null;
 
     var info = ANCESTOR_INFO[valid];
     var head = info ? '<b>' + info.title + '</b>' : '<b>' + valid + '</b>';
@@ -252,67 +258,79 @@ var RunFlowManager = (function () {
   }
 
   function handleNextRoom(playerid, arg) {
-    if (!isGM(playerid)) {
+    if (typeof isGM === 'function' && !isGM(playerid)) {
       return;
     }
 
-    var run = getRun();
-    if (!run.started) {
-      whisperGM('Room Progression', '⚠️ No active run. Use <b>!startrun</b> first.');
-      return;
-    }
-    if (!run.weapon) {
-      whisperGM('Room Progression', '⚠️ Choose a weapon before advancing.');
+    if (_advancing) {
       return;
     }
 
-    run.currentRoom += 1;
+    _advancing = true;
 
-    if (run.currentRoom === 1) {
-      sendDirect('Room 1 Ready', '⚔️ Choose your weapon first with <b>!selectweapon</b>.');
-      return;
-    }
-
-    if (!run.ancestor) {
-      var weaponAncestors = (ANCESTOR_SETS[run.weapon] || []).map(function (a) {
-        var info = ANCESTOR_INFO[a];
-        var safe = a.replace(/\s+/g, '_');
-        var head = info ? '<b>' + info.title + '</b>' : '<b>' + a + '</b>';
-        var blurb = '';
-        if (info) {
-          blurb = '<div style="margin:4px 0 10px 0;color:#cfc">' + _.escape(info.desc) + '</div>';
-        }
-        return head + '<br>' + blurb + '[Select ' + a + '](!selectancestor ' + safe + ')';
-      }).join('<br><br>');
-
-      sendDirect('Choose your Ancestor',
-        'Choose your guiding spirit (weapon: <b>' + run.weapon + '</b>):<br><br>' + weaponAncestors
-      );
-      log('[RunFlow] Awaiting ancestor selection for ' + run.weapon + '.');
-      return;
-    }
-
-    if (run.currentRoom > 1) {
-      run.scrip += 20;
-      run.fse += 1;
-
-      sendDirect('Room Complete',
-        '🏁 <b>Room ' + (run.currentRoom - 1) + '</b> cleared!<br>' +
-        '+20 Scrip, +1 FSE earned.<br><br>' +
-        'Total — Scrip: <b>' + run.scrip + '</b> | FSE: <b>' + run.fse + '</b><br><br>' +
-        '🌀 You may now choose a new <b>Boon</b> inspired by your Ancestor.'
-      );
-
-      if (typeof BoonManager !== 'undefined' && run.ancestor && run.currentRoom > 1) {
-        var safeAncestor = run.ancestor.replace(/\s+/g, '_');
-        sendDirect('Boon Opportunity',
-          '✨ ' + _.escape(run.ancestor) + ' offers you a new boon choice.<br>' +
-          '[Draw Boons](!offerboons ' + safeAncestor + ')'
-        );
+    try {
+      var run = getRun();
+      if (!run.started) {
+        whisperGM('Room Progression', '⚠️ No active run. Use <b>!startrun</b> first.');
+        return;
       }
-    }
+      if (!run.weapon) {
+        if (run.lastPrompt !== 'weapon') {
+          sendDirect('Room 1 Ready', '⚔️ Choose your weapon first with <b>!selectweapon</b>.');
+          run.lastPrompt = 'weapon';
+        }
+        return;
+      }
 
-    log('[RunFlow] Advanced to room ' + run.currentRoom + '.');
+      if (!run.ancestor) {
+        if (run.lastPrompt !== 'ancestor') {
+          var weaponAncestors = (ANCESTOR_SETS[run.weapon] || []).map(function (a) {
+            var info = ANCESTOR_INFO[a];
+            var safe = a.replace(/\s+/g, '_');
+            var head = info ? '<b>' + info.title + '</b>' : '<b>' + a + '</b>';
+            var blurb = '';
+            if (info) {
+              blurb = '<div style="margin:4px 0 10px 0;color:#cfc">' + _.escape(info.desc) + '</div>';
+            }
+            return head + '<br>' + blurb + '[Select ' + a + '](!selectancestor ' + safe + ')';
+          }).join('<br><br>');
+
+          sendDirect('Choose your Ancestor',
+            'Choose your guiding spirit (weapon: <b>' + run.weapon + '</b>):<br><br>' + weaponAncestors
+          );
+          log('[RunFlow] Awaiting ancestor selection for ' + run.weapon + '.');
+          run.lastPrompt = 'ancestor';
+        }
+        return;
+      }
+
+      run.lastPrompt = null;
+      run.currentRoom += 1;
+
+      if (run.currentRoom > 1) {
+        run.scrip += 20;
+        run.fse += 1;
+
+        sendDirect('Room Complete',
+          '🏁 <b>Room ' + (run.currentRoom - 1) + '</b> cleared!<br>' +
+          '+20 Scrip, +1 FSE earned.<br><br>' +
+          'Total — Scrip: <b>' + run.scrip + '</b> | FSE: <b>' + run.fse + '</b><br><br>' +
+          '🌀 You may now choose a new <b>Boon</b> inspired by your Ancestor.'
+        );
+
+        if (typeof BoonManager !== 'undefined' && run.ancestor && run.currentRoom > 1) {
+          var safeAncestor = run.ancestor.replace(/\s+/g, '_');
+          sendDirect('Boon Opportunity',
+            '✨ ' + _.escape(run.ancestor) + ' offers you a new boon choice.<br>' +
+            '[Draw Boons](!offerboons ' + safeAncestor + ')'
+          );
+        }
+      }
+
+      log('[RunFlow] Advanced to room ' + run.currentRoom + '.');
+    } finally {
+      _advancing = false;
+    }
   }
 
   // ------------------------------------------------------------

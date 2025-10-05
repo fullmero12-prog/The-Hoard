@@ -10,6 +10,7 @@
 on('ready', function () {
   var VERSION = 'v1.1.0';
   var MODULES = [
+    'SafetyGuards',
     'StateManager',
     'DeckManager',
     'UIManager',
@@ -92,7 +93,11 @@ on('ready', function () {
     'Roll20 API sandbox ready.' +
     '</div>';
 
-  sendChat('Hoard Run', '/w gm ' + gmMessage);
+  if (typeof HRChat !== 'undefined' && HRChat && typeof HRChat.say === 'function') {
+    HRChat.say('/w gm ' + gmMessage);
+  } else {
+    sendChat('Hoard Run', '/w gm ' + gmMessage);
+  }
 
   log('=== Hoard Run ' + VERSION + ' initialized successfully ===');
 });

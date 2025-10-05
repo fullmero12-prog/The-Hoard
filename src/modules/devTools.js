@@ -11,6 +11,15 @@ var DevTools = (function () {
 
   var isRegistered = false;
 
+  function gmSay(msg) {
+    var payload = '/w gm ' + msg;
+    if (typeof HRChat !== 'undefined' && HRChat && typeof HRChat.say === 'function') {
+      HRChat.say(payload);
+    } else {
+      sendChat('Hoard Run', payload);
+    }
+  }
+
   /**
    * Reset the entire Hoard Run state.
    * Clears all progress, currencies, boons, etc.
@@ -21,7 +30,7 @@ var DevTools = (function () {
     if (typeof RunFlowManager !== 'undefined' && typeof RunFlowManager.resetRunState === 'function') {
       RunFlowManager.resetRunState();
     }
-    sendChat('Hoard Run', '/w gm ⚙️ HoardRun state has been reset.');
+    gmSay('⚙️ HoardRun state has been reset.');
   }
 
   /**
@@ -31,7 +40,7 @@ var DevTools = (function () {
    */
   function debugState(arg) {
     if (!state.HoardRun) {
-      sendChat('Hoard Run', '/w gm No HoardRun state found.');
+      gmSay('No HoardRun state found.');
       return;
     }
 
@@ -52,13 +61,13 @@ var DevTools = (function () {
           } else if (state.HoardRun && state.HoardRun.players) {
             pState = state.HoardRun.players[p.id] || null;
           }
-          sendChat('Hoard Run', '/w gm <pre>' + JSON.stringify(pState, null, 2) + '</pre>');
+          gmSay('<pre>' + JSON.stringify(pState, null, 2) + '</pre>');
           return;
         }
       }
-      sendChat('Hoard Run', '/w gm No player found matching "' + arg + '".');
+      gmSay('No player found matching "' + arg + '".');
     } else {
-      sendChat('Hoard Run', '/w gm <pre>' + JSON.stringify(state.HoardRun, null, 2) + '</pre>');
+      gmSay('<pre>' + JSON.stringify(state.HoardRun, null, 2) + '</pre>');
     }
   }
 
@@ -72,7 +81,7 @@ var DevTools = (function () {
       return p.get('online');
     });
     if (!players.length) {
-      sendChat('Hoard Run', '/w gm No online players to test shop.');
+      gmSay('No online players to test shop.');
       return;
     }
 
@@ -81,9 +90,9 @@ var DevTools = (function () {
     if (typeof ShopManager !== 'undefined' && ShopManager.generateShop) {
       var cards = ShopManager.generateShop(playerid);
       ShopManager.showShop(playerid, cards);
-      sendChat('Hoard Run', '/w gm 🛒 Test shop generated for ' + player.get('displayname'));
+      gmSay('🛒 Test shop generated for ' + player.get('displayname'));
     } else {
-      sendChat('Hoard Run', '/w gm ⚠️ ShopManager not loaded or invalid.');
+      gmSay('⚠️ ShopManager not loaded or invalid.');
     }
   }
 
@@ -94,7 +103,7 @@ var DevTools = (function () {
    */
   function testRelicDraw() {
     if (typeof DeckManager === 'undefined' || typeof DeckManager.drawByRarity !== 'function') {
-      sendChat('Hoard Run', '/w gm ⚠️ DeckManager not available for relic draw test.');
+      gmSay('⚠️ DeckManager not available for relic draw test.');
       return;
     }
 
@@ -104,12 +113,12 @@ var DevTools = (function () {
     var relic = DeckManager.drawByRarity('Relics', rarity);
 
     if (!relic) {
-      sendChat('Hoard Run', '/w gm ⚠️ No relic available for rarity ' + rarity + '.');
+      gmSay('⚠️ No relic available for rarity ' + rarity + '.');
       return;
     }
 
     var name = typeof relic.get === 'function' ? relic.get('name') : relic.name;
-    sendChat('Hoard Run', '/w gm Drew a ' + rarity + ' relic: ' + name);
+    gmSay('Drew a ' + rarity + ' relic: ' + name);
   }
 
   /**
@@ -153,7 +162,7 @@ var DevTools = (function () {
       return;
     }
     on('chat:message', handleInput);
-    sendChat('Hoard Run', '/w gm 🧰 DevTools loaded. Commands: !resetstate, !debugstate, !testshop, !testrelic');
+    gmSay('🧰 DevTools loaded. Commands: !resetstate, !debugstate, !testshop, !testrelic');
     isRegistered = true;
   }
 
