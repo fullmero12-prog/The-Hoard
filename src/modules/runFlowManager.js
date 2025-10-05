@@ -184,41 +184,36 @@ var RunFlowManager = (function () {
   // Core Actions
   // ------------------------------------------------------------
 
- function handleStartRun(playerid) {
-  if (typeof isGM === 'function' && !isGM(playerid)) {
-    return;
+  function handleStartRun(playerid) {
+    if (typeof isGM === 'function' && !isGM(playerid)) {
+      return;
+    }
+
+    var run = resetRunState();
+    run.started = true;
+    run.lastPrompt = null;
+
+    if (typeof StateManager !== 'undefined' && typeof StateManager.resetPlayerRun === 'function') {
+      StateManager.resetPlayerRun(playerid);
+    }
+
+    sendDirect('Welcome to the Hoard Run',
+      '<b>The Hoard stirs…</b><br>' +
+      'Before you step inside, you must choose your weapon.<br><br>' +
+      'Select one of the following to attune to your chosen focus:<br><br>' +
+      formatButtons([
+        { label: '⚔️ Greataxe', command: '!selectweapon Greataxe' },
+        { label: '🗡️ Rapier', command: '!selectweapon Rapier' },
+        { label: '🏹 Bow', command: '!selectweapon Bow' },
+        { label: '🔮 Orb', command: '!selectweapon Orb' },
+        { label: '📚 Staff', command: '!selectweapon Staff' }
+      ]);
+
+    // Let everyone see/press the buttons
+    sendChat('Hoard Run', '/direct ' + formatPanel('Welcome to the Hoard Run', body));
+
+    log('[RunFlow] New Hoard Run started — awaiting weapon selection.');
   }
-
-  var run = resetRunState();
-  run.started = true;
-  run.lastPrompt = null;
-
-  if (typeof StateManager !== 'undefined' && typeof StateManager.resetPlayerRun === 'function') {
-    StateManager.resetPlayerRun(playerid);
-  }
-
-  // Build the body once so we can reuse it
-  var body =
-    '<b>The Hoard stirs…</b><br>' +
-    'Before you step inside, you must choose your weapon.<br><br>' +
-    'Select one of the following to attune to your chosen focus:<br><br>' +
-    formatButtons([
-      { label: '⚔️ Greataxe', command: '!selectweapon Greataxe' },
-      { label: '🗡️ Rapier',   command: '!selectweapon Rapier' },
-      { label: '🏹 Bow',      command: '!selectweapon Bow' },
-      { label: '🔮 Orb',      command: '!selectweapon Orb' },
-      { label: '📚 Staff',    command: '!selectweapon Staff' }
-    ]);
-
-  // Send to the clicker (or everyone if HRChat.direct mirrors to table)
-  sendDirect('Welcome to the Hoard Run', body);
-
-  // Broadcast so the whole table sees the buttons
-  sendChat('Hoard Run', '/direct ' + formatPanel('Welcome to the Hoard Run', body));
-
-  log('[RunFlow] New Hoard Run started — awaiting weapon selection.');
-}
-
 
   function handleSelectWeapon(playerid, arg) {
     var run = getRun();
@@ -317,157 +312,157 @@ var RunFlowManager = (function () {
     }
   }
 
-function handleNextRoom(playerid, arg) {
-  if (typeof isGM === 'function' && !isGM(playerid)) {
-    return;
-  }
-
-  if (_advancing) {
-    return;
-  }
-  _advancing = true;
-
-  try {
-    var run = getRun();
-    if (!run.started) {
-      whisperGM('Room Progression', '⚠️ No active run. Use <b>!startrun</b> first.');
+  function handleNextRoom(playerid, arg) {
+    if (typeof isGM === 'function' && !isGM(playerid)) {
       return;
     }
-    if (!run.weapon) {
-      if (run.lastPrompt !== 'weapon') {
-        sendDirect('Room 1 Ready', '⚔️ Choose your weapon first with <b>!selectweapon</b>.');
-        run.lastPrompt = 'weapon';
+
+    if (_advancing) {
+      return;
+    }
+
+    _advancing = true;
+
+    try {
+      var run = getRun();
+      if (!run.started) {
+        whisperGM('Room Progression', '⚠️ No active run. Use <b>!startrun</b> first.');
+        return;
       }
-      return;
-    }
-
-    if (!hasAncestorSelectionForWeapon(run.weapon)) {
-      var list = ANCESTOR_SETS[run.weapon] || [];
-
-      if (!list.length) {
-        sendDirect('Choose your Ancestor',
-          'No ancestors are available for <b>' + run.weapon + '</b> yet.<br>' +
-          '<i>Coming soon.</i><br><br>' +
-          'Pick a different weapon to test ancestor flow: ' +
-          '[Staff](!selectweapon Staff) | [Orb](!selectweapon Orb)'
-        );
-        log('[RunFlow] No ancestors for ' + run.weapon + ' (placeholder shown).');
+      if (!run.weapon) {
+        if (run.lastPrompt !== 'weapon') {
+          sendDirect('Room 1 Ready', '⚔️ Choose your weapon first with <b>!selectweapon</b>.');
+          run.lastPrompt = 'weapon';
+        }
         return;
       }
 
-      if (run.lastPrompt !== 'ancestor') {
-        var html = list.map(function (a) {
-          var info = ANCESTOR_INFO[a] || { title: a, desc: '' };
-          var commandName = a.replace(/"/g, '\"');
-          return (
-            '<div style="margin:6px 0 12px 0; padding:8px; border:1px solid #444; background:#111;">' +
-              '<div style="font-weight:bold; color:#fff;">' + _.escape(info.title) + '</div>' +
-              '<div style="margin-top:4px; color:#bbb;">' + _.escape(info.desc) + '</div>' +
-              '<div style="margin-top:8px;">[Select ' + _.escape(a) + '](!selectancestor "' + commandName + '")</div>' +
-            '</div>'
+      if (!hasAncestorSelectionForWeapon(run.weapon)) {
+        var list = ANCESTOR_SETS[run.weapon] || [];
+
+        if (!list.length) {
+          sendDirect('Choose your Ancestor',
+            'No ancestors are available for <b>' + run.weapon + '</b> yet.<br>' +
+            '<i>Coming soon.</i><br><br>' +
+            'Pick a different weapon to test ancestor flow: ' +
+            '[Staff](!selectweapon Staff) | [Orb](!selectweapon Orb)'
           );
-        }).join('');
-
-        sendDirect('Choose your Ancestor',
-          'Players: choose your guiding spirit (weapon: <b>' + run.weapon + '</b>):<br><br>' + html
-        );
-        run.lastPrompt = 'ancestor';
-      }
-
-      log('[RunFlow] Awaiting ancestor selection for ' + run.weapon + '.');
-      return;
-    }
-
-    // Clear any pending prompt flag and advance
-    if (run.lastPrompt === 'ancestor') {
-      run.lastPrompt = null;
-    }
-    run.currentRoom = (run.currentRoom || 0) + 1;
-
-    var clearedRoom = null;
-    var totals = null;
-
-    var advanceResult = null;
-    var rewardBundle = { scrip: 20, fse: 1 };
-
-    if (typeof StateManager !== 'undefined' && typeof StateManager.advanceRoom === 'function') {
-      advanceResult = StateManager.advanceRoom(playerid, rewardBundle);
-    }
-
-    if (advanceResult && advanceResult.firstEntry) {
-      sendDirect('Room 1 Ready',
-        '⚔️ The first chamber opens. Run the encounter, then use <b>!nextroom</b> again to claim rewards.'
-      );
-      log('[RunFlow] Room 1 engaged. Awaiting completion before awarding rewards.');
-      return;
-    }
-
-    if (advanceResult) {
-      clearedRoom = advanceResult.clearedRoom;
-      totals = advanceResult.totals;
-    } else if (typeof StateManager !== 'undefined') {
-      if (typeof StateManager.initPlayer === 'function') {
-        StateManager.initPlayer(playerid);
-      }
-
-      if (typeof StateManager.getPlayer === 'function') {
-        var legacyPlayer = StateManager.getPlayer(playerid);
-        if (legacyPlayer && !legacyPlayer.hasEnteredFirstRoom) {
-          legacyPlayer.hasEnteredFirstRoom = true;
-          if (typeof StateManager.setPlayer === 'function') {
-            StateManager.setPlayer(playerid, legacyPlayer);
-          }
-          sendDirect('Room 1 Ready',
-            '⚔️ The first chamber opens. Run the encounter, then use <b>!nextroom</b> again to claim rewards.'
-          );
-          log('[RunFlow] Room 1 engaged. Awaiting completion before awarding rewards.');
+          log('[RunFlow] No ancestors for ' + run.weapon + ' (placeholder shown).');
           return;
         }
 
-        legacyPlayer.currentRoom = (legacyPlayer.currentRoom || 0) + 1;
-        clearedRoom = legacyPlayer.currentRoom;
+        if (run.lastPrompt !== 'ancestor') {
+          var html = list.map(function (a) {
+            var info = ANCESTOR_INFO[a] || { title: a, desc: '' };
+            var commandName = a.replace(/"/g, '\"');
+            return (
+              '<div style="margin:6px 0 12px 0; padding:8px; border:1px solid #444; background:#111;">' +
+                '<div style="font-weight:bold; color:#fff;">' + _.escape(info.title) + '</div>' +
+                '<div style="margin-top:4px; color:#bbb;">' + _.escape(info.desc) + '</div>' +
+                '<div style="margin-top:8px;">[Select ' + _.escape(a) + '](!selectancestor "' + commandName + '")</div>' +
+              '</div>'
+            );
+          }).join('');
 
-        if (typeof StateManager.addCurrency === 'function') {
-          StateManager.addCurrency(playerid, 'scrip', rewardBundle.scrip);
-          StateManager.addCurrency(playerid, 'fse', rewardBundle.fse);
+          sendDirect('Choose your Ancestor',
+            'Players: choose your guiding spirit (weapon: <b>' + run.weapon + '</b>):<br><br>' + html
+          );
+          run.lastPrompt = 'ancestor';
         }
 
-        if (typeof StateManager.getCurrencies === 'function') {
-          totals = StateManager.getCurrencies(playerid);
-        }
+        log('[RunFlow] Awaiting ancestor selection for ' + run.weapon + '.');
+        return;
       }
-    }
 
-    if (clearedRoom === null) {
-      clearedRoom = 0;
-    }
-    if (totals === null) {
-      totals = { scrip: 0, fse: 0 };
-    }
+      if (run.lastPrompt === 'ancestor') {
+        run.lastPrompt = null;
+      }
+      run.currentRoom += 1;
 
-    if (clearedRoom > 0) {
-      sendDirect('Room Complete',
-        '🏁 <b>Room ' + clearedRoom + '</b> cleared!<br>' +
-        '+20 Scrip, +1 FSE earned.<br><br>' +
-        'Total — Scrip: <b>' + totals.scrip + '</b> | FSE: <b>' + totals.fse + '</b><br><br>' +
-        '🌀 You may now choose a new <b>Boon</b> inspired by your Ancestor.'
-      );
+      var clearedRoom = null;
+      var totals = null;
 
-      if (typeof BoonManager !== 'undefined' && run.ancestor && clearedRoom >= 1) {
-        var safe = run.ancestor.replace(/\s+/g, '_');
-        sendDirect('Boon Opportunity',
-          '✨ Your ancestors offer new boon choices.<br>' +
-          '[Draw Boons](!offerboons)'
+      var advanceResult = null;
+      var rewardBundle = { scrip: 20, fse: 1 };
+
+      if (typeof StateManager !== 'undefined' && typeof StateManager.advanceRoom === 'function') {
+        advanceResult = StateManager.advanceRoom(playerid, rewardBundle);
+      }
+
+      if (advanceResult && advanceResult.firstEntry) {
+        sendDirect('Room 1 Ready',
+          '⚔️ The first chamber opens. Run the encounter, then use <b>!nextroom</b> again to claim rewards.'
         );
+        log('[RunFlow] Room 1 engaged. Awaiting completion before awarding rewards.');
+        return;
       }
+
+      if (advanceResult) {
+        clearedRoom = advanceResult.clearedRoom;
+        totals = advanceResult.totals;
+      } else if (typeof StateManager !== 'undefined') {
+        if (typeof StateManager.initPlayer === 'function') {
+          StateManager.initPlayer(playerid);
+        }
+
+        if (typeof StateManager.getPlayer === 'function') {
+          var legacyPlayer = StateManager.getPlayer(playerid);
+          if (legacyPlayer && !legacyPlayer.hasEnteredFirstRoom) {
+            legacyPlayer.hasEnteredFirstRoom = true;
+            if (typeof StateManager.setPlayer === 'function') {
+              StateManager.setPlayer(playerid, legacyPlayer);
+            }
+            sendDirect('Room 1 Ready',
+              '⚔️ The first chamber opens. Run the encounter, then use <b>!nextroom</b> again to claim rewards.'
+            );
+            log('[RunFlow] Room 1 engaged. Awaiting completion before awarding rewards.');
+            return;
+          }
+
+          legacyPlayer.currentRoom = (legacyPlayer.currentRoom || 0) + 1;
+          clearedRoom = legacyPlayer.currentRoom;
+
+          if (typeof StateManager.addCurrency === 'function') {
+            StateManager.addCurrency(playerid, 'scrip', rewardBundle.scrip);
+            StateManager.addCurrency(playerid, 'fse', rewardBundle.fse);
+          }
+
+          if (typeof StateManager.getCurrencies === 'function') {
+            totals = StateManager.getCurrencies(playerid);
+          }
+        }
+      }
+
+      if (clearedRoom === null) {
+        clearedRoom = 0;
+      }
+
+      if (totals === null) {
+        totals = { scrip: 0, fse: 0 };
+      }
+
+      if (clearedRoom > 0) {
+        sendDirect('Room Complete',
+          '🏁 <b>Room ' + clearedRoom + '</b> cleared!<br>' +
+          '+20 Scrip, +1 FSE earned.<br><br>' +
+          'Total — Scrip: <b>' + totals.scrip + '</b> | FSE: <b>' + totals.fse + '</b><br><br>' +
+          '🌀 You may now choose a new <b>Boon</b> inspired by your Ancestor.'
+        );
+
+        if (typeof BoonManager !== 'undefined' && run.ancestor && clearedRoom >= 1) {
+          var safe = run.ancestor.replace(/\s+/g, '_');
+          sendDirect('Boon Opportunity',
+            '✨ Your ancestors offer new boon choices.<br>' +
+            '[Draw Boons](!offerboons)'
+          );
+        }
+      }
+
+      log('[RunFlow] Room ' + clearedRoom + ' cleared. Next up: ' + (clearedRoom + 1) + '.');
+    } finally {
+      _advancing = false;
     }
-
-    log('[RunFlow] Room ' + clearedRoom + ' cleared. Next up: ' + (clearedRoom + 1) + '.');
-  } finally {
-    _advancing = false;
   }
-}
-
 
   // ------------------------------------------------------------
   // Event Handling
