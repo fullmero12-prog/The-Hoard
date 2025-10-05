@@ -91,7 +91,9 @@ var RunFlowManager = (function () {
 
   function promptAncestorSelection(run) {
     var weaponAncestors = (ANCESTOR_SETS[run.weapon] || []).map(function (a) {
-      return { label: 'Select ' + a, command: '!selectancestor "' + a + '"' };
+      // encode spaces so Roll20 buttons can handle multi-word names
+      var safeName = a.replace(/\s+/g, '_');
+      return { label: 'Select ' + a, command: '!selectancestor ' + safeName };
     });
 
     var body = 'Choose your Ancestor (weapon: <b>' + run.weapon + '</b>):<br><br>' +
@@ -197,7 +199,8 @@ var RunFlowManager = (function () {
       return;
     }
 
-    var name = (arg || '').trim().replace(/^"|"$/g, '');
+    var name = (arg || '').trim().replace(/_/g, ' ');
+    log('[RunFlow] Ancestor command arg: ' + name);
     if (!name) {
       whisperGM('Ancestor Selection', '⚠️ Provide an ancestor name.');
       return;
