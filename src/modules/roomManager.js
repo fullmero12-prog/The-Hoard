@@ -42,21 +42,28 @@ var RoomManager = (function () {
   // ------------------------------------------------------------
 
   /**
-   * Applies reward bundle based on room type.
+   * Applies post-clear extras (Squares, totals) after the main bundle is handled by StateManager.
    * @param {string} playerid - Roll20 player ID.
    * @param {'room'|'miniboss'|'boss'} type - Room reward type.
+   * @param {Object} totals - Currency totals after the base bundle was awarded.
+   * @returns {{bundle: Object, totals: Object}}
    */
-  function applyRewards(playerid, type) {
+  function applyRewards(playerid, type, totals) {
     var roomType = sanitizeRoomType(type);
     var bundle = REWARDS[roomType] || REWARDS.room;
-
-    StateManager.addCurrency(playerid, 'scrip', bundle.scrip);
-    StateManager.addCurrency(playerid, 'fse', bundle.fse);
 
     if (bundle.squareChance && Math.random() < bundle.squareChance) {
       StateManager.addCurrency(playerid, 'squares', 1);
       UIManager.whisper(getPlayerName(playerid), 'Treasure', '✦ You found a Square!');
+      if (typeof StateManager.getCurrencies === 'function') {
+        totals = StateManager.getCurrencies(playerid);
+      }
     }
+
+    return {
+      bundle: bundle,
+      totals: totals
+    };
   }
 
   /**
@@ -64,19 +71,66 @@ var RoomManager = (function () {
    * Triggers rewards and opens shops at milestones.
    */
   function advanceRoom(playerid, roomType) {
-    StateManager.initPlayer(playerid);
-    var p = StateManager.getPlayer(playerid);
     var safeType = sanitizeRoomType(roomType);
-    var bundle = REWARDS[safeType] || REWARDS.room;
     var playerName = getPlayerName(playerid);
-    p.currentRoom += 1;
 
-    applyRewards(playerid, safeType);
+    var rewardBundle = REWARDS[safeType] || REWARDS.room;
+    var result = null;
+
+    if (typeof StateManager.advanceRoom === 'function') {
+      result = StateManager.advanceRoom(playerid, { scrip: rewardBundle.scrip, fse: rewardBundle.fse });
+    } else {
+      StateManager.initPlayer(playerid);
+      var legacyPlayer = StateManager.getPlayer(playerid);
+      if (!legacyPlayer.hasEnteredFirstRoom) {
+        legacyPlayer.hasEnteredFirstRoom = true;
+        if (typeof StateManager.setPlayer === 'function') {
+          StateManager.setPlayer(playerid, legacyPlayer);
+        }
+        UIManager.whisper(
+          playerName,
+          'Room 1 Ready',
+          '⚔️ The first chamber opens. Clear it, then use !nextr again to claim rewards.'
+        );
+        return;
+      }
+
+      legacyPlayer.currentRoom = (legacyPlayer.currentRoom || 0) + 1;
+      StateManager.addCurrency(playerid, 'scrip', rewardBundle.scrip);
+      StateManager.addCurrency(playerid, 'fse', rewardBundle.fse);
+
+      result = {
+        firstEntry: false,
+        clearedRoom: legacyPlayer.currentRoom,
+        totals: typeof StateManager.getCurrencies === 'function'
+          ? StateManager.getCurrencies(playerid)
+          : { scrip: legacyPlayer.scrip, fse: legacyPlayer.fse },
+        player: legacyPlayer
+      };
+    }
+
+    if (result.firstEntry) {
+      UIManager.whisper(
+        playerName,
+        'Room 1 Ready',
+        '⚔️ The first chamber opens. Clear it, then use !nextr again to claim rewards.'
+      );
+      return;
+    }
+
+    var clearedRoom = result.clearedRoom;
+    var totals = result.totals || { scrip: 0, fse: 0 };
+
+    var rewardInfo = applyRewards(playerid, safeType, totals);
+    totals = rewardInfo.totals || totals;
+
+    var p = (result.player) ? result.player : StateManager.getPlayer(playerid);
 
     UIManager.whisper(
       playerName,
-      'Room ' + p.currentRoom + ' Cleared',
-      '➤ +' + bundle.scrip + ' Scrip, +' + bundle.fse + ' FSE.'
+      'Room ' + clearedRoom + ' Cleared',
+      '➤ +' + rewardBundle.scrip + ' Scrip, +' + rewardBundle.fse + ' FSE.<br>' +
+      'Total — Scrip: <b>' + totals.scrip + '</b> | FSE: <b>' + totals.fse + '</b>'
     );
 
     try {
@@ -123,8 +177,6 @@ var RoomManager = (function () {
         '✪ +' + REWARDS.firstClearBonusFSE + ' FSE.'
       );
     }
-
-    StateManager.initPlayer(playerid);
   }
 
   /**
@@ -133,15 +185,20 @@ var RoomManager = (function () {
    */
   function startRun(playerid) {
     StateManager.initPlayer(playerid);
-    var p = StateManager.getPlayer(playerid);
-    p.currentRoom = 0;
-    p.scrip = 0;
-    p.fse = 0;
-    p.squares = 0;
-    p.boons = [];
-    p.relics = [];
-    p.boonOffered = false;
-    p.firstClearAwarded = false;
+    if (typeof StateManager.resetPlayerRun === 'function') {
+      StateManager.resetPlayerRun(playerid);
+    } else {
+      var p = StateManager.getPlayer(playerid);
+      p.currentRoom = 0;
+      p.scrip = 0;
+      p.fse = 0;
+      p.squares = 0;
+      p.boons = [];
+      p.relics = [];
+      p.boonOffered = false;
+      p.firstClearAwarded = false;
+      p.hasEnteredFirstRoom = false;
+    }
 
     UIManager.whisper(
       getPlayerName(playerid),
@@ -164,10 +221,6 @@ var RoomManager = (function () {
       if (cmd === '!nextr') {
         var type = args[1] || 'room';
         advanceRoom(msg.playerid, type);
-      }
-
-      if (cmd === '!startrun') {
-        startRun(msg.playerid);
       }
     });
   }
