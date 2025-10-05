@@ -67,6 +67,12 @@ on('ready', function () {
     ) {
       ShopManager.registerCommands();
     }
+    if (
+      typeof DevTools !== 'undefined' &&
+      typeof DevTools.register === 'function'
+    ) {
+      DevTools.register();
+    }
   } catch (err) {
     log('\u26a0\ufe0f HoardRun init error: ' + err);
   }
