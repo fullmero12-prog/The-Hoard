@@ -91,6 +91,18 @@ var RunFlowManager = (function () {
     return rendered;
   }
 
+  function promptAncestorSelection(run) {
+    var weaponAncestors = (ANCESTOR_SETS[run.weapon] || []).map(function (a) {
+      return { label: 'Select ' + a, command: '!selectancestor "' + a + '"' };
+    });
+
+    var body = 'Choose your Ancestor (weapon: <b>' + run.weapon + '</b>):<br><br>' +
+      formatButtons(weaponAncestors);
+
+    sendDirect('Ancestor Selection', body);
+    log('[RunFlow] Awaiting ancestor selection for ' + run.weapon + '.');
+  }
+
   function sendDirect(title, bodyHTML) {
     sendChat('Hoard Run', '/direct ' + formatPanel(title, bodyHTML));
   }
@@ -236,18 +248,15 @@ var RunFlowManager = (function () {
       return;
     }
 
+    if (run.currentRoom === 2 && !run.ancestor) {
+      promptAncestorSelection(run);
+      return;
+    }
+
     run.currentRoom += 1;
 
     if (run.currentRoom === 2 && !run.ancestor) {
-      var weaponAncestors = (ANCESTOR_SETS[run.weapon] || []).map(function (a) {
-        return { label: 'Select ' + a, command: '!selectancestor "' + a + '"' };
-      });
-
-      var body = 'Choose your Ancestor (weapon: <b>' + run.weapon + '</b>):<br><br>' +
-        formatButtons(weaponAncestors);
-
-      sendDirect('Ancestor Selection', body);
-      log('[RunFlow] Awaiting ancestor selection for ' + run.weapon + '.');
+      promptAncestorSelection(run);
       return;
     }
 
