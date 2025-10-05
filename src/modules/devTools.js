@@ -18,6 +18,9 @@ var DevTools = (function () {
   function resetState() {
     delete state.HoardRun;
     state.HoardRun = { players: {}, version: 'dev' };
+    if (typeof RunFlowManager !== 'undefined' && typeof RunFlowManager.resetRunState === 'function') {
+      RunFlowManager.resetRunState();
+    }
     sendChat('Hoard Run', '/w gm ⚙️ HoardRun state has been reset.');
   }
 

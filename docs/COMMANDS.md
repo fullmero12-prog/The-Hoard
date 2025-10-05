@@ -2,7 +2,10 @@
 
 ## Corridor Flow
 - `!startrun` — Begin a new Hoard Run for the issuing player. Resets currencies, inventory, and room progress.
-- `!nextr room|miniboss|boss` — Advance to the next room type in the corridor and automatically award rewards.
+- `!selectweapon <Weapon>` — Lock in the party's starting focus (Staff, Orb, Greataxe, Rapier, Bow).
+- `!selectancestor <Name>` — Bind the Ancestor boon package tied to the chosen weapon.
+- `!nextroom` — Advance the scripted Hoard Run flow (ancestor prompts, free boon phase, room counter).
+- `!nextr room|miniboss|boss` — Advance to the next room type in the legacy corridor system and award rewards.
 
 ## Shops & Economy
 - `!openshop` — Summon Bing, Bang & Bongo's shop interface for purchases.

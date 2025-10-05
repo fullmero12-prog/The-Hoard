@@ -8,7 +8,7 @@
 // ------------------------------------------------------------
 
 on('ready', function () {
-  var VERSION = 'v1.0.1';
+  var VERSION = 'v1.1.0';
   var MODULES = [
     'StateManager',
     'DeckManager',
@@ -17,6 +17,7 @@ on('ready', function () {
     'BoonManager',
     'ShopManager',
     'RoomManager',
+    'RunFlowManager',
     'EventManager',
     'DevTools'
   ];
@@ -43,55 +44,6 @@ on('ready', function () {
   // }
 
   log('=== Hoard Run ' + VERSION + ' initializing... ===');
-
-  // === Hoard Run Command Listener ===
-  on('chat:message', function (msg) {
-    if (msg.type !== 'api') {
-      return;
-    }
-
-    var args = msg.content.trim().split(/\s+/);
-    var command = args.shift().toLowerCase();
-
-    // --- !startrun ---
-    if (command === '!startrun') {
-      if (!state.HoardRun) state.HoardRun = {};
-      state.HoardRun.activeRun = {
-        currentRoom: 1,
-        scrip: 0,
-        fse: 0,
-        rerollTokens: 0,
-        squares: 0,
-        ancestor: 'Azuren',
-        started: true
-      };
-
-      sendChat('Hoard Run', '/w gm 🏁 <b>Run started!</b><br>Room 1 ready.<br>Scrip: 0 | FSE: 0 | Ancestor: Azuren');
-      log('[Hoard Run] Run started.');
-    }
-
-    // --- !nextroom ---
-    if (command === '!nextroom') {
-      var hasRun = state.HoardRun && state.HoardRun.activeRun && state.HoardRun.activeRun.started;
-      if (!hasRun) {
-        sendChat('Hoard Run', '/w gm ⚠️ No active run. Use !startrun first.');
-        return;
-      }
-
-      var run = state.HoardRun.activeRun;
-      run.currentRoom += 1;
-      run.scrip += 20;
-      run.fse += 1;
-
-      sendChat('Hoard Run', '/w gm ▶️ Advanced to Room ' + run.currentRoom + '.<br>+20 Scrip, +1 FSE<br>Total — Scrip: ' + run.scrip + ', FSE: ' + run.fse);
-    }
-
-    // --- !debugstate ---
-    if (command === '!debugstate') {
-      sendChat('Hoard Run', '/w gm <pre>' + JSON.stringify(state.HoardRun, null, 2) + '</pre>');
-      log('[Hoard Run] State dump sent.');
-    }
-  });
 
   // ------------------------------------------------------------
   // Register all modules if available
@@ -129,7 +81,10 @@ on('ready', function () {
     'Modules loaded: ' + MODULES.join(', ') + '.<br><br>' +
     '<u>Commands:</u><br>' +
     '• <b>!startrun</b> – Begin a new Hoard Run<br>' +
-    '• <b>!nextr room|miniboss|boss</b> – Advance to next room<br>' +
+    '• <b>!selectweapon [Weapon]</b> – Lock in starting focus<br>' +
+    '• <b>!selectancestor [Name]</b> – Bind an Ancestor blessing<br>' +
+    '• <b>!nextroom</b> – Progress core Hoard Run flow<br>' +
+    '• <b>!nextr room|miniboss|boss</b> – Legacy room advancement<br>' +
     '• <b>!openshop</b> – Open Bing, Bang & Bongo Shop<br>' +
     '• <b>!offerboons [Ancestor]</b> – Offer boon choices<br>' +
     '• <b>!chooseboon [CardID]</b> – Choose a boon<br>' +
