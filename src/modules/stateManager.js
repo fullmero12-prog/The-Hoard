@@ -65,23 +65,38 @@ var StateManager = (function () {
     return state.HoardRun.players[playerid];
   }
 
+  /** Ensures currency math always uses whole numbers */
+  function normalizeNumber(value) {
+    var num = parseInt(value, 10);
+    if (isNaN(num)) {
+      num = 0;
+    }
+    return num;
+  }
+
   /** Adds currency (Scrip, FSE, Squares, etc.) */
   function addCurrency(playerid, type, amount) {
     const p = getPlayer(playerid);
     if (p[type] !== undefined) {
-      p[type] += amount;
-      log(`${type} +${amount} for player ${playerid}`);
+      const current = normalizeNumber(p[type]);
+      const delta = normalizeNumber(amount);
+      p[type] = current + delta;
+      log(`${type} +${delta} for player ${playerid}`);
     }
   }
 
   /** Deducts Scrip for shop purchases */
   function spendScrip(playerid, amount) {
     const p = getPlayer(playerid);
-    if (p.scrip >= amount) {
-      p.scrip -= amount;
+    const current = normalizeNumber(p.scrip);
+    const cost = normalizeNumber(amount);
+    if (current >= cost) {
+      p.scrip = current - cost;
       return true;
     } else {
-      sendChat("Hoard Run", `/w "${getObj('player', playerid).get('_displayname')}" Not enough Scrip!`);
+      const player = getObj('player', playerid);
+      const name = player ? player.get('_displayname') : 'Player';
+      sendChat("Hoard Run", `/w "${name}" Not enough Scrip!`);
       return false;
     }
   }
