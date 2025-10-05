@@ -244,147 +244,115 @@ var RunFlowManager = (function () {
       return;
     }
 
-    var name = (arg || '').trim().replace(/^"|"$/g, '');
-    name = name.replace(/_/g, ' ');
+    var name = (arg || '').trim().replace(/^"|"$/g, '').replace(/_/g, ' ');
     if (!name) { whisperText(playerid, '⚠️ Provide an ancestor name.'); return; }
 
-    var playerState = null;
-    var focus = null;
-    if (typeof StateManager !== 'undefined' && typeof StateManager.getPlayer === 'function') {
-      playerState = StateManager.getPlayer(playerid);
-      focus = playerState.focus;
-    }
+    var playerState = (typeof StateManager !== 'undefined' && StateManager.getPlayer)
+        ? StateManager.getPlayer(playerid) : null;
 
-    if (!focus) {
-      focus = 'Staff';
-    }
-
+    var focus = playerState && playerState.focus ? playerState.focus : 'Staff';
     var options = ANCESTOR_SETS[focus] || [];
-    var canon = null;
-    if (options && typeof options.find === 'function') {
-      canon = options.find(function (a) { return a.toLowerCase() === name.toLowerCase(); });
-    }
-    if (!canon) {
-      var idx;
-      for (idx = 0; idx < options.length; idx += 1) {
-        if (options[idx].toLowerCase() === name.toLowerCase()) {
-          canon = options[idx];
-          break;
-        }
-      }
+
+    var canon = null, i;
+    for (i = 0; i < options.length; i += 1) {
+      if (options[i].toLowerCase() === name.toLowerCase()) { canon = options[i]; break; }
     }
     if (!canon) { whisperText(playerid, '⚠️ ' + name + ' is not available for the ' + focus + '.'); return; }
 
     if (playerState) {
       playerState.ancestor_id = canon;
-      if (typeof StateManager.setPlayer === 'function') {
-        StateManager.setPlayer(playerid, playerState);
-      }
+      // NOTE: we do NOT offer a boon here; that happens at room end.
+      if (typeof StateManager.setPlayer === 'function') StateManager.setPlayer(playerid, playerState);
     }
 
     run.lastPrompt = null;
 
-    whisperPanel(playerid,
+    whisperPanel(
+      playerid,
       'Ancestor Chosen',
       '🌟 Ancestor blessing secured: <b>' + canon + '</b>.<br>' +
-      'You will be offered a free boon at the end of each room (shop boons cost Scrip).'
+      'You will be offered a free boon at the <b>end of each room</b> (shop boons cost Scrip).'
     );
 
-    // If Vladren, install the kit for THIS player and whisper GM the bind button
+    // Install kit & whisper GM bind button (Vladren example)
     try {
       if (typeof AncestorKits !== 'undefined' && AncestorKits.Vladren && canon === 'Vladren Moroi') {
-        AncestorKits.Vladren.install(playerid, {});  // creates kit + handout for the player
-        if (AncestorKits.Vladren.promptBindToSelectedPC) {
-          AncestorKits.Vladren.promptBindToSelectedPC(); // /w gm panel with [Mirror Buttons to Selected PC]
-        } else if (typeof promptBindToSelectedPC === 'function') {
-          promptBindToSelectedPC();
-        }
+        AncestorKits.Vladren.install(playerid, {});
+        if (AncestorKits.Vladren.promptBindToSelectedPC) AncestorKits.Vladren.promptBindToSelectedPC();
       }
-    } catch(e){ log('[RunFlow] Vladren install/prompt error: '+e.message); }
+    } catch (e) { log('[RunFlow] Vladren install/prompt error: ' + e.message); }
 
-    // Optional: if they are already in a post-fight stage, offer the boon now
-    if (run.currentRoom >= 1) {
-      if (typeof BoonManager !== 'undefined' && BoonManager.offerBoons){
-        BoonManager.offerBoons(playerid, canon, 'free'); // end-of-room = free
-      }
+    // If this player cleared a room without an ancestor, we queued a pending boon.
+    if (playerState && playerState.pendingFreeBoon && typeof BoonManager !== 'undefined' && BoonManager.offerBoons) {
+      delete playerState.pendingFreeBoon;
+      if (typeof StateManager.setPlayer === 'function') StateManager.setPlayer(playerid, playerState);
+      BoonManager.offerBoons(playerid, canon, 'free');
     }
   }
 
   function handleNextRoom(playerid, arg) {
-    if (typeof isGM === 'function' && !isGM(playerid)) {
-      return;
-    }
+    // Let GM or players advance — if you want GM-only, re-enable the check below.
+    // if (typeof isGM === 'function' && !isGM(playerid)) return;
 
-    if (_advancing) {
-      return;
-    }
-
+    if (_advancing) return;
     _advancing = true;
 
     try {
       var run = getRun();
-      if (!run.started) {
-        whisperGM('Room Progression', '⚠️ No active run. Use <b>!startrun</b> first.');
-        return;
-      }
-
-      if (run.lastPrompt === 'ancestor') {
-        run.lastPrompt = null;
-      }
+      if (!run.started) { whisperText(playerid, '⚠️ No active run. Use <b>!startrun</b> first.'); return; }
 
       var rewardBundle = { scrip: 20, fse: 1 };
       var roster = (state && state.HoardRun && state.HoardRun.players) ? state.HoardRun.players : {};
       var processed = false;
       var maxCleared = run.currentRoom || 0;
+
       var pid;
+      for (pid in roster) if (roster.hasOwnProperty(pid)) {
+        if (!StateManager || !StateManager.getPlayer || !StateManager.advanceRoom) continue;
 
-      for (pid in roster) {
-        if (!roster.hasOwnProperty(pid)) {
-          continue;
-        }
-
-        if (typeof StateManager === 'undefined' || typeof StateManager.getPlayer !== 'function') {
-          continue;
-        }
-
-        var playerState = StateManager.getPlayer(pid);
-        if (!playerState) {
-          continue;
-        }
-
-        if (!playerState.focus) {
+        var ps = StateManager.getPlayer(pid);
+        if (!ps || !ps.focus) {
+          // Nudge them to pick a weapon.
           whisperPanel(pid, 'Choose Your Weapon',
-            '⚠️ Select a weapon to attune with:<br><br>' +
-            formatButtons([
+            '⚠️ Select a weapon to attune with:<br><br>' + formatButtons([
               { label: '⚔️ Greataxe', command: '!selectweapon Greataxe' },
-              { label: '🗡️ Rapier', command: '!selectweapon Rapier' },
-              { label: '🏹 Bow', command: '!selectweapon Bow' },
-              { label: '🔮 Orb', command: '!selectweapon Orb' },
-              { label: '📚 Staff', command: '!selectweapon Staff' }
+              { label: '🗡️ Rapier',   command: '!selectweapon Rapier'   },
+              { label: '🏹 Bow',      command: '!selectweapon Bow'      },
+              { label: '🔮 Orb',      command: '!selectweapon Orb'      },
+              { label: '📚 Staff',    command: '!selectweapon Staff'    }
             ])
           );
-          continue;
-        }
-
-        if (typeof StateManager.advanceRoom !== 'function') {
           continue;
         }
 
         var result = StateManager.advanceRoom(pid, rewardBundle);
         processed = true;
 
-        if (result.firstEntry) {
+        // FIRST ENTRY into Room 1: do not grant rewards; prompt ancestor now.
+        if (result && result.firstEntry) {
           whisperPanel(pid, 'Room 1 Ready',
             '⚔️ The first chamber opens. Run the encounter, then use <b>!nextroom</b> again to claim rewards.'
           );
-          continue;
+
+          if (!ps.ancestor_id) {
+            var ancestors = ANCESTOR_SETS[ps.focus] || [];
+            if (ancestors.length) {
+              var ancestorButtons = ancestors.map(function (a) {
+                var ident = String(a || '').replace(/\s+/g, '_').replace(/"/g, '');
+                return { label: 'Select ' + _.escape(a), command: '!selectancestor ' + ident };
+              });
+              whisperPanel(pid, 'Choose Your Ancestor',
+                '🌟 Bind to an ancestor to unlock room-end boons:<br><br>' + formatButtons(ancestorButtons)
+              );
+            }
+          }
+          continue; // important: do not update run.currentRoom here
         }
 
-        var clearedRoom = result.clearedRoom || 0;
-        var totals = result.totals || { scrip: 0, fse: 0 };
-        if (clearedRoom > maxCleared) {
-          maxCleared = clearedRoom;
-        }
+        // Normal room clear
+        var clearedRoom = (result && result.clearedRoom) || 0;
+        var totals = (result && result.totals) || { scrip: 0, fse: 0 };
+        if (clearedRoom > maxCleared) maxCleared = clearedRoom;
 
         whisperPanel(pid, 'Room Complete',
           '🏁 <b>Room ' + clearedRoom + '</b> cleared!<br>' +
@@ -392,37 +360,30 @@ var RunFlowManager = (function () {
           'Total — Scrip: <b>' + totals.scrip + '</b> | FSE: <b>' + totals.fse + '</b>'
         );
 
-        if (result.player && result.player.ancestor_id && typeof BoonManager !== 'undefined' && BoonManager.offerBoons) {
-          BoonManager.offerBoons(pid, result.player.ancestor_id, 'free');
-        } else if (!result.player || !result.player.ancestor_id) {
-          var focus = result.player && result.player.focus ? result.player.focus : playerState.focus;
-          var ancestors = ANCESTOR_SETS[focus] || [];
-          if (ancestors.length) {
-            var ancestorButtons = ancestors.map(function (a) {
-              var label = _.escape(a);
-              // Roll20 strips quoted button arguments, so encode spaces as underscores
-              // and strip stray quotes to keep the ancestor identifier intact.
-              var commandName = String(a || '')
-                .replace(/\s+/g, '_')
-                .replace(/"/g, '');
-              return { label: 'Select ' + label, command: '!selectancestor ' + commandName };
+        // End-of-room boon: free if ancestor exists; otherwise queue it.
+        if (ps.ancestor_id && BoonManager && BoonManager.offerBoons) {
+          BoonManager.offerBoons(pid, ps.ancestor_id, 'free');
+        } else if (!ps.ancestor_id) {
+          ps.pendingFreeBoon = true; // will be consumed when they pick an ancestor
+          if (StateManager.setPlayer) StateManager.setPlayer(pid, ps);
+
+          var anc = ANCESTOR_SETS[ps.focus] || [];
+          if (anc.length) {
+            var btns = anc.map(function (a) {
+              var ident = String(a || '').replace(/\s+/g, '_').replace(/"/g, '');
+              return { label: 'Select ' + _.escape(a), command: '!selectancestor ' + ident };
             });
-            whisperPanel(pid, 'Choose Your Ancestor',
-              '🌟 Bind to an ancestor to unlock room-end boons:<br><br>' + formatButtons(ancestorButtons)
+            whisperPanel(pid, 'Boon Opportunity',
+              '📘 Choose an ancestor to claim your free boon now:<br><br>' + formatButtons(btns)
             );
           }
         }
       }
 
-      if (processed && maxCleared > (run.currentRoom || 0)) {
-        run.currentRoom = maxCleared;
-      }
+      if (processed && maxCleared > (run.currentRoom || 0)) run.currentRoom = maxCleared;
 
-      if (!processed) {
-        whisperGM('Room Progression', '⚠️ No players were advanced. Ensure players have joined the run.');
-      } else {
-        sendDirect('Room Progression', '✅ Room event processed. Current cleared room: <b>' + run.currentRoom + '</b>.');
-      }
+      if (!processed) whisperText(playerid, '⚠️ No players were advanced.');
+      else            sendDirect('Room Progression', '✅ Room event processed. Current cleared room: <b>' + run.currentRoom + '</b>.');
 
       log('[RunFlow] Global room progression resolved. Highest cleared room: ' + (run.currentRoom || 0) + '.');
     } finally {
