@@ -68,30 +68,50 @@ var RoomManager = (function () {
     var p = StateManager.getPlayer(playerid);
     var safeType = sanitizeRoomType(roomType);
     var bundle = REWARDS[safeType] || REWARDS.room;
+    var playerName = getPlayerName(playerid);
     p.currentRoom += 1;
 
     applyRewards(playerid, safeType);
 
     UIManager.whisper(
-      getPlayerName(playerid),
+      playerName,
       'Room ' + p.currentRoom + ' Cleared',
       '➤ +' + bundle.scrip + ' Scrip, +' + bundle.fse + ' FSE.'
     );
 
+    try {
+      if (typeof BoonManager !== 'undefined' && typeof BoonManager.offerBoons === 'function') {
+        if (safeType === 'room' || safeType === 'miniboss') {
+          BoonManager.offerBoons(playerid);
+          UIManager.whisper(
+            playerName,
+            'Boon Offer',
+            '🪄 A mysterious force offers you a new Boon...'
+          );
+        }
+      } else {
+        UIManager.gmLog('BoonManager not available or missing offerBoons().');
+      }
+    } catch (err) {
+      UIManager.gmLog('Error offering Boons: ' + err);
+    }
+
     if (p.currentRoom === 3) {
       UIManager.whisper(
-        getPlayerName(playerid),
+        playerName,
         'Shop Available',
         '🛒 Bing, Bang & Bongo await! Use !openshop.'
       );
+      UIManager.gmLog('Shop available after Room 3. Move to Shop page to open.');
     }
 
     if (p.currentRoom === 5) {
       UIManager.whisper(
-        getPlayerName(playerid),
+        playerName,
         'Optional Shop',
         '🛒 Optional shop unlocked. Use !openshop if desired.'
       );
+      UIManager.gmLog('Optional shop available after Room 5. Move to Shop page to open.');
     }
 
     if (safeType === 'boss' && !p.firstClearAwarded) {
