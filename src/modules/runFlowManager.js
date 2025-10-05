@@ -240,7 +240,7 @@ var RunFlowManager = (function () {
     }
   }
 
-  function handleNextRoom(playerid) {
+  function handleNextRoom(playerid, arg) {
     if (!isGM(playerid)) {
       return;
     }
@@ -250,31 +250,75 @@ var RunFlowManager = (function () {
       whisperGM('Room Progression', '⚠️ No active run. Use <b>!startrun</b> first.');
       return;
     }
-
     if (!run.weapon) {
       whisperGM('Room Progression', '⚠️ Choose a weapon before advancing.');
       return;
     }
 
+    var type = (arg || '').trim().toLowerCase();
+    var reward = { scrip: 20, fse: 1, squareChance: 0, label: 'Standard Room' };
+
+    if (type === 'miniboss') {
+      reward = { scrip: 20, fse: 2, squareChance: 0.5, label: 'Miniboss Room' };
+    } else if (type === 'boss') {
+      reward = { scrip: 40, fse: 5, squareChance: 0.5, label: 'Boss Room' };
+    }
+
     if (run.currentRoom === 2 && !run.ancestor) {
       promptAncestorSelection(run);
       return;
     }
 
-    run.currentRoom += 1;
+    var nextRoom = run.currentRoom + 1;
 
-    if (run.currentRoom === 2 && !run.ancestor) {
+    if (nextRoom === 2 && !run.ancestor) {
+      run.currentRoom = nextRoom;
       promptAncestorSelection(run);
       return;
     }
 
-    if (run.currentRoom === 2 && run.ancestor && !run.freeBoonUsed) {
+    if (nextRoom === 2 && run.ancestor && !run.freeBoonUsed) {
+      run.currentRoom = nextRoom;
       grantFreeBoons(run);
       return;
     }
 
-    sendDirect('Room Progression', '▶️ Advanced to <b>Room ' + run.currentRoom + '</b>.');
-    log('[RunFlow] Advanced to room ' + run.currentRoom + '.');
+    run.currentRoom = nextRoom;
+    run.scrip += reward.scrip;
+    run.fse += reward.fse;
+
+    var squareDropped = false;
+    if (reward.squareChance > 0 && Math.random() < reward.squareChance) {
+      run.squares += 1;
+      squareDropped = true;
+    }
+
+    var rewardSummary =
+      '🏆 <b>' + reward.label + ' Cleared!</b><br>' +
+      '+<b>' + reward.scrip + ' Scrip</b>, ' +
+      '+<b>' + reward.fse + ' FSE</b>' +
+      (reward.squareChance ? ', 💠 ' + (squareDropped ? 'Square acquired!' : 'Square chance rolled') : '') + '<br><br>';
+
+    sendDirect('Room Complete',
+      rewardSummary +
+      'Advancing to <b>Room ' + run.currentRoom + '</b>...'
+    );
+
+    if (typeof BoonManager !== 'undefined' && run.ancestor && run.currentRoom > 1) {
+      sendDirect('Boon Opportunity',
+        '✨ <b>' + run.ancestor + '</b> offers you a new boon choice.<br>' +
+        'Use <code>!offerboons ' + run.ancestor + '</code> to draw your options.<br>' +
+        '<small>(This boon is free — no Scrip cost outside shops.)</small>'
+      );
+    }
+
+    log('[RunFlow] Advanced to Room ' + run.currentRoom +
+      ' | Type: ' + reward.label +
+      ' | Scrip: ' + run.scrip +
+      ' | FSE: ' + run.fse +
+      ' | Squares: ' + run.squares +
+      (squareDropped ? ' (Square awarded)' : '') +
+      ' | Arg: ' + (type || 'standard'));
   }
 
   // ------------------------------------------------------------
@@ -306,7 +350,7 @@ var RunFlowManager = (function () {
         handleSelectAncestor(msg.playerid, argString);
         break;
       case '!nextroom':
-        handleNextRoom(msg.playerid);
+        handleNextRoom(msg.playerid, argString);
         break;
     }
   }
