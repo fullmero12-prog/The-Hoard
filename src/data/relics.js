@@ -3,12 +3,12 @@
 // ------------------------------------------------------------
 // What this does (in simple terms):
 //   Provides the static relic catalog for Roll20 to consume.
-//   The Roll20 sandbox cannot import external data files directly, so this
+//   The Roll20 sandbox cannot import JSON files directly, so this
 //   wraps the dataset in a JavaScript constant and registers a
 //   loader that copies the data into the persistent state object.
 // ------------------------------------------------------------
 
-var RelicDecks = {
+const RelicDecks = {
   Relics: [
     {
       "id": "relic_quickcast_signet_C",
@@ -136,17 +136,17 @@ var RelicDecks = {
   ]
 };
 
-var RelicDataLoader = (function () {
+const RelicDataLoader = (() => {
   function register() {
     if (!state.HoardRun) {
       state.HoardRun = {};
     }
-    var relics = (RelicDecks && RelicDecks.Relics) ? RelicDecks.Relics : [];
+    const relics = (RelicDecks && RelicDecks.Relics) ? RelicDecks.Relics : [];
     state.HoardRun.relics = relics.slice(0);
-    log('[RelicDataLoader] Loaded ' + relics.length + ' relics.');
+    log(`[RelicDataLoader] Loaded ${relics.length} relics.`);
   }
 
   on('ready', register);
 
-  return { register: register };
+  return { register };
 })();
