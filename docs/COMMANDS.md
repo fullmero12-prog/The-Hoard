@@ -22,3 +22,5 @@
 - `!debugstate [playerName|playerId]` — Whisper the current Hoard Run state block (optionally filtered to a player).
 - `!testshop` — Generate a mock Bing, Bang & Bongo shop for the first online player.
 - `!testrelic` — Roll a random relic using DeckManager (falls back to static data if decks are missing).
+- `!givevladren` — Installs the Vladren Moroi kit on the issuing GM for testing the ancestor token actions.
+- `!resetvladren` — Resets short-rest charges for Vladren Moroi features on the issuing GM.
