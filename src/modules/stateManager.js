@@ -23,6 +23,8 @@ var StateManager = (function () {
     rerollTokens: 0,
     boons: [],
     relics: [],
+    upgrades: [],
+    focus: "Staff",
     currentRoom: 1,
     corridorLength: 6
   };
@@ -30,8 +32,10 @@ var StateManager = (function () {
   /** Initializes the global storage if it doesn't exist */
   function init() {
     if (!state.HoardRun) {
-      state.HoardRun = { players: {} };
+      state.HoardRun = { players: {}, shop: {} };
       log("HoardRun state initialized.");
+    } else if (!state.HoardRun.shop) {
+      state.HoardRun.shop = {};
     }
   }
 
@@ -74,7 +78,7 @@ var StateManager = (function () {
 
   /** Clears all data (use with care!) */
   function resetAll() {
-    state.HoardRun = { players: {} };
+    state.HoardRun = { players: {}, shop: {} };
     log("All HoardRun data cleared.");
   }
 
