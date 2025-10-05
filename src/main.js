@@ -1,98 +1,92 @@
 // ------------------------------------------------------------
-// Hoard Run – Main Entry Point
+// main.js — Hoard Run Unified Bootstrap
 // ------------------------------------------------------------
-// What this does (in simple terms):
-//   Loads and initializes all Hoard Run modules when the Roll20
-//   sandbox is ready. Sets up the state object, registers commands,
-//   and confirms successful initialization in chat.
-//
-//   This is the "glue" that connects all managers.
+// Purpose:
+//   Centralized system startup for all Hoard Run modules.
+//   Ensures consistent load order, prevents duplicate "on ready"
+//   executions, and logs cleanly to both GM chat & API console.
 // ------------------------------------------------------------
-
-var HoardRun = HoardRun || {};
 
 on('ready', function () {
-  // ----------------------------------------------------------
-  // Version & Environment
-  // ----------------------------------------------------------
-  HoardRun.VERSION = '1.0.0';
-  HoardRun.BUILD_DATE = '2025-10-04';
-  log('=== Hoard Run v' + HoardRun.VERSION + ' initialized ===');
+  var VERSION = 'v1.0.1';
+  var MODULES = [
+    'StateManager',
+    'DeckManager',
+    'UIManager',
+    'BoonManager',
+    'ShopManager',
+    'RoomManager',
+    'EventManager',
+    'DevTools'
+  ];
 
-  // ----------------------------------------------------------
-  // Safety: Ensure global state exists
-  // ----------------------------------------------------------
+  // ------------------------------------------------------------
+  // Initialize global state if missing
+  // ------------------------------------------------------------
   if (!state.HoardRun) {
     state.HoardRun = {
+      version: VERSION,
       players: {},
-      shop: {},
-      corridor: {},
-      meta: { runs: 0 }
+      initialized: false
     };
-    log('HoardRun state initialized.');
+    log('[Hoard Run] Created new state.HoardRun.');
   }
 
-  // ----------------------------------------------------------
-  // Module Initialization Order
-  // ----------------------------------------------------------
-  try {
-    if (
-      typeof StateManager !== 'undefined' &&
-      typeof StateManager.registerCommands === 'function'
-    ) {
-      StateManager.registerCommands();
-    }
-    if (
-      typeof DeckManager !== 'undefined' &&
-      typeof DeckManager.registerCommands === 'function'
-    ) {
-      DeckManager.registerCommands();
-    }
-    if (typeof UIManager !== 'undefined') log('UIManager loaded.');
-    if (
-      typeof RoomManager !== 'undefined' &&
-      typeof RoomManager.registerCommands === 'function'
-    ) {
-      RoomManager.registerCommands();
-    }
-    if (
-      typeof BoonManager !== 'undefined' &&
-      typeof BoonManager.registerCommands === 'function'
-    ) {
-      BoonManager.registerCommands();
-    }
-    if (
-      typeof ShopManager !== 'undefined' &&
-      typeof ShopManager.registerCommands === 'function'
-    ) {
-      ShopManager.registerCommands();
-    }
-    if (
-      typeof DevTools !== 'undefined' &&
-      typeof DevTools.register === 'function'
-    ) {
-      DevTools.register();
-    }
-  } catch (err) {
-    log('\u26a0\ufe0f HoardRun init error: ' + err);
+  // ------------------------------------------------------------
+  // Prevent duplicate initialization
+  // ------------------------------------------------------------
+  if (state.HoardRun.initialized) {
+    log('[Hoard Run] Sandbox reloaded — modules already initialized.');
+    return;
   }
 
-  // ----------------------------------------------------------
-  // Welcome Message for GM & Players
-  // ----------------------------------------------------------
-  var msg =
-    '<div style="border:1px solid #555;background:#111;padding:6px;color:#eee;">' +
-    '<b style="color:#c2a347;">Hoard Run v' + HoardRun.VERSION + '</b><br>' +
-    'Modules loaded: State, Deck, UI, Room, Shop, Boon.<br><br>' +
-    'Commands:<br>' +
-    '\u2022 <b>!startrun</b> – Begin a new Hoard Run<br>' +
-    '\u2022 <b>!nextr room|miniboss|boss</b> – Advance to next room<br>' +
-    '\u2022 <b>!openshop</b> – Open Bing, Bang & Bongo shop<br>' +
-    '\u2022 <b>!offerboons [Ancestor]</b> – Offer boon choices<br>' +
-    '\u2022 <b>!chooseboon [CardID]</b> – Choose a boon<br>' +
-    '\u2022 <b>!tradeSquares scrip|fse</b> – Trade Squares<br><br>' +
-    '<span style="color:#888;">Roll20 API sandbox ready.</span>' +
+  log('=== Hoard Run ' + VERSION + ' initializing... ===');
+
+  // ------------------------------------------------------------
+  // Register all modules if available
+  // ------------------------------------------------------------
+  var root = (typeof globalThis !== 'undefined') ? globalThis : this;
+
+  MODULES.forEach(function (moduleName) {
+    try {
+      var moduleRef = root[moduleName];
+      if (moduleRef && typeof moduleRef.register === 'function') {
+        moduleRef.register();
+        log('[Hoard Run] ' + moduleName + ' registered.');
+      } else if (moduleRef && typeof moduleRef.init === 'function') {
+        moduleRef.init();
+        log('[Hoard Run] ' + moduleName + ' initialized.');
+      } else {
+        log('[Hoard Run] ⚠️ ' + moduleName + ' not found or missing register/init.');
+      }
+    } catch (err) {
+      log('[Hoard Run] ❌ Error loading ' + moduleName + ': ' + err);
+    }
+  });
+
+  // ------------------------------------------------------------
+  // Mark as initialized
+  // ------------------------------------------------------------
+  state.HoardRun.initialized = true;
+
+  // ------------------------------------------------------------
+  // Send confirmation to GM
+  // ------------------------------------------------------------
+  var gmMessage = '' +
+    '<div style="border:1px solid #333; padding:8px; background:#000; color:#ccc;">' +
+    '<b>Hoard Run ' + VERSION + '</b><br>' +
+    'Modules loaded: ' + MODULES.join(', ') + '.<br><br>' +
+    '<u>Commands:</u><br>' +
+    '• <b>!startrun</b> – Begin a new Hoard Run<br>' +
+    '• <b>!nextr room|miniboss|boss</b> – Advance to next room<br>' +
+    '• <b>!openshop</b> – Open Bing, Bang & Bongo Shop<br>' +
+    '• <b>!offerboons [Ancestor]</b> – Offer boon choices<br>' +
+    '• <b>!chooseboon [CardID]</b> – Choose a boon<br>' +
+    '• <b>!tradeSquares scrip|fse</b> – Trade Squares<br><br>' +
+    'Roll20 API sandbox ready.' +
     '</div>';
 
-  sendChat('Hoard Run', '/w gm ' + msg);
+  sendChat('Hoard Run', '/w gm ' + gmMessage);
+
+  log('=== Hoard Run ' + VERSION + ' initialized successfully ===');
 });
