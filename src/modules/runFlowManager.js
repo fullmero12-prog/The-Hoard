@@ -242,19 +242,28 @@ var RunFlowManager = (function () {
     }
 
     run.ancestor = valid;
-    run.lastPrompt = null;
 
     try {
       if (typeof AncestorKits !== 'undefined' && AncestorKits.Vladren && valid === 'Vladren Moroi') {
+        // Create the kit + handout as before (stats optional)
         AncestorKits.Vladren.install(playerid, {
-          // optionally pre-fill stats so the buttons don’t ask:
           // pb: 3,
           // spellMod: 4
         });
+        // ✅ Whisper the slick “bind to selected PC” button to the GM
+        if (typeof AncestorKits.Vladren.promptBindToSelectedPC === 'function') {
+          AncestorKits.Vladren.promptBindToSelectedPC();
+        } else {
+          if (typeof promptBindToSelectedPC === 'function') {
+            promptBindToSelectedPC();
+          }
+        }
       }
     } catch (e) {
-      log('[RunFlow] Vladren install error: ' + e.message);
+      log('[RunFlow] Vladren bind prompt error: ' + e.message);
     }
+
+    run.lastPrompt = null;
 
     if (typeof StateManager !== 'undefined' && typeof StateManager.getPlayer === 'function') {
       var gmPlayer = StateManager.getPlayer(playerid) || {};
