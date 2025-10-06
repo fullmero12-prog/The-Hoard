@@ -2,19 +2,12 @@
 // Room Manager
 // ------------------------------------------------------------
 // What this does (in simple terms):
-//   Provides pure helpers for corridor progression.
-//   Handles reward bundle lookups and communicates with StateManager
-//   without sending UI or chat output directly.
+//   Coordinates room readiness and rewards for each player.
+//   Talks to StateManager to update currencies/stages and whispers
+//   the correct UI prompts for rooms, shops, boons, and boss clears.
 // ------------------------------------------------------------
 
 var RoomManager = (function () {
-
-  // ------------------------------------------------------------
-  // Constants (temporary until moved to config/constants.js)
-  // ------------------------------------------------------------
-  var FIRST_CLEAR_BONUS_FSE = 3;
-// First clear bonus for defeating a boss the first time.
-var FIRST_CLEAR_BONUS_FSE = 3;
 
   var REWARDS = {
     room:     { scrip: 20, fse: 1 },
@@ -22,186 +15,268 @@ var FIRST_CLEAR_BONUS_FSE = 3;
     boss:     { scrip: 40, fse: 5, squareChance: 0.5 }
   };
 
-  // ------------------------------------------------------------
-  // Internal Helpers
-  // ------------------------------------------------------------
-
   function sanitizeRoomType(type) {
     return (type === 'miniboss' || type === 'boss') ? type : 'room';
   }
 
-  // ------------------------------------------------------------
-  // Core Functions
-  // ------------------------------------------------------------
+  function escapeHTML(value) {
+    if (value === null || value === undefined) {
+      return '';
+    }
+    return String(value)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
 
-  /**
-   * Applies post-clear extras (Squares, totals) after the main bundle is handled by StateManager.
-   * Pure helper — no UI.
-   * @param {string} playerid - Roll20 player ID.
-   * @param {'room'|'miniboss'|'boss'} type - Room reward type.
-   * @param {Object} totals - Currency totals after the base bundle was awarded.
-   * @returns {{bundle: Object, totals: Object}}
-   */
-  function applyRewards(playerid, type, totals) {
-    var bundle = REWARDS[sanitizeRoomType(type)] || REWARDS.room;
+  function getPlayerName(playerid) {
+    var player = getObj('player', playerid);
+    if (player && player.get) {
+      return player.get('_displayname');
+    }
+    return 'Player';
+  }
 
+  function formatPanel(title, body) {
+    if (typeof UIManager !== 'undefined' && UIManager.panel) {
+      return UIManager.panel(title, body);
+    }
+    return '**' + title + '**\n' + body;
+  }
+
+  function whisperPanel(playerid, title, body) {
+    var name = String(getPlayerName(playerid) || 'Player').replace(/"/g, '\\"');
+    var payload = formatPanel(title, body);
+    sendChat('Hoard Run', '/w "' + name + '" ' + payload);
+  }
+
+  function whisperText(playerid, text) {
+    var name = String(getPlayerName(playerid) || 'Player').replace(/"/g, '\\"');
+    sendChat('Hoard Run', '/w "' + name + '" ' + text);
+  }
+
+  function getRewardBundle(type) {
+    return REWARDS[sanitizeRoomType(type)] || REWARDS.room;
+  }
+
+  function announceShop(playerid, phase, roomNumber) {
+    if (!roomNumber) {
+      return;
+    }
+    if (roomNumber === 3) {
+      whisperText(playerid, '🛒 Shop Available — the GM can open Bing, Bang & Bongo with <b>!openshop</b>.');
+    }
+    if (roomNumber === 5) {
+      whisperText(playerid, '🛒 Optional Shop unlocked — ask the GM when you would like to browse.');
+    }
+  }
+
+  function summarizeRewards(type, bundle, bonusFSE, squareEarned, totals) {
+    var lines = [];
+    lines.push('Rewards: +' + bundle.scrip + ' Scrip, +' + bundle.fse + ' FSE.');
+    if (bonusFSE > 0) {
+      lines.push('First Clear Bonus: +' + bonusFSE + ' FSE.');
+    }
+    if (squareEarned) {
+      lines.push('✨ You found a Square!');
+    }
+    var totalsLine = 'Totals — Scrip: <b>' + (totals.scrip || 0) + '</b> | FSE: <b>' + (totals.fse || 0) + '</b> | Squares: <b>' + (totals.squares || 0) + '</b>';
+    lines.push(totalsLine);
+    return lines.join('<br>');
+  }
+
+  function rollForSquare(playerid, bundle, totals) {
+    var earned = false;
     if (bundle.squareChance && Math.random() < bundle.squareChance) {
       StateManager.addCurrency(playerid, 'squares', 1);
-      if (typeof StateManager.getCurrencies === 'function') {
-        totals = StateManager.getCurrencies(playerid);
-      }
+      totals = StateManager.getCurrencies ? StateManager.getCurrencies(playerid) : totals;
+      earned = true;
     }
-
     return {
-      bundle: bundle,
-      totals: totals
+      totals: totals,
+      squareEarned: earned
     };
   }
 
-  /**
-   * Advances to the next room in the corridor.
-   * Pure helper — no UI.
-   */
-/**
- * Advances to the next room in the corridor.
- * Triggers rewards, square chance, and shop unlock hints.
- * Pure engine result; no UI side-effects except whisper helpers by the caller.
- *
- * @param {string} playerid
- * @param {'room'|'miniboss'|'boss'} roomType
- * @returns {{
- *   firstEntry?: boolean,
- *   clearedRoom?: number,
- *   totals?: {scrip:number,fse:number},
- *   player?: Object,
- *   firstClearBonusFSE?: number
- * }}
- */
-function advanceRoom(playerid, roomType) {
-  var safeType     = sanitizeRoomType(roomType);
-  var rewardBundle = REWARDS[safeType] || REWARDS.room;
-  var result;
-
-  // --- Preferred: delegate room counting + base rewards to StateManager ---
-  if (typeof StateManager.advanceRoom === 'function') {
-    result = StateManager.advanceRoom(playerid, {
-      scrip: rewardBundle.scrip,
-      fse:   rewardBundle.fse
-    });
-
-  } else {
-    // --- Legacy fallback (keep minimal; no UI formatting here) ---
-    StateManager.initPlayer(playerid);
-    var p = StateManager.getPlayer(playerid);
-
-    if (!p.hasEnteredFirstRoom) {
-      p.hasEnteredFirstRoom = true;
-      if (typeof StateManager.setPlayer === 'function') {
-        StateManager.setPlayer(playerid, p);
+  function applyFirstClearBonus(playerid, playerState, type, bonus, totals) {
+    var awarded = 0;
+    if (type === 'boss' && playerState && !playerState.firstClearAwarded) {
+      awarded = bonus || 0;
+      if (awarded > 0) {
+        StateManager.addCurrency(playerid, 'fse', awarded);
+        totals = StateManager.getCurrencies ? StateManager.getCurrencies(playerid) : totals;
       }
+      playerState.firstClearAwarded = true;
+    }
+    return {
+      totals: totals,
+      bonus: awarded,
+      player: playerState
+    };
+  }
+
+  function advance(playerid, opts) {
+    opts = opts || {};
+    var type = sanitizeRoomType(opts.type);
+    var playerState = StateManager.getPlayer ? StateManager.getPlayer(playerid) : null;
+    if (!playerState && StateManager.initPlayer) {
+      StateManager.initPlayer(playerid);
+      playerState = StateManager.getPlayer ? StateManager.getPlayer(playerid) : null;
+    }
+    if (!playerState) {
+      return null;
+    }
+
+    if (playerState.stage === 'awaiting-ancestor' && playerState.ancestor_id) {
+      playerState.stage = 'pre-room';
+      if (StateManager.setPlayer) {
+        StateManager.setPlayer(playerid, playerState);
+      }
+    }
+
+    var stage = playerState.stage || 'pre-room';
+    var currentRoom = playerState.currentRoom || 0;
+    var nextRoom = currentRoom + 1;
+
+    if (stage === 'pre-room') {
+      playerState.stage = 'in-room';
+      if (StateManager.setPlayer) {
+        StateManager.setPlayer(playerid, playerState);
+      }
+
+      var title = type === 'boss' ? 'Boss Room Ready' : 'Room ' + nextRoom + ' Ready';
+      var body;
+      if (type === 'boss') {
+        body = '👑 The final chamber awaits.<br>Run the encounter, then the GM will use <b>!nextroom</b> to deliver rewards.';
+      } else {
+        body = '⚔️ Room ' + nextRoom + ' Ready.<br>Resolve the encounter, then the GM will advance with <b>!nextroom</b>.';
+      }
+      whisperPanel(playerid, title, body);
+      announceShop(playerid, 'enter', nextRoom);
       return {
-        firstEntry: true,
-        player:     p,
-        totals:     typeof StateManager.getCurrencies === 'function'
-          ? StateManager.getCurrencies(playerid)
-          : { scrip: p.scrip || 0, fse: p.fse || 0 }
+        status: 'ready',
+        type: type,
+        room: nextRoom,
+        player: playerState
       };
     }
 
-    // clear a room + base rewards
-    p.currentRoom = (p.currentRoom || 0) + 1;
-    StateManager.addCurrency(playerid, 'scrip', rewardBundle.scrip);
-    StateManager.addCurrency(playerid, 'fse',   rewardBundle.fse);
+    if (stage !== 'in-room') {
+      playerState.stage = 'pre-room';
+      if (StateManager.setPlayer) {
+        StateManager.setPlayer(playerid, playerState);
+      }
+      return {
+        status: 'idle',
+        type: type,
+        room: currentRoom,
+        player: playerState
+      };
+    }
 
-    result = {
-      firstEntry:  false,
-      clearedRoom: p.currentRoom,
-      player:      p,
-      totals:      typeof StateManager.getCurrencies === 'function'
-        ? StateManager.getCurrencies(playerid)
-        : { scrip: p.scrip || 0, fse: p.fse || 0 }
+    var bundle = getRewardBundle(type);
+    var baseResult;
+
+    if (StateManager.advanceRoom) {
+      baseResult = StateManager.advanceRoom(playerid, {
+        scrip: bundle.scrip,
+        fse: bundle.fse
+      });
+    }
+
+    if (!baseResult && StateManager.getPlayer) {
+      playerState.currentRoom = (playerState.currentRoom || 0) + 1;
+      StateManager.addCurrency(playerid, 'scrip', bundle.scrip);
+      StateManager.addCurrency(playerid, 'fse', bundle.fse);
+      if (StateManager.setPlayer) {
+        StateManager.setPlayer(playerid, playerState);
+      }
+      baseResult = {
+        firstEntry: false,
+        clearedRoom: playerState.currentRoom,
+        player: playerState,
+        totals: StateManager.getCurrencies ? StateManager.getCurrencies(playerid) : {}
+      };
+    }
+
+    if (!baseResult || baseResult.firstEntry) {
+      // Safety: treat it as entering the room if state was out of sync.
+      playerState.stage = 'in-room';
+      if (StateManager.setPlayer) {
+        StateManager.setPlayer(playerid, playerState);
+      }
+      whisperPanel(playerid, 'Room ' + nextRoom + ' Ready', '⚔️ Proceed into the chamber and the GM will use <b>!nextroom</b> after the fight.');
+      announceShop(playerid, 'enter', nextRoom);
+      return {
+        status: 'ready',
+        type: type,
+        room: nextRoom,
+        player: playerState
+      };
+    }
+
+    playerState = baseResult.player || (StateManager.getPlayer ? StateManager.getPlayer(playerid) : playerState);
+    var clearedRoom = baseResult.clearedRoom || (playerState.currentRoom || currentRoom + 1);
+    var totals = baseResult.totals || (StateManager.getCurrencies ? StateManager.getCurrencies(playerid) : {});
+
+    var squareData = rollForSquare(playerid, bundle, totals);
+    totals = squareData.totals;
+    var bonusData = applyFirstClearBonus(playerid, playerState, type, opts.firstClearBonusFSE || 0, totals);
+    totals = bonusData.totals;
+    var bonusFSE = bonusData.bonus;
+
+    playerState = bonusData.player || playerState;
+    playerState.stage = 'pre-room';
+    if (StateManager.setPlayer) {
+      StateManager.setPlayer(playerid, playerState);
+    }
+
+    var summaryTitle = type === 'boss' ? 'Boss Defeated!' : 'Room ' + clearedRoom + ' Cleared';
+    var summaryBody = summarizeRewards(type, bundle, bonusFSE, squareData.squareEarned, totals);
+    whisperPanel(playerid, summaryTitle, summaryBody);
+
+    if (opts.freeBoon && playerState.ancestor_id && typeof BoonManager !== 'undefined' && BoonManager.offerBoons) {
+      BoonManager.offerBoons(playerid, playerState.ancestor_id, 'free');
+    }
+
+    announceShop(playerid, 'clear', clearedRoom);
+
+    return {
+      status: 'cleared',
+      type: type,
+      room: clearedRoom,
+      totals: totals,
+      squareEarned: squareData.squareEarned,
+      firstClearBonusFSE: bonusFSE,
+      player: playerState
     };
   }
 
-  // If we’re just entering Room 1, return early so caller can show "Room 1 Ready".
-  if (result && result.firstEntry) {
-    return result;
-  }
-
-  // --- Post-clear extras: roll Squares and refresh totals ---
-  var post = applyRewards(playerid, safeType, result.totals || { scrip:0, fse:0 });
-  result.totals = post.totals || result.totals;
-
-  // --- Boss first-clear: +FSE and flag; UI announcement is the caller’s job ---
-  try {
-    var p2 = result.player || (typeof StateManager.getPlayer === 'function' ? StateManager.getPlayer(playerid) : null);
-
-    if (safeType === 'boss' && p2 && !p2.firstClearAwarded) {
-      p2.firstClearAwarded = true;
-      if (typeof StateManager.setPlayer === 'function') {
-        StateManager.setPlayer(playerid, p2);
-      }
-
-      if (typeof StateManager.addCurrency === 'function') {
-        StateManager.addCurrency(playerid, 'fse', FIRST_CLEAR_BONUS_FSE);
-      } else {
-        p2.fse = (p2.fse || 0) + FIRST_CLEAR_BONUS_FSE;
-      }
-
-      result.firstClearBonusFSE = FIRST_CLEAR_BONUS_FSE;
-
-      // ensure totals reflect the bonus
-      result.totals = typeof StateManager.getCurrencies === 'function'
-        ? StateManager.getCurrencies(playerid)
-        : { scrip: (p2.scrip || 0), fse: (p2.fse || 0) };
-    }
-  } catch (e) {
-    if (typeof UIManager !== 'undefined' && UIManager.gmLog) {
-      UIManager.gmLog('RoomManager first-clear bonus error: ' + e);
-    }
-  }
-
-  return result;
-}
-
-
-  /**
-   * Starts a new corridor run (resets counters) without UI side effects.
-   * @param {string} playerid
-   */
   function startRun(playerid) {
-    StateManager.initPlayer(playerid);
-    if (typeof StateManager.resetPlayerRun === 'function') {
+    if (StateManager && StateManager.resetPlayerRun) {
       StateManager.resetPlayerRun(playerid);
-    } else {
-      var p = StateManager.getPlayer(playerid);
-      p.currentRoom = 0;
-      p.scrip = 0;
-      p.fse = 0;
-      p.squares = 0;
-      p.boons = [];
-      p.relics = [];
-      p.boonOffered = false;
-      p.firstClearAwarded = false;
-      p.hasEnteredFirstRoom = false;
-      if (StateManager.setPlayer) {
-        StateManager.setPlayer(playerid, p);
-      }
     }
   }
 
-  // ------------------------------------------------------------
-  // Command Registration
-  // ------------------------------------------------------------
+  function advanceRoom(playerid, roomType) {
+    var type = sanitizeRoomType(roomType);
+    return advance(playerid, {
+      type: type,
+      freeBoon: true,
+      firstClearBonusFSE: type === 'boss' ? 3 : 0
+    });
+  }
+
   function register() {
-    // intentionally disabled: RunFlowManager owns chat commands
-    // (We leave RoomManager as a pure helper.)
+    // RunFlowManager owns chat commands; RoomManager stays as an engine helper.
   }
 
   return {
     startRun: startRun,
+    advance: advance,
     advanceRoom: advanceRoom,
-    applyRewards: applyRewards,
     register: register
   };
 

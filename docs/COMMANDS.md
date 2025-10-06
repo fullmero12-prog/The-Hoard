@@ -4,11 +4,11 @@
 - `!startrun` — Begin a new Hoard Run for the issuing player. Resets currencies, inventory, and room progress via `StateManager`.
 - `!selectweapon <Weapon>` — Lock in the party's starting focus (Staff, Orb, Greataxe, Rapier, Bow).
 - `!selectancestor <Name>` — Bind the Ancestor boon package tied to the chosen weapon.
-- `!nextroom` — Advance the scripted Hoard Run flow (ancestor prompts, free boon phase, room counter). Delegates currency and corridor tracking to `StateManager` so totals stay in sync with manual advances.
+- `!nextroom` — (GM only) Advance the scripted Hoard Run flow (ancestor prompts, free boon phase, room counter). Delegates currency and corridor tracking to `StateManager` so totals stay in sync with manual advances.
 - `!nextr room|miniboss|boss` — Advance to the next room type using `RoomManager`. Shares the same `StateManager` helpers as `!nextroom`, so rewards and progress only trigger once per command.
 
 ## Shops & Economy
-- `!openshop` — Summon Bing, Bang & Bongo's shop interface for purchases.
+- `!openshop` — (GM only) Summon Bing, Bang & Bongo's shop interface for each active player.
 
 ## Boons
 - `!offerboons <Ancestor> [free|shop]` — Present boon choices tied to the specified Ancestor. Use `free` (default) for post-room rewards or `shop` to charge Scrip by rarity.
