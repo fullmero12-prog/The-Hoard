@@ -424,8 +424,11 @@ var BoonManager = (function () {
     ensureBoonHandout(playerid, picked, offer.ancestor);
 
     var playerName = getPlayerName(playerid);
-    var message = '🌟 You gained <b>' + _.escape(picked.name) + '</b> (' + rarityLabel(rarity) + ')'
-                + (cost > 0 ? (' for ' + cost + ' Scrip!') : ' for 0 Scrip (free reward).');
+    var message = '🌟 You gained <b>' + _.escape(picked.name) + '</b> (' + rarityLabel(rarity) + ')';
+    if (cost > 0) {
+      message += ' for ' + cost + ' Scrip';
+    }
+    message += '!';
 
     if (UIManager && UIManager.whisper) {
       UIManager.whisper(playerName, 'Boon Gained', message);

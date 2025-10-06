@@ -73,6 +73,21 @@ var RunFlowManager = (function () {
     }).join('<br>');
   }
 
+  function renderAdvanceRoomButton() {
+    return formatButtons([
+      { label: 'Advance Room ▶️', command: '!nextroom' }
+    ]);
+  }
+
+  function whisperAdvanceRoomPrompt(message, title) {
+    var segments = [];
+    if (message) {
+      segments.push(message);
+    }
+    segments.push(renderAdvanceRoomButton());
+    whisperGM(title || 'Advance Room', segments.join('<br><br>'));
+  }
+
   function whisperGM(title, bodyHTML) {
     if (typeof HRChat !== 'undefined' && HRChat && typeof HRChat.say === 'function') {
       HRChat.say('/w gm ' + formatPanel(title, bodyHTML));
@@ -354,6 +369,7 @@ var RunFlowManager = (function () {
     }
 
     log('[RunFlow] New Hoard Run started — awaiting weapon selections.');
+    whisperAdvanceRoomPrompt('Click after each encounter to distribute room rewards.', 'Advance Room Control');
   }
 
   function handleSelectWeapon(playerid, arg) {
@@ -389,7 +405,7 @@ var RunFlowManager = (function () {
       'Weapon Chosen',
       '🗡️ Weapon locked: <b>' + weapon + '</b>.<br>' +
       'Your run progress will now be tracked under your player ID.<br><br>' +
-      'The GM will advance rooms with <b>!nextroom</b> once each encounter is finished.'
+      'The GM will advance rooms once each encounter is finished.'
     );
     log('[RunFlow] Weapon selected for ' + playerid + ': ' + weapon);
   }
@@ -535,7 +551,10 @@ var RunFlowManager = (function () {
 
     var run = getRun();
     run.bossPending = true;
-    whisperGM('Final Room Flagged', '👑 Next <b>!nextroom</b> call will prepare the boss encounter for each player.');
+    whisperAdvanceRoomPrompt(
+      '👑 Final chamber flagged. Use the button below after the boss encounter to deliver rewards for each player.',
+      'Final Room Flagged'
+    );
   }
 
   function handleCompleteRun(playerid) {
