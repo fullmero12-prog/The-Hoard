@@ -127,6 +127,59 @@ var RunFlowManager = (function () {
       .replace(/'/g, '&#39;');
   }
 
+  function ancestorKitRegistered(name) {
+    if (typeof AncestorKits === 'undefined' || !AncestorKits || !AncestorKits._defs) {
+      return false;
+    }
+    var key = (name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (!key) {
+      return false;
+    }
+    return !!AncestorKits._defs[key];
+  }
+
+  function promptAncestorKitBinding(ancestorName) {
+    if (typeof AncestorKits === 'undefined' || !AncestorKits) {
+      return;
+    }
+
+    var safeName = escapeHTML(ancestorName || 'Ancestor');
+    var command = '!bindkit ' + ancestorName;
+    var label = 'Bind ' + ancestorName + ' to Selected PC';
+    var body = [];
+
+    body.push('<div style=\'margin-bottom:6px;\'>Select the player\'s token, then click the button below or run <code>'
+      + escapeHTML(command)
+      + '</code> to mirror the kit actions.</div>');
+    body.push('<div style=\'margin-bottom:6px;\'>Mirrored abilities are stored on the sheet\'s <b>Attributes &amp; Abilities</b> tab '
+      + 'and appear as token action buttons for that character.</div>');
+
+    var buttonHtml;
+    if (typeof AncestorKits.buttons === 'function') {
+      buttonHtml = AncestorKits.buttons([{ label: label, command: command }]);
+    } else {
+      var safeLabel = escapeHTML(label);
+      var stripped = command.replace(/^!/, '');
+      buttonHtml = '[' + safeLabel + '](!' + stripped + ')';
+    }
+
+    body.push('<div>' + buttonHtml + '</div>');
+
+    var panelTitle = 'Mirror ' + safeName + ' Kit';
+    var panelHtml = typeof AncestorKits.panel === 'function'
+      ? AncestorKits.panel(panelTitle, body.join(''))
+      : '<div style=\'border:1px solid #444;background:#111;color:#eee;padding:8px;\'>'
+        + '<div style=\'font-weight:bold;margin-bottom:6px;\'>' + panelTitle + '</div>'
+        + body.join('')
+        + '</div>';
+
+    if (typeof AncestorKits.gmSay === 'function') {
+      AncestorKits.gmSay(panelHtml);
+    } else if (typeof sendChat === 'function') {
+      sendChat('Hoard Run', '/w gm ' + panelHtml);
+    }
+  }
+
   function getActivePlayers() {
     var players = findObjs({ _type: 'player' }) || [];
     return players.filter(function (p) {
@@ -453,13 +506,9 @@ var RunFlowManager = (function () {
       'We will offer free boons tied to this ancestor at the end of each cleared room.'
     );
 
-    // Install kit & whisper GM bind button (Vladren example)
-    try {
-      if (typeof AncestorKits !== 'undefined' && AncestorKits.Vladren && canon === 'Vladren Moroi') {
-        AncestorKits.Vladren.install(playerid, {});
-        if (AncestorKits.Vladren.promptBindToSelectedPC) AncestorKits.Vladren.promptBindToSelectedPC();
-      }
-    } catch (e) { log('[RunFlow] Vladren install/prompt error: ' + e.message); }
+    if (ancestorKitRegistered(canon)) {
+      promptAncestorKitBinding(canon);
+    }
   }
 
   function handleNextRoom(playerid, arg) {
