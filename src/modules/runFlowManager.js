@@ -471,8 +471,10 @@ var RunFlowManager = (function () {
     if (_advancing) return;
     _advancing = true;
 
+    var run;
+
     try {
-      var run = getRun();
+      run = getRun();
       if (!run.started) {
         whisperText(playerid, '⚠️ No active run. Use <b>!startrun</b> first.');
         return;
@@ -539,6 +541,14 @@ var RunFlowManager = (function () {
       log('[RunFlow] next room error: ' + e);
     } finally {
       _advancing = false;
+
+      if (run && run.started) {
+        var promptMessage = run.bossPending
+          ? '👑 Boss room still active. Click after the encounter to distribute boss rewards again.'
+          : 'Click after each encounter to distribute room rewards.';
+        var promptTitle = run.bossPending ? 'Advance Boss Room' : 'Advance Room Control';
+        whisperAdvanceRoomPrompt(promptMessage, promptTitle);
+      }
     }
 
   }
