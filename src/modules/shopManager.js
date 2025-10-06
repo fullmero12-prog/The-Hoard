@@ -38,10 +38,10 @@ var ShopManager = (function () {
   /** Retrieve or initialize the persistent shop container */
   function getShopState() {
     StateManager.init();
-    if (!state.HoardRun.shops) {
-      state.HoardRun.shops = {};
+    if (!state.HoardRun.shop) {
+      state.HoardRun.shop = {};
     }
-    return state.HoardRun.shops;
+    return state.HoardRun.shop;
   }
 
   /** Retrieves the current player's shop object */
