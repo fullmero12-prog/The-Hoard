@@ -35,13 +35,21 @@ var ShopManager = (function () {
     sendChat("Hoard Run", `/w "${name}" ${message}`);
   }
 
+  function whisperGM(message) {
+    sendChat("Hoard Run", `/w gm ${message}`);
+  }
+
+  function isGMPlayer(playerid) {
+    return typeof isGM === "function" ? isGM(playerid) : false;
+  }
+
   /** Retrieve or initialize the persistent shop container */
   function getShopState() {
     StateManager.init();
-    if (!state.HoardRun.shop) {
-      state.HoardRun.shop = {};
+    if (!state.HoardRun.shops) {
+      state.HoardRun.shops = {};
     }
-    return state.HoardRun.shop;
+    return state.HoardRun.shops;
   }
 
   /** Retrieves the current player's shop object */
@@ -56,6 +64,69 @@ var ShopManager = (function () {
       };
     }
     return store[playerid];
+  }
+
+  function getKnownPlayerIds() {
+    StateManager.init();
+    const players = state.HoardRun.players || {};
+    return Object.keys(players);
+  }
+
+  function getOnlinePlayerIds() {
+    const roster = [];
+    const players = findObjs({ _type: "player" }) || [];
+    players.forEach(p => {
+      try {
+        if (p.get("online")) {
+          roster.push(p.id);
+        }
+      } catch (err) {
+        // ignore sandbox errors fetching online flag
+      }
+    });
+    return roster;
+  }
+
+  function resolveShopTargets(args) {
+    const tokens = (args || []).filter(Boolean);
+    if (!tokens.length) {
+      const known = getKnownPlayerIds();
+      if (known.length) {
+        return known;
+      }
+      return getOnlinePlayerIds();
+    }
+
+    const resolved = [];
+    const seen = {};
+    const candidates = findObjs({ _type: "player" }) || [];
+
+    function push(id) {
+      if (id && !seen[id]) {
+        resolved.push(id);
+        seen[id] = true;
+      }
+    }
+
+    tokens.forEach(token => {
+      const direct = state.HoardRun.players && state.HoardRun.players[token] ? token : null;
+      if (direct) {
+        push(direct);
+        return;
+      }
+
+      const normalized = token.replace(/_/g, " ").toLowerCase();
+      for (let i = 0; i < candidates.length; i += 1) {
+        const player = candidates[i];
+        const name = String(player.get("_displayname") || "").toLowerCase();
+        if (name === normalized) {
+          push(player.id);
+          return;
+        }
+      }
+    });
+
+    return resolved;
   }
 
   /** Determine shop number (1 or 2) based on room index */
@@ -211,6 +282,15 @@ var ShopManager = (function () {
     shop.slots = createSlots(playerid, tier);
     shop.rerollSlotCount = 0;
     shop.rerollFullCount = 0;
+    return shop.slots;
+  }
+
+  function openFor(playerid) {
+    const shop = getPlayerShop(playerid);
+    if (!shop.slots || !shop.slots.length) {
+      generateShop(playerid);
+    }
+    showShop(playerid, shop.slots);
     return shop.slots;
   }
 
@@ -406,8 +486,23 @@ var ShopManager = (function () {
       const command = parts[0];
 
       if (command === "!openshop") {
-        const slots = generateShop(msg.playerid);
-        showShop(msg.playerid, slots);
+        if (!isGMPlayer(msg.playerid)) {
+          whisper(msg.playerid, "⚠️ Only the GM can open the shop interface.");
+          return;
+        }
+
+        const args = parts.slice(1);
+        const targets = resolveShopTargets(args);
+
+        if (!targets.length) {
+          whisperGM("⚠️ No players matched that shop request.");
+          return;
+        }
+
+        targets.forEach(id => {
+          openFor(id);
+        });
+        return;
       }
 
       if (command === "!buy") {
@@ -433,6 +528,7 @@ var ShopManager = (function () {
   return {
     generateShop,
     showShop,
+    openFor,
     purchase,
     reroll,
     tradeSquares,
