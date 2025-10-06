@@ -135,7 +135,9 @@ var RunFlowManager = (function () {
     if (!key) {
       return false;
     }
-    return !!AncestorKits._defs[key];
+    var aliasIndex = AncestorKits._aliasIndex || {};
+    var resolved = aliasIndex[key] || key;
+    return !!AncestorKits._defs[resolved];
   }
 
   function promptAncestorKitBinding(ancestorName) {
