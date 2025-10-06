@@ -410,6 +410,16 @@ var AncestorKits = (function (ns) {
     _defs[key] = stored;
     _aliasIndex[key] = key;
 
+    var ancestorKey = canonName(ancestorName);
+    if (ancestorKey) {
+      _aliasIndex[ancestorKey] = key;
+    }
+
+    var buttonKey = canonName(stored.buttonLabel);
+    if (buttonKey) {
+      _aliasIndex[buttonKey] = key;
+    }
+
     if (def.aliases && def.aliases.length) {
       def.aliases.forEach(function (alias) {
         var aliasKey = canonName(alias);
