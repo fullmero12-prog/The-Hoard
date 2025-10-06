@@ -84,7 +84,7 @@ on('ready', function () {
     '• <b>!startrun</b> – Begin a new Hoard Run<br>' +
     '• <b>!selectweapon [Weapon]</b> – Lock in starting focus<br>' +
     '• <b>!selectancestor [Name]</b> – Bind an Ancestor blessing<br>' +
-    '• <b>!nextroom</b> – Progress core Hoard Run flow<br>' +
+    '• [Advance Room](!nextroom) – Progress core Hoard Run flow<br>' +
     '• <b>!nextr room|miniboss|boss</b> – Legacy room advancement<br>' +
     '• <b>!openshop</b> – Open Bing, Bang & Bongo Shop<br>' +
     '• <b>!offerboons [Ancestor]</b> – Offer boon choices<br>' +

@@ -243,9 +243,9 @@ var RoomManager = (function () {
       var title = type === 'boss' ? 'Boss Room Ready' : 'Room ' + nextRoom + ' Ready';
       var body;
       if (type === 'boss') {
-        body = '👑 The final chamber awaits.<br>Run the encounter, then the GM will use <b>!nextroom</b> to deliver rewards.';
+        body = '👑 The final chamber awaits.<br>Run the encounter, then the GM will advance once combat ends.';
       } else {
-        body = '⚔️ Room ' + nextRoom + ' Ready.<br>Resolve the encounter, then the GM will advance with <b>!nextroom</b>.';
+        body = '⚔️ Room ' + nextRoom + ' Ready.<br>Resolve the encounter, then the GM will advance once you are victorious.';
       }
       whisperPanel(playerid, title, body);
       announceShop(playerid, 'enter', nextRoom);
@@ -309,7 +309,7 @@ var RoomManager = (function () {
       if (StateManager.setPlayer) {
         StateManager.setPlayer(playerid, playerState);
       }
-      whisperPanel(playerid, 'Room ' + nextRoom + ' Ready', '⚔️ Proceed into the chamber and the GM will use <b>!nextroom</b> after the fight.');
+      whisperPanel(playerid, 'Room ' + nextRoom + ' Ready', '⚔️ Proceed into the chamber and the GM will advance after the fight.');
       announceShop(playerid, 'enter', nextRoom);
       return {
         status: 'ready',
