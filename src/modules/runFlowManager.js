@@ -381,6 +381,14 @@ if (result && result.firstClearBonusFSE && result.firstClearBonusFSE > 0) {
   );
 }
 
+    } catch (e) {
+      log('[RunFlow] next room error: ' + e);
+    } finally {
+      _advancing = false;
+    }
+
+  }
+
 
   // ------------------------------------------------------------
   // Event Handling
