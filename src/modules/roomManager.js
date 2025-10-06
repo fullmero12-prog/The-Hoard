@@ -10,10 +10,34 @@
 var RoomManager = (function () {
 
   var REWARDS = {
-    room:     { scrip: 20, fse: 1 },
-    miniboss: { scrip: 20, fse: 2, squareChance: 0.5 },
-    boss:     { scrip: 40, fse: 5, squareChance: 0.5 }
+    room:     { scrip: 30, fse: 1, squareChance: 0.33 },
+    miniboss: { scrip: 35, fse: 2, squareChance: 0.5 },
+    boss:     { scrip: 55, fse: 5, squareChance: 0.5 }
   };
+
+  var ROOM_SCRIP_TABLE = [
+    { amount: 20, weight: 1 },
+    { amount: 25, weight: 2 },
+    { amount: 30, weight: 3 },
+    { amount: 35, weight: 2 },
+    { amount: 40, weight: 1 }
+  ];
+
+  var MINIBOSS_SCRIP_TABLE = [
+    { amount: 30, weight: 2 },
+    { amount: 35, weight: 3 },
+    { amount: 40, weight: 3 },
+    { amount: 45, weight: 2 }
+  ];
+
+  var BOSS_SCRIP_TABLE = [
+    { amount: 45, weight: 2 },
+    { amount: 55, weight: 3 },
+    { amount: 65, weight: 2 },
+    { amount: 75, weight: 1 }
+  ];
+
+  var ROOM3_TARGET = { min: 50, max: 70 };
 
   function sanitizeRoomType(type) {
     return (type === 'miniboss' || type === 'boss') ? type : 'room';
@@ -59,6 +83,76 @@ var RoomManager = (function () {
 
   function getRewardBundle(type) {
     return REWARDS[sanitizeRoomType(type)] || REWARDS.room;
+  }
+
+  function cloneRewardBundle(template) {
+    return {
+      scrip: template && template.scrip ? template.scrip : 0,
+      fse: template && template.fse ? template.fse : 0,
+      squareChance: template && typeof template.squareChance !== 'undefined' ? template.squareChance : 0
+    };
+  }
+
+  function weightedPick(table) {
+    if (!table || !table.length) {
+      return 0;
+    }
+    var totalWeight = 0;
+    for (var i = 0; i < table.length; i++) {
+      totalWeight += table[i].weight;
+    }
+    if (totalWeight <= 0) {
+      return table[0].amount;
+    }
+    var roll = Math.random() * totalWeight;
+    var cursor = 0;
+    for (var j = 0; j < table.length; j++) {
+      cursor += table[j].weight;
+      if (roll <= cursor) {
+        return table[j].amount;
+      }
+    }
+    return table[table.length - 1].amount;
+  }
+
+  function determineScripReward(playerid, playerState, type, template, currentCurrencies, roomNumberOverride) {
+    var table = ROOM_SCRIP_TABLE;
+    if (type === 'miniboss') {
+      table = MINIBOSS_SCRIP_TABLE;
+    }
+    if (type === 'boss') {
+      table = BOSS_SCRIP_TABLE;
+    }
+
+    var reward = weightedPick(table);
+    if (!reward && template && template.scrip) {
+      reward = template.scrip;
+    }
+
+    if (!playerState || playerState.stage !== 'in-room') {
+      return Math.max(0, Math.round(reward));
+    }
+
+    var beforeScrip = currentCurrencies && typeof currentCurrencies.scrip !== 'undefined'
+      ? currentCurrencies.scrip
+      : (playerState.scrip || 0);
+    var roomNumber = roomNumberOverride || ((playerState.currentRoom || 0) + 1);
+
+    if (type === 'room' && roomNumber === 3) {
+      var projected = beforeScrip + reward;
+      if (projected < ROOM3_TARGET.min) {
+        reward += (ROOM3_TARGET.min - projected);
+      } else if (projected > ROOM3_TARGET.max) {
+        var overshoot = projected - ROOM3_TARGET.max;
+        reward = reward - overshoot;
+      }
+    }
+
+    if (reward < 0) {
+      reward = 0;
+    }
+
+    return Math.max(0, Math.round(reward));
   }
 
   function announceShop(playerid, phase, roomNumber) {
@@ -176,10 +270,13 @@ var RoomManager = (function () {
       };
     }
 
-    var bundle = getRewardBundle(type);
+    var templateBundle = getRewardBundle(type);
+    var bundle = cloneRewardBundle(templateBundle);
     var baseResult;
 
     if (StateManager.advanceRoom) {
+      var currenciesBefore = StateManager.getCurrencies ? StateManager.getCurrencies(playerid) : { scrip: 0 };
+      bundle.scrip = determineScripReward(playerid, playerState, type, templateBundle, currenciesBefore);
       baseResult = StateManager.advanceRoom(playerid, {
         scrip: bundle.scrip,
         fse: bundle.fse
@@ -187,7 +284,12 @@ var RoomManager = (function () {
     }
 
     if (!baseResult && StateManager.getPlayer) {
-      playerState.currentRoom = (playerState.currentRoom || 0) + 1;
+      var priorRoom = playerState.currentRoom || 0;
+      var currenciesSnapshot = StateManager.getCurrencies ? StateManager.getCurrencies(playerid) : { scrip: 0 };
+      if (!bundle.scrip) {
+        bundle.scrip = determineScripReward(playerid, playerState, type, templateBundle, currenciesSnapshot, priorRoom + 1);
+      }
+      playerState.currentRoom = priorRoom + 1;
       StateManager.addCurrency(playerid, 'scrip', bundle.scrip);
       StateManager.addCurrency(playerid, 'fse', bundle.fse);
       if (StateManager.setPlayer) {

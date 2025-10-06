@@ -25,6 +25,59 @@ var ShopManager = (function () {
   const MAX_SLOT_REROLLS = 2;
   const MAX_FULL_REROLLS = 1;
 
+  const SHOP_RARITY_STYLES = {
+    Common: {
+      bg: '#0f2d1f',
+      fg: '#e7fff1',
+      border: '#1f6844',
+      badgeBg: '#1aa567',
+      badgeFg: '#ffffff',
+      buttonBg: '#1aa567',
+      buttonBorder: '#0d4a32',
+      buttonFg: '#ffffff'
+    },
+    Greater: {
+      bg: '#0e2140',
+      fg: '#e6f2ff',
+      border: '#1d4e89',
+      badgeBg: '#2a7bdc',
+      badgeFg: '#ffffff',
+      buttonBg: '#2a7bdc',
+      buttonBorder: '#163c9d',
+      buttonFg: '#ffffff'
+    },
+    Signature: {
+      bg: '#3b2208',
+      fg: '#fff2e0',
+      border: '#7a4513',
+      badgeBg: '#ff8a00',
+      badgeFg: '#1f1203',
+      buttonBg: '#ff8a00',
+      buttonBorder: '#aa5500',
+      buttonFg: '#1f1203'
+    },
+    Upgrade: {
+      bg: '#241b38',
+      fg: '#f4edff',
+      border: '#4a3281',
+      badgeBg: '#7f5af0',
+      badgeFg: '#ffffff',
+      buttonBg: '#7f5af0',
+      buttonBorder: '#4f2fc1',
+      buttonFg: '#ffffff'
+    },
+    Utility: {
+      bg: '#1b2428',
+      fg: '#f0f3f5',
+      border: '#36535f',
+      badgeBg: '#4a6570',
+      badgeFg: '#f0f3f5',
+      buttonBg: '#35515c',
+      buttonBorder: '#4a6b77',
+      buttonFg: '#f0f3f5'
+    }
+  };
+
   function getPlayerDisplayName(playerid) {
     const player = getObj("player", playerid);
     return player ? player.get("_displayname") : "Unknown";
@@ -296,39 +349,40 @@ var ShopManager = (function () {
 
   /** Shows the current shop offers in chat */
   function showShop(playerid, slots) {
-    const name = getPlayerDisplayName(playerid);
+    const displayName = getPlayerDisplayName(playerid) || "Player";
+    const safeName = `"${String(displayName).replace(/"/g, '\\"')}"`;
 
     const shop = getPlayerShop(playerid);
+    const existing = Array.isArray(slots) ? slots : null;
+    const entries = existing && existing.length ? existing : (shop.slots.length ? shop.slots : generateShop(playerid));
     const currencies = StateManager.getCurrencies(playerid) || {};
     const scripTotal = typeof currencies.scrip !== "undefined" ? currencies.scrip : 0;
-    const entries = slots || (shop.slots.length ? shop.slots : generateShop(playerid));
 
-    let html = `<div style="border:1px solid #555;background:#111;padding:5px;color:#eee">`;
-    html += `<b>Unified Shop – Bing, Bang & Bongo</b><br><br>`;
-    html += `<span style="color:#ffd700">Current Scrip: ${scripTotal}</span><br><br>`;
+    const itemBlocks = (entries || []).map((slot, index) => renderShopSlot(slot, index)).join('');
+    const itemsHTML = itemBlocks || '<div style="font-size:11px;opacity:0.75;">No offers are available right now.</div>';
+    const footer = renderRerollSection(shop, entries || []);
 
-    entries.forEach((s, index) => {
-      if (s.sold) return;
-      const label = s.type === "relic"
-        ? `Relic (${s.rarity})`
-        : s.type === "boon"
-          ? `Boon (${s.rarity})`
-          : "Focus Upgrade";
-      html += `[${label}: ${s.cardName} – ${s.price} Scrip](!buy ${s.type} ${s.cardId} ${s.price})<br>`;
-    });
+    const body = '<div style="font-size:12px;line-height:1.4;">'
+      + '<div style="margin-bottom:10px;font-size:11px;opacity:0.85;">Current Scrip: <b>' + htmlEscape(String(scripTotal)) + '</b></div>'
+      + itemsHTML
+      + footer
+      + '</div>';
 
-    html += `<hr><b>Rerolls</b><br>`;
-    entries.forEach((s, index) => {
-      if (s.sold) return;
-      const displayIndex = index + 1;
-      html += `[Slot ${displayIndex}](!reroll slot ${displayIndex}) `;
-    });
-    html += `– ${COST_REROLL_SLOT} Scrip (Used ${shop.rerollSlotCount}/${MAX_SLOT_REROLLS})<br>`;
-    html += `[Full Refresh](!reroll full) – ${COST_REROLL_FULL} Scrip (Used ${shop.rerollFullCount}/${MAX_FULL_REROLLS})<br>`;
-    html += `<hr>[Trade Square → Scrip](!tradeSquares scrip)<br>`;
-    html += `[Trade Square → FSE](!tradeSquares fse)</div>`;
+    const title = 'Unified Shop — Bing, Bang & Bongo';
 
-    sendChat("Hoard Run", `/w ${name} ${html}`);
+    if (UIManager && UIManager.whisper) {
+      UIManager.whisper(safeName, title, body);
+      return;
+    }
+
+    const shell = (UIManager && UIManager.panel)
+      ? UIManager.panel(title, body)
+      : '<div style="border:1px solid #555;background:#111;padding:8px;color:#eee;">'
+        + '<div style="font-weight:bold;margin-bottom:6px;">' + title + '</div>'
+        + body
+        + '</div>';
+
+    sendChat('Hoard Run', `/w ${safeName} ${shell}`);
   }
 
   function rarityLabelFor(code) {
@@ -423,6 +477,145 @@ var ShopManager = (function () {
     return "";
   }
 
+  function slotTypeLabel(slot) {
+    if (!slot) {
+      return "Item";
+    }
+    if (slot.type === "relic") {
+      return "Relic";
+    }
+    if (slot.type === "boon") {
+      return "Boon";
+    }
+    if (slot.type === "upgrade") {
+      return "Focus Upgrade";
+    }
+    return "Item";
+  }
+
+  function slotRarityLabel(slot) {
+    if (!slot) {
+      return "Common";
+    }
+    if (slot.type === "upgrade") {
+      return "Upgrade";
+    }
+    return rarityLabelFor(slot.rarity) || "Common";
+  }
+
+  function slotStyleConfig(slot) {
+    const key = slotRarityLabel(slot);
+    return SHOP_RARITY_STYLES[key] || SHOP_RARITY_STYLES.Common;
+  }
+
+  function renderCommandButton(label, command, style) {
+    const sanitized = (command || "").replace(/^!/, "");
+    const cfg = style || SHOP_RARITY_STYLES.Utility;
+    return '<span style="display:inline-block;margin:4px 4px 0 0;">'
+      + '<span style="display:inline-block;padding:6px 10px;border-radius:6px;font-weight:700;font-size:11px;background:' + cfg.buttonBg + ';color:' + cfg.buttonFg + ';border:1px solid ' + cfg.buttonBorder + ';">'
+      + '[' + htmlEscape(label) + '](!' + sanitized + ')'
+      + '</span>'
+      + '</span>';
+  }
+
+  function resolveSlotDescription(slot) {
+    let card = null;
+    if (slot && slot.cardId && typeof getObj === 'function') {
+      try {
+        card = getObj('card', slot.cardId);
+      } catch (err) {
+        card = null;
+      }
+    }
+
+    let description = extractCardDescription(slot, card);
+    if (!description && slot && slot.cardData && slot.cardData.summary) {
+      description = slot.cardData.summary;
+    }
+
+    if (!description) {
+      if (slot && slot.type === 'upgrade') {
+        description = 'Upgrade details will appear in your journal handout upon purchase.';
+      } else if (slot && slot.type === 'boon') {
+        description = 'Boon effects will match the ancestor handout you receive.';
+      } else {
+        description = 'No description is available yet. Consult the GM for details.';
+      }
+    }
+
+    return normalizeDescription(description);
+  }
+
+  function renderShopSlot(slot, index) {
+    if (!slot) {
+      return '';
+    }
+
+    const style = slotStyleConfig(slot);
+    const rarityText = slotRarityLabel(slot);
+    const typeLabel = slotTypeLabel(slot);
+    const slotNumber = index + 1;
+    const name = htmlEscape(slot.cardName || 'Unknown Item');
+    const badge = '<span style="padding:2px 6px;border-radius:6px;font-size:11px;font-weight:700;background:' + style.badgeBg + ';color:' + style.badgeFg + ';">'
+      + htmlEscape(rarityText)
+      + '</span>';
+
+    const metaParts = [];
+    metaParts.push('Slot ' + slotNumber);
+    metaParts.push(typeLabel);
+    if (slot.type !== 'upgrade') {
+      metaParts.push('Rarity: ' + rarityText);
+    }
+    if (typeof slot.price !== 'undefined') {
+      metaParts.push('Cost: ' + slot.price + ' Scrip');
+    }
+    const meta = '<div style="font-size:11px;opacity:0.8;margin-bottom:6px;">' + htmlEscape(metaParts.join(' • ')) + '</div>';
+
+    const description = resolveSlotDescription(slot);
+    const command = '!buy ' + slot.type + ' ' + slot.cardId;
+    const buttonLabel = typeof slot.price === 'number' ? ('Buy – ' + slot.price + ' Scrip') : 'Buy Item';
+    const button = renderCommandButton(buttonLabel, command, style);
+
+    const header = '<div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:6px;">'
+      + '<div style="font-weight:700;font-size:14px;line-height:1.2;">' + name + '</div>'
+      + badge
+      + '</div>';
+
+    return '<div style="border:1px solid ' + style.border + ';background:' + style.bg + ';color:' + style.fg + ';padding:10px 12px;border-radius:8px;margin-bottom:10px;">'
+      + header
+      + meta
+      + '<div style="margin-bottom:8px;line-height:1.35;">' + description + '</div>'
+      + button
+      + '</div>';
+  }
+
+  function renderRerollSection(shop, entries) {
+    const style = SHOP_RARITY_STYLES.Utility;
+    const parts = [];
+    parts.push('<div style="font-weight:700;font-size:12px;margin-bottom:6px;">Rerolls & Trades</div>');
+    parts.push('<div style="font-size:11px;opacity:0.85;margin-bottom:6px;">Slot rerolls remaining: ' + Math.max(0, MAX_SLOT_REROLLS - shop.rerollSlotCount) + ' (Cost ' + COST_REROLL_SLOT + ' Scrip each)</div>');
+
+    let slotButtons = '';
+    (entries || []).forEach((slot, idx) => {
+      slotButtons += renderCommandButton('Reroll Slot ' + (idx + 1), '!reroll slot ' + (idx + 1), style);
+    });
+    if (!slotButtons) {
+      slotButtons = '<div style="font-size:11px;opacity:0.7;">No slots are available to reroll.</div>';
+    }
+    parts.push(slotButtons);
+
+    parts.push('<div style="margin-top:8px;font-size:11px;opacity:0.85;">Full refresh remaining: ' + Math.max(0, MAX_FULL_REROLLS - shop.rerollFullCount) + ' (Cost ' + COST_REROLL_FULL + ' Scrip)</div>');
+    parts.push(renderCommandButton('Full Refresh', '!reroll full', style));
+
+    parts.push('<div style="margin-top:10px;font-size:11px;opacity:0.85;">Trade a Square for currency:</div>');
+    parts.push(renderCommandButton('Square → Scrip', '!tradeSquares scrip', style));
+    parts.push(renderCommandButton('Square → FSE', '!tradeSquares fse', style));
+
+    return '<div style="border:1px solid ' + style.border + ';background:' + style.bg + ';color:' + style.fg + ';padding:10px 12px;border-radius:8px;margin-top:12px;">'
+      + parts.join('')
+      + '</div>';
+  }
+
   function ensureCardHandout(playerid, slot, card) {
     if (!slot || (slot.type !== "relic" && slot.type !== "boon")) {
       return;
@@ -460,6 +653,7 @@ var ShopManager = (function () {
     }
 
     grantHandoutAccess(handout, playerid);
+    return handout;
   }
 
   /** Validates and locates a slot by card id */
@@ -518,10 +712,19 @@ var ShopManager = (function () {
       playerState.upgrades.push(record);
     }
 
+    const handout = ensureCardHandout(playerid, slot, card);
+    if (handout) {
+      record.handoutId = handout.id;
+    }
+
     shop.slots.splice(index, 1);
 
-    ensureCardHandout(playerid, slot, card);
-    whisper(playerid, `Bought **${slot.cardName}** for ${slot.price} Scrip.`);
+    if (StateManager.setPlayer) {
+      StateManager.setPlayer(playerid, playerState);
+    }
+
+    const note = handout ? ' Handout shared to your journal.' : '';
+    whisper(playerid, `Bought **${slot.cardName}** for ${slot.price} Scrip.${note}`);
     showShop(playerid, shop.slots);
   }
 
@@ -558,6 +761,9 @@ var ShopManager = (function () {
         whisper(playerid, "Unable to reroll that slot right now.");
         const ps = StateManager.getPlayer(playerid);
         ps.scrip += COST_REROLL_SLOT;
+        if (StateManager.setPlayer) {
+          StateManager.setPlayer(playerid, ps);
+        }
         return;
       }
 
@@ -608,6 +814,9 @@ var ShopManager = (function () {
     }
 
     ps.squares -= 1;
+    if (StateManager.setPlayer) {
+      StateManager.setPlayer(playerid, ps);
+    }
     whisper(playerid, `Traded 1 Square → +${gain} ${target.toUpperCase()}.`);
   }
 

@@ -36,6 +36,114 @@ var BoonManager = (function () {
     return state.HoardRun.boonOffers;
   }
 
+  function ensureBoonHistory() {
+    if (!state.HoardRun) {
+      state.HoardRun = {};
+    }
+    if (!state.HoardRun.boonHistory) {
+      state.HoardRun.boonHistory = {};
+    }
+    return state.HoardRun.boonHistory;
+  }
+
+  function getPlayerHistory(playerid) {
+    var root = ensureBoonHistory();
+    if (!root[playerid]) {
+      root[playerid] = [];
+    }
+    return root[playerid];
+  }
+
+  function rarityKey(value) {
+    var text = String(value || '').toLowerCase();
+    if (text === 'c') { return 'common'; }
+    if (text === 'g') { return 'greater'; }
+    if (text === 's') { return 'signature'; }
+    return text;
+  }
+
+  function cardKey(card) {
+    if (!card) {
+      return '';
+    }
+    var base = card.id || card.cardId || card._id || card.name || '';
+    return String(base).toLowerCase();
+  }
+
+  function historyKey(card) {
+    var base = cardKey(card);
+    var rare = rarityKey(card && (card._rarity || card.rarity || ''));
+    return base + '|' + rare;
+  }
+
+  function rememberHistory(playerid, cards) {
+    var history = getPlayerHistory(playerid);
+    var limit = 24;
+    (cards || []).forEach(function (card) {
+      if (!card) {
+        return;
+      }
+      var key = historyKey(card);
+      if (!key) {
+        return;
+      }
+      if (history.indexOf(key) === -1) {
+        history.push(key);
+      }
+    });
+    while (history.length > limit) {
+      history.shift();
+    }
+  }
+
+  function buildIndexOrder(length) {
+    var indices = [];
+    for (var i = 0; i < length; i++) {
+      indices.push(i);
+    }
+    for (var j = indices.length - 1; j > 0; j--) {
+      var swap = Math.floor(Math.random() * (j + 1));
+      var tmp = indices[j];
+      indices[j] = indices[swap];
+      indices[swap] = tmp;
+    }
+    return indices;
+  }
+
+  function pickFromPool(pool, rarity, seen, banned) {
+    if (!pool || !pool.length) {
+      return null;
+    }
+
+    var order = buildIndexOrder(pool.length);
+    var fallback = null;
+    for (var i = 0; i < order.length; i++) {
+      var idx = order[i];
+      var candidate = pool[idx];
+      var key = cardKey(candidate);
+      var rarityTag = rarityKey(candidate && (candidate._rarity || candidate.rarity || rarity));
+      var combined = key + '|' + rarityTag;
+
+      if (!seen[combined] && !banned[combined]) {
+        pool.splice(idx, 1);
+        seen[combined] = true;
+        return candidate;
+      }
+
+      if (!fallback) {
+        fallback = { index: idx, key: combined, card: candidate };
+      }
+    }
+
+    if (fallback) {
+      pool.splice(fallback.index, 1);
+      seen[fallback.key] = true;
+      return fallback.card;
+    }
+
+    return pool.splice(0, 1)[0] || null;
+  }
+
   function getPlayerName(playerid) {
     var p = getObj('player', playerid);
     return p ? '"' + p.get('_displayname') + '"' : '"Unknown"';
@@ -197,7 +305,7 @@ var BoonManager = (function () {
     return 'Signature';
   }
 
-  function drawBoons(ancestor) {
+  function drawBoons(playerid, ancestor, historyList) {
     var decksRoot = (state.HoardRun && state.HoardRun.boons) || {};
     var key = canonAncestor(ancestor);
     var deck = decksRoot[key];
@@ -212,6 +320,12 @@ var BoonManager = (function () {
       Signature: (deck.Signature || []).slice()
     };
 
+    var historyMap = {};
+    (historyList || []).forEach(function (entry) {
+      historyMap[entry] = true;
+    });
+
+    var seen = {};
     var picks = [];
     for (var i = 0; i < OFFER_COUNT; i++) {
       var preferred = pickRarity(RARITY_WEIGHTS);
@@ -223,11 +337,12 @@ var BoonManager = (function () {
       for (var j = 0; j < order.length; j++) {
         var pool = pools[order[j]];
         if (pool && pool.length) {
-          var idx = Math.floor(Math.random() * pool.length);
-          chosen = pool.splice(idx, 1)[0];
-          chosen._rarity = order[j];
-          chosen._idx = picks.length;
-          break;
+          chosen = pickFromPool(pool, order[j], seen, historyMap);
+          if (chosen) {
+            chosen._rarity = order[j];
+            chosen._idx = picks.length;
+            break;
+          }
         }
       }
 
@@ -237,6 +352,7 @@ var BoonManager = (function () {
       picks.push(chosen);
     }
 
+    rememberHistory(playerid, picks);
     return picks;
   }
 
@@ -258,7 +374,8 @@ var BoonManager = (function () {
       }
     }
 
-    var cards = drawBoons(chosenAncestor);
+    var history = getPlayerHistory(playerid);
+    var cards = drawBoons(playerid, chosenAncestor, history);
     if (!cards.length) {
       gmSay('⚠️ No boon cards were drawn for ' + canonAncestor(chosenAncestor) + '.');
       return;
@@ -301,6 +418,8 @@ var BoonManager = (function () {
     });
 
     delete offers[playerid];
+
+    rememberHistory(playerid, [picked]);
 
     ensureBoonHandout(playerid, picked, offer.ancestor);
 
