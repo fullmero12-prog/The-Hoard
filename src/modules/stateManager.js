@@ -16,28 +16,36 @@
 var StateManager = (function () {
 
   var DEFAULT_PLAYER_STATE = {
+    focus: null,
     ancestor_id: null,
+    currentRoom: 0,
+    stage: 'pre-room',
     scrip: 0,
     fse: 0,
     squares: 0,
     rerollTokens: 0,
+    firstClearAwarded: false,
     boons: [],
     relics: [],
-    upgrades: [],
-    focus: 'Staff',
-    currentRoom: 0,
-    corridorLength: 6,
-    hasEnteredFirstRoom: false,
-    firstClearAwarded: false
+    upgrades: []
   };
+
+  function cloneDefaultPlayerState() {
+    return JSON.parse(JSON.stringify(DEFAULT_PLAYER_STATE));
+  }
 
   /** Initializes the global storage if it doesn't exist */
   function init() {
     if (!state.HoardRun) {
-      state.HoardRun = { players: {}, shop: {} };
+      state.HoardRun = { players: {}, shops: {} };
       log('HoardRun state initialized.');
-    } else if (!state.HoardRun.shop) {
-      state.HoardRun.shop = {};
+    } else {
+      if (!state.HoardRun.players) {
+        state.HoardRun.players = {};
+      }
+      if (!state.HoardRun.shops) {
+        state.HoardRun.shops = {};
+      }
     }
   }
 
@@ -45,7 +53,7 @@ var StateManager = (function () {
   function initPlayer(playerid) {
     init();
     if (!state.HoardRun.players[playerid]) {
-      state.HoardRun.players[playerid] = JSON.parse(JSON.stringify(DEFAULT_PLAYER_STATE));
+      state.HoardRun.players[playerid] = cloneDefaultPlayerState();
       log('Created new run data for player ' + playerid);
     }
     return state.HoardRun.players[playerid];
@@ -89,20 +97,10 @@ var StateManager = (function () {
 
   /** Resets a player's corridor progress and currencies */
   function resetPlayerRun(playerid) {
-    var p = initPlayer(playerid);
-    p.ancestor_id = null;
-    p.focus = DEFAULT_PLAYER_STATE.focus;
-    p.currentRoom = 0;
-    p.scrip = 0;
-    p.fse = 0;
-    p.squares = 0;
-    p.rerollTokens = 0;
-    p.boons = [];
-    p.relics = [];
-    p.upgrades = [];
-    p.hasEnteredFirstRoom = false;
-    p.firstClearAwarded = false;
-    return p;
+    var fresh = cloneDefaultPlayerState();
+    init();
+    state.HoardRun.players[playerid] = fresh;
+    return state.HoardRun.players[playerid];
   }
 
   /** Sets the current cleared room number */
@@ -126,7 +124,7 @@ var StateManager = (function () {
     var p = getPlayer(playerid);
     return {
       currentRoom: normalizeNumber(p.currentRoom),
-      corridorLength: normalizeNumber(p.corridorLength)
+      stage: p.stage || 'pre-room'
     };
   }
 
@@ -163,11 +161,13 @@ var StateManager = (function () {
   function advanceRoom(playerid, bundle) {
     var p = initPlayer(playerid);
 
-    if (!p.hasEnteredFirstRoom) {
-      p.hasEnteredFirstRoom = true;
+    var stage = p.stage || 'pre-room';
+    if (stage === 'pre-room') {
+      p.stage = 'in-room';
+      setPlayer(playerid, p);
       return {
         firstEntry: true,
-        clearedRoom: 0,
+        clearedRoom: p.currentRoom,
         totals: getCurrencies(playerid),
         player: p
       };
@@ -177,12 +177,16 @@ var StateManager = (function () {
     current += 1;
     p.currentRoom = current;
 
-    var totals = bundle ? applyCurrencyBundle(playerid, bundle) : getCurrencies(playerid);
+    if (bundle) {
+      applyCurrencyBundle(playerid, bundle);
+    }
+
+    setPlayer(playerid, p);
 
     return {
       firstEntry: false,
       clearedRoom: p.currentRoom,
-      totals: totals,
+      totals: getCurrencies(playerid),
       player: p
     };
   }
@@ -216,7 +220,7 @@ var StateManager = (function () {
 
   /** Clears all data (use with care!) */
   function resetAll() {
-    state.HoardRun = { players: {}, shop: {} };
+    state.HoardRun = { players: {}, shops: {} };
     log('All HoardRun data cleared.');
   }
 
