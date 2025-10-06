@@ -92,6 +92,7 @@ var RunFlowManager = (function () {
   }
 
   function resetRunState() {
+    ensureState();
     state.HoardRun.runFlow = clone(DEFAULT_RUN_STATE);
     log('[RunFlow] Run state reset.');
     return state.HoardRun.runFlow;
