@@ -10,10 +10,6 @@
 (function(){
   'use strict';
 
-  if (typeof AncestorKits === 'undefined' || !AncestorKits || typeof AncestorKits.register !== 'function') {
-    return;
-  }
-
   var KIT_KEY = 'Vladren';
   var KIT_NAME = 'Vladren Moroi';
   var SOURCE_CHARACTER_NAME = 'Ancestor — Vladren Moroi';
@@ -133,18 +129,41 @@
     });
   }
 
-  AncestorKits.register(KIT_KEY, {
-    ancestor: KIT_NAME,
-    prefix: KIT_KEY,
-    sourceCharName: SOURCE_CHARACTER_NAME,
-    sourceCharacterName: SOURCE_CHARACTER_NAME,
-    abilities: [
-      { name: 'Crimson Pact (Info)', action: buildCrimsonPactAction(), tokenAction: true },
-      { name: 'Transfusion (Bonus)', action: buildTransfusionAction(), tokenAction: true },
-      { name: 'Sanguine Pool (Reaction • 1/SR)', action: buildSanguinePoolAction(), tokenAction: true },
-      { name: 'Hemoplague (1/SR)', action: buildHemoplagueAction(), tokenAction: true }
-    ],
-    onInstall: onInstall
-  });
+  var _registered = false;
+
+  function registerKit() {
+    if (_registered) {
+      return true;
+    }
+
+    if (typeof AncestorKits === 'undefined' || !AncestorKits || typeof AncestorKits.register !== 'function') {
+      return false;
+    }
+
+    AncestorKits.register(KIT_KEY, {
+      ancestor: KIT_NAME,
+      prefix: KIT_KEY,
+      sourceCharName: SOURCE_CHARACTER_NAME,
+      sourceCharacterName: SOURCE_CHARACTER_NAME,
+      abilities: [
+        { name: 'Crimson Pact (Info)', action: buildCrimsonPactAction(), tokenAction: true },
+        { name: 'Transfusion (Bonus)', action: buildTransfusionAction(), tokenAction: true },
+        { name: 'Sanguine Pool (Reaction • 1/SR)', action: buildSanguinePoolAction(), tokenAction: true },
+        { name: 'Hemoplague (1/SR)', action: buildHemoplagueAction(), tokenAction: true }
+      ],
+      onInstall: onInstall
+    });
+
+    _registered = true;
+    return true;
+  }
+
+  if (!registerKit() && typeof on === 'function') {
+    on('ready', function(){
+      if (!registerKit() && typeof log === 'function') {
+        log('[AncestorKits] ⚠️ Vladren kit failed to register – AncestorKits.register unavailable.');
+      }
+    });
+  }
 
 })();
