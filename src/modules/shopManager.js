@@ -78,6 +78,10 @@ var ShopManager = (function () {
     }
   };
 
+  function canonAncestorName(name) {
+    return (name || '').replace(/[^A-Za-z0-9]/g, '');
+  }
+
   function getPlayerDisplayName(playerid) {
     const player = getObj("player", playerid);
     return player ? player.get("_displayname") : "Unknown";
@@ -103,6 +107,101 @@ var ShopManager = (function () {
       state.HoardRun.shops = {};
     }
     return state.HoardRun.shops;
+  }
+
+  function getAncestorDeckInfo(playerid) {
+    const fallbackAncestor = 'Azuren';
+    let ancestorName = fallbackAncestor;
+
+    try {
+      const ps = StateManager.getPlayer(playerid);
+      if (ps && ps.ancestor_id) {
+        ancestorName = ps.ancestor_id;
+      } else if (state.HoardRun && state.HoardRun.runFlow && state.HoardRun.runFlow.ancestor) {
+        ancestorName = state.HoardRun.runFlow.ancestor;
+      }
+    } catch (err) {
+      // default fallback already applied
+    }
+
+    const key = canonAncestorName(ancestorName);
+    return {
+      name: ancestorName,
+      key: key || canonAncestorName(fallbackAncestor)
+    };
+  }
+
+  function pickFromPool(pool) {
+    if (!pool || !pool.length) {
+      return null;
+    }
+    const index = randomInteger(pool.length) - 1;
+    return pool[index];
+  }
+
+  function drawRelicFromCatalog(rarityLabel) {
+    const label = rarityLabel || 'Common';
+    let buckets = null;
+
+    if (state.HoardRun && state.HoardRun.relicBuckets) {
+      buckets = state.HoardRun.relicBuckets;
+    } else if (typeof RelicData !== 'undefined' && RelicData.getRarityBuckets) {
+      buckets = RelicData.getRarityBuckets();
+    }
+
+    if (!buckets || !buckets[label] || !buckets[label].length) {
+      return null;
+    }
+
+    const entry = pickFromPool(buckets[label]);
+    if (!entry) {
+      return null;
+    }
+
+    const clone = JSON.parse(JSON.stringify(entry));
+    return {
+      id: clone.id || (clone.name + '_' + label),
+      name: clone.name,
+      data: clone,
+      deckSource: 'Relics.' + label,
+      isStub: true
+    };
+  }
+
+  function drawBoonFromCatalog(ancestorKey, rarityLabel, ancestorName) {
+    if (!ancestorKey) {
+      return null;
+    }
+
+    const decks = (state.HoardRun && state.HoardRun.boons) || {};
+    const deck = decks[ancestorKey];
+    if (!deck) {
+      return null;
+    }
+
+    const label = rarityLabel || 'Common';
+    const pool = deck[label];
+    if (!pool || !pool.length) {
+      return null;
+    }
+
+    const entry = pickFromPool(pool);
+    if (!entry) {
+      return null;
+    }
+
+    const clone = JSON.parse(JSON.stringify(entry));
+    if (ancestorName && !clone.ancestor) {
+      clone.ancestor = ancestorName;
+    }
+
+    return {
+      id: clone.id || (ancestorKey + '_' + label + '_' + randomInteger(10000)),
+      name: clone.name,
+      data: clone,
+      deckSource: 'Boons.' + ancestorKey + '.' + label,
+      isStub: true
+    };
   }
 
   /** Retrieves the current player's shop object */
@@ -247,15 +346,32 @@ var ShopManager = (function () {
       else rarity = "S";
     }
 
-    const deckName = rarity === "C"
-      ? "Boons.ActiveAncestor.Common"
-      : rarity === "G"
-        ? "Boons.ActiveAncestor.Greater"
-        : "Boons.ActiveAncestor.Signature";
+    const rarityLabel = rarity === "C" ? "Common" : (rarity === "G" ? "Greater" : "Signature");
+    const ancestorInfo = getAncestorDeckInfo(playerid);
+    let card = null;
 
-    const card = DeckManager.drawOne(deckName);
-    if (!card) return null;
-    return buildSlot("boon", rarity, card, BOON_PRICE);
+    if (ancestorInfo.key) {
+      card = DeckManager.drawOne('Boons.' + ancestorInfo.key + '.' + rarityLabel);
+    }
+
+    if (!card) {
+      card = DeckManager.drawOne('Boons.ActiveAncestor.' + rarityLabel);
+    }
+
+    if (!card) {
+      card = drawBoonFromCatalog(ancestorInfo.key, rarityLabel, ancestorInfo.name);
+    }
+
+    if (!card) {
+      return null;
+    }
+
+    const extras = {
+      ancestorName: ancestorInfo.name,
+      rarityName: rarityLabel
+    };
+
+    return buildSlot("boon", rarity, card, BOON_PRICE, extras);
   }
 
   /** Builds a relic slot */
@@ -266,7 +382,11 @@ var ShopManager = (function () {
       : rarity === "G"
         ? "Relics.Greater"
         : "Relics.Signature";
-    const card = DeckManager.drawOne(deckName);
+    let card = DeckManager.drawOne(deckName);
+    if (!card) {
+      const rarityLabel = rarity === "C" ? "Common" : (rarity === "G" ? "Greater" : "Signature");
+      card = drawRelicFromCatalog(rarityLabel);
+    }
     if (!card) return null;
 
     const extras = {};
@@ -544,6 +664,9 @@ var ShopManager = (function () {
     if (typeof slot.price !== 'undefined') {
       metaParts.push('Cost: ' + slot.price + ' Scrip');
     }
+    if (slot.type === 'boon' && slot.ancestorName) {
+      metaParts.push('Ancestor: ' + slot.ancestorName);
+    }
     const meta = '<div style="font-size:11px;opacity:0.8;margin-bottom:6px;">' + htmlEscape(metaParts.join(' • ')) + '</div>';
 
     const description = resolveSlotDescription(slot);
@@ -675,6 +798,9 @@ var ShopManager = (function () {
       record.data = slot.cardData;
       record.rarity = slot.rarity;
     }
+    if (slot.type === "boon" && slot.ancestorName) {
+      record.ancestor = slot.ancestorName;
+    }
 
     if (slot.type === "relic") {
       playerState.relics.push(record);
@@ -770,8 +896,8 @@ var ShopManager = (function () {
 
   /** Square exchange handler */
   function tradeSquares(playerid, target) {
-    const ps = StateManager.getPlayer(playerid);
-    if (ps.squares <= 0) {
+    const totals = StateManager.getCurrencies(playerid) || {};
+    if (!totals.squares || totals.squares <= 0) {
       whisper(playerid, "No Squares to trade.");
       return;
     }
@@ -779,16 +905,20 @@ var ShopManager = (function () {
     let gain = 0;
     if (target === "scrip") {
       gain = 15;
-      ps.scrip += gain;
     } else if (target === "fse") {
       gain = 5;
-      ps.fse += gain;
     } else {
       whisper(playerid, "Choose scrip or fse for trades.");
       return;
     }
 
-    ps.squares -= 1;
+    const ps = StateManager.getPlayer(playerid);
+    ps.squares = Math.max(0, (parseInt(ps.squares, 10) || 0) - 1);
+    if (target === "scrip") {
+      ps.scrip = (parseInt(ps.scrip, 10) || 0) + gain;
+    } else {
+      ps.fse = (parseInt(ps.fse, 10) || 0) + gain;
+    }
     if (StateManager.setPlayer) {
       StateManager.setPlayer(playerid, ps);
     }
