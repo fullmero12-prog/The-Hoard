@@ -155,6 +155,42 @@ var BoonManager = (function () {
     return base + '|' + rare;
   }
 
+  function buildOwnedBoonMap(playerid) {
+    var ownedMap = {};
+
+    if (typeof StateManager === 'undefined' || !StateManager || typeof StateManager.getPlayer !== 'function') {
+      return ownedMap;
+    }
+
+    var ps = StateManager.getPlayer(playerid);
+    if (!ps || !ps.boons || !ps.boons.length) {
+      return ownedMap;
+    }
+
+    for (var i = 0; i < ps.boons.length; i++) {
+      var boon = ps.boons[i];
+      if (!boon) {
+        continue;
+      }
+
+      var id = String(boon.id || boon.name || '').toLowerCase();
+      if (!id) {
+        continue;
+      }
+
+      var rarity = rarityKey(boon.rarity || '');
+      ownedMap[id + '|' + rarity] = true;
+
+      if (!rarity) {
+        ownedMap[id + '|common'] = true;
+        ownedMap[id + '|greater'] = true;
+        ownedMap[id + '|signature'] = true;
+      }
+    }
+
+    return ownedMap;
+  }
+
   function rememberHistory(playerid, cards) {
     var history = getPlayerHistory(playerid);
     var limit = 24;
@@ -203,7 +239,11 @@ var BoonManager = (function () {
       var rarityTag = rarityKey(candidate && (candidate._rarity || candidate.rarity || rarity));
       var combined = key + '|' + rarityTag;
 
-      if (!seen[combined] && !banned[combined]) {
+      if (banned && banned[combined]) {
+        continue;
+      }
+
+      if (!seen[combined]) {
         pool.splice(idx, 1);
         seen[combined] = true;
         return candidate;
@@ -413,10 +453,17 @@ var BoonManager = (function () {
       Signature: (deck.Signature || []).slice()
     };
 
-    var historyMap = {};
+    var bannedMap = {};
     (historyList || []).forEach(function (entry) {
-      historyMap[entry] = true;
+      bannedMap[entry] = true;
     });
+
+    var ownedMap = buildOwnedBoonMap(playerid);
+    for (var ownedKey in ownedMap) {
+      if (ownedMap.hasOwnProperty(ownedKey)) {
+        bannedMap[ownedKey] = true;
+      }
+    }
 
     var seen = {};
     var picks = [];
@@ -430,7 +477,7 @@ var BoonManager = (function () {
       for (var j = 0; j < order.length; j++) {
         var pool = pools[order[j]];
         if (pool && pool.length) {
-          chosen = pickFromPool(pool, order[j], seen, historyMap);
+          chosen = pickFromPool(pool, order[j], seen, bannedMap);
           if (chosen) {
             chosen._rarity = order[j];
             chosen._idx = picks.length;
