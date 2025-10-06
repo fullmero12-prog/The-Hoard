@@ -78,6 +78,28 @@ var ShopManager = (function () {
     return (name || '').replace(/[^A-Za-z0-9]/g, '');
   }
 
+  function findBoonDeck(decks, key) {
+    if (!decks || !key) {
+      return null;
+    }
+
+    if (decks[key]) {
+      return { name: key, deck: decks[key] };
+    }
+
+    const lower = String(key).toLowerCase();
+    for (const label in decks) {
+      if (!Object.prototype.hasOwnProperty.call(decks, label)) {
+        continue;
+      }
+      if (String(label).toLowerCase() === lower) {
+        return { name: label, deck: decks[label] };
+      }
+    }
+
+    return null;
+  }
+
   function getPlayerDisplayName(playerid) {
     const player = getObj("player", playerid);
     return player ? player.get("_displayname") : "Unknown";
@@ -169,12 +191,26 @@ var ShopManager = (function () {
       return null;
     }
 
-    const decks = (state.HoardRun && state.HoardRun.boons) || {};
-    const deck = decks[ancestorKey];
-    if (!deck) {
+    let decks = null;
+    if (typeof BoonManager !== 'undefined' && BoonManager && typeof BoonManager.ensureDeckCache === 'function') {
+      decks = BoonManager.ensureDeckCache(ancestorKey);
+    } else {
+      if (!state.HoardRun) {
+        state.HoardRun = {};
+      }
+      decks = state.HoardRun.boons || {};
+      if (!findBoonDeck(decks, ancestorKey) && typeof AncestorRegistry !== 'undefined' && AncestorRegistry && typeof AncestorRegistry.getBoonDecks === 'function') {
+        decks = AncestorRegistry.getBoonDecks() || {};
+        state.HoardRun.boons = decks;
+      }
+    }
+
+    const deckInfo = findBoonDeck(decks, ancestorKey);
+    if (!deckInfo) {
       return null;
     }
 
+    const deck = deckInfo.deck;
     const label = rarityLabel || 'Common';
     const pool = deck[label];
     if (!pool || !pool.length) {
@@ -191,11 +227,13 @@ var ShopManager = (function () {
       clone.ancestor = ancestorName;
     }
 
+    const resolvedKey = deckInfo.name || ancestorKey;
+
     return {
-      id: clone.id || (ancestorKey + '_' + label + '_' + randomInteger(10000)),
+      id: clone.id || (resolvedKey + '_' + label + '_' + randomInteger(10000)),
       name: clone.name,
       data: clone,
-      deckSource: 'Boons.' + ancestorKey + '.' + label,
+      deckSource: 'Boons.' + resolvedKey + '.' + label,
       isStub: true
     };
   }
