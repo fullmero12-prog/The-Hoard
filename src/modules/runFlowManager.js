@@ -10,14 +10,14 @@
 
 var RunFlowManager = (function () {
 
-  var VERSION = '1.1.0';
+  var VERSION = '1.2.0';
   var isRegistered = false;
   var _advancing = false;
 
   var DEFAULT_RUN_STATE = {
     started: false,
-    lastPrompt: null,
-    currentRoom: 0
+    bossPending: false,
+    currentHighestCleared: 0
   };
 
   var WEAPONS = ['Staff', 'Orb', 'Greataxe', 'Rapier', 'Bow'];
@@ -115,14 +115,6 @@ var RunFlowManager = (function () {
     }).join('<br>');
   }
 
-  function sendDirect(title, bodyHTML) {
-    if (typeof HRChat !== 'undefined' && HRChat && typeof HRChat.direct === 'function') {
-      HRChat.direct(formatPanel(title, bodyHTML));
-    } else {
-      sendChat('Hoard Run', '/direct ' + formatPanel(title, bodyHTML));
-    }
-  }
-
   function whisperGM(title, bodyHTML) {
     if (typeof HRChat !== 'undefined' && HRChat && typeof HRChat.say === 'function') {
       HRChat.say('/w gm ' + formatPanel(title, bodyHTML));
@@ -148,6 +140,159 @@ var RunFlowManager = (function () {
   function whisperText(playerid, textHTML) {
     var name = String(getPlayerName(playerid) || 'Player').replace(/"/g, '\\"');
     sendChat('Hoard Run', '/w "' + name + '" ' + textHTML);
+  }
+
+  function escapeHTML(value) {
+    if (value === null || value === undefined) {
+      return '';
+    }
+    return String(value)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  function getActivePlayers() {
+    var players = findObjs({ _type: 'player' }) || [];
+    return players.filter(function (p) {
+      return p.get('online');
+    });
+  }
+
+  function getKnownPlayerIds() {
+    ensureState();
+    var roster = [];
+    var players = state.HoardRun.players || {};
+    var id;
+    for (id in players) {
+      if (players.hasOwnProperty(id)) {
+        roster.push(id);
+      }
+    }
+    return roster;
+  }
+
+  function buildWeaponButtons() {
+    return [
+      { label: '⚔️ Greataxe', command: '!selectweapon Greataxe' },
+      { label: '🗡️ Rapier', command: '!selectweapon Rapier' },
+      { label: '🏹 Bow', command: '!selectweapon Bow' },
+      { label: '🔮 Orb', command: '!selectweapon Orb' },
+      { label: '📚 Staff', command: '!selectweapon Staff' }
+    ];
+  }
+
+  function whisperWeaponPrompt(playerid) {
+    var body =
+      '<b>The Hoard stirs…</b><br>' +
+      'Choose a weapon to begin your personalized run.<br><br>' +
+      formatButtons(buildWeaponButtons());
+    whisperPanel(playerid, 'Choose Your Weapon', body);
+  }
+
+  function sanitizeAncestorCommand(name) {
+    return String(name || '')
+      .replace(/"/g, '')
+      .replace(/\s+/g, '_');
+  }
+
+  function buildAncestorCards(focus) {
+    var options = ANCESTOR_SETS[focus] || [];
+    if (!options.length) {
+      return '⚠️ Ancestors for the ' + escapeHTML(focus) + ' are coming soon.';
+    }
+
+    var cards = [];
+    for (var i = 0; i < options.length; i += 1) {
+      var key = options[i];
+      var info = ANCESTOR_INFO[key] || {};
+      var title = escapeHTML(info.title || key);
+      var desc = escapeHTML(info.desc || '');
+      var button = formatButtons([
+        {
+          label: 'Bind to ' + escapeHTML(key),
+          command: '!selectancestor ' + sanitizeAncestorCommand(key)
+        }
+      ]);
+      cards.push('<div><b>' + title + '</b><br>' + desc + '<br><br>' + button + '</div>');
+    }
+    return cards.join('<hr>');
+  }
+
+  function whisperAncestorPrompt(playerid, focus) {
+    var body =
+      'Choose an ancestor tied to your ' + escapeHTML(focus) + ' to unlock free end-of-room boons.<br><br>' +
+      buildAncestorCards(focus);
+    whisperPanel(playerid, 'Select Your Ancestor', body);
+  }
+
+  function getProcessingList(invokerId) {
+    if (typeof isGM === 'function' && isGM(invokerId)) {
+      var roster = getKnownPlayerIds();
+      if (!roster.length) {
+        var active = getActivePlayers();
+        for (var i = 0; i < active.length; i += 1) {
+          roster.push(active[i].id);
+        }
+      }
+      return roster;
+    }
+    return [invokerId];
+  }
+
+  function processNextRoomFor(playerid, useBossType) {
+    if (!StateManager || !StateManager.getPlayer) {
+      whisperGM('State Warning', '⚠️ StateManager not ready.');
+      return null;
+    }
+
+    var playerState = StateManager.getPlayer(playerid);
+    if (!playerState) {
+      return null;
+    }
+
+    if (!playerState.focus) {
+      whisperWeaponPrompt(playerid);
+      return null;
+    }
+
+    if (playerState.currentRoom === 0 && !playerState.ancestor_id) {
+      if (playerState.stage !== 'awaiting-ancestor') {
+        playerState.stage = 'awaiting-ancestor';
+        if (StateManager.setPlayer) {
+          StateManager.setPlayer(playerid, playerState);
+        }
+      }
+      whisperAncestorPrompt(playerid, playerState.focus);
+      return { status: 'awaiting-ancestor', player: playerState };
+    }
+
+    if (playerState.stage === 'awaiting-ancestor' && playerState.ancestor_id) {
+      playerState.stage = 'pre-room';
+      if (StateManager.setPlayer) {
+        StateManager.setPlayer(playerid, playerState);
+      }
+      if (typeof RoomManager !== 'undefined' && typeof RoomManager.advance === 'function') {
+        return RoomManager.advance(playerid, { type: 'room', freeBoon: true });
+      }
+      return null;
+    }
+
+    if (typeof RoomManager === 'undefined' || typeof RoomManager.advance !== 'function') {
+      whisperGM('Room Engine Warning', '⚠️ Room progression engine not ready.');
+      return null;
+    }
+
+    var roomType = useBossType ? 'boss' : 'room';
+    var opts = {
+      type: roomType,
+      freeBoon: true,
+      firstClearBonusFSE: 3
+    };
+
+    return RoomManager.advance(playerid, opts);
   }
 
   function sanitizeWeapon(arg) {
@@ -179,28 +324,39 @@ var RunFlowManager = (function () {
 
     var run = resetRunState();
     run.started = true;
-    run.lastPrompt = null;
-    run.currentRoom = 0;
+    run.bossPending = false;
+    run.currentHighestCleared = 0;
+
+    var roster = getActivePlayers();
+    var processed = {};
+    var i;
 
     if (typeof StateManager !== 'undefined' && typeof StateManager.resetPlayerRun === 'function') {
-      StateManager.resetPlayerRun(playerid);
+      var known = getKnownPlayerIds();
+      for (i = 0; i < known.length; i += 1) {
+        StateManager.resetPlayerRun(known[i]);
+        processed[known[i]] = true;
+      }
     }
 
-    var body =
-      '<b>The Hoard stirs…</b><br>' +
-      'Before you step inside, you must choose your weapon.<br><br>' +
-      'Select one of the following to attune to your chosen focus:<br><br>' +
-      formatButtons([
-        { label: '⚔️ Greataxe', command: '!selectweapon Greataxe' },
-        { label: '🗡️ Rapier', command: '!selectweapon Rapier' },
-        { label: '🏹 Bow', command: '!selectweapon Bow' },
-        { label: '🔮 Orb', command: '!selectweapon Orb' },
-        { label: '📚 Staff', command: '!selectweapon Staff' }
-      ]);
+    for (i = 0; i < roster.length; i += 1) {
+      var pid = roster[i].id;
+      if (processed[pid]) {
+        whisperWeaponPrompt(pid);
+        continue;
+      }
+      if (typeof StateManager !== 'undefined' && typeof StateManager.resetPlayerRun === 'function') {
+        StateManager.resetPlayerRun(pid);
+      }
+      processed[pid] = true;
+      whisperWeaponPrompt(pid);
+    }
 
-    sendDirect('Welcome to the Hoard Run', body);
+    if (!roster.length) {
+      whisperGM('Hoard Run Ready', 'No active players detected. Use <b>!selectweapon</b> once players join.');
+    }
 
-    log('[RunFlow] New Hoard Run started — awaiting weapon selection.');
+    log('[RunFlow] New Hoard Run started — awaiting weapon selections.');
   }
 
   function handleSelectWeapon(playerid, arg) {
@@ -216,24 +372,28 @@ var RunFlowManager = (function () {
       return;
     }
 
-    if (typeof StateManager !== 'undefined' && typeof StateManager.resetPlayerRun === 'function') {
-      StateManager.resetPlayerRun(playerid);
-    }
-
-    if (typeof StateManager !== 'undefined' && typeof StateManager.getPlayer === 'function') {
-      var playerState = StateManager.getPlayer(playerid);
-      playerState.focus = weapon;
-      playerState.currentRoom = 0;
-      playerState.hasEnteredFirstRoom = false;
-      if (typeof StateManager.setPlayer === 'function') {
-        StateManager.setPlayer(playerid, playerState);
+    if (typeof StateManager !== 'undefined') {
+      if (StateManager.resetPlayerRun) {
+        StateManager.resetPlayerRun(playerid);
+      }
+      var playerState = StateManager.getPlayer ? StateManager.getPlayer(playerid) : null;
+      if (playerState) {
+        playerState.focus = weapon;
+        playerState.stage = 'pre-room';
+        playerState.currentRoom = 0;
+        if (StateManager.setPlayer) {
+          StateManager.setPlayer(playerid, playerState);
+        }
       }
     }
 
-    run.lastPrompt = null;
-
-    whisperPanel(playerid, 'Weapon Chosen', '🗡️ Weapon locked: <b>' + weapon + '</b>.<br>Prepare for your first encounter!<br><br>' +
-      'Entering <b>Room 1</b>...');
+    whisperPanel(
+      playerid,
+      'Weapon Chosen',
+      '🗡️ Weapon locked: <b>' + weapon + '</b>.<br>' +
+      'Your run progress will now be tracked under your player ID.<br><br>' +
+      'Use <b>!nextroom</b> once the GM opens the corridor.'
+    );
     log('[RunFlow] Weapon selected for ' + playerid + ': ' + weapon);
   }
 
@@ -261,17 +421,14 @@ var RunFlowManager = (function () {
 
     if (playerState) {
       playerState.ancestor_id = canon;
-      // NOTE: we do NOT offer a boon here; that happens at room end.
       if (typeof StateManager.setPlayer === 'function') StateManager.setPlayer(playerid, playerState);
     }
-
-    run.lastPrompt = null;
 
     whisperPanel(
       playerid,
       'Ancestor Chosen',
-      '🌟 Ancestor blessing secured: <b>' + canon + '</b>.<br>' +
-      'You will be offered a free boon at the <b>end of each room</b> (shop boons cost Scrip).'
+      '🌟 Ancestor blessing secured: <b>' + escapeHTML(canon) + '</b>.<br>' +
+      'We will offer free boons tied to this ancestor at the end of each cleared room.'
     );
 
     // Install kit & whisper GM bind button (Vladren example)
@@ -281,13 +438,6 @@ var RunFlowManager = (function () {
         if (AncestorKits.Vladren.promptBindToSelectedPC) AncestorKits.Vladren.promptBindToSelectedPC();
       }
     } catch (e) { log('[RunFlow] Vladren install/prompt error: ' + e.message); }
-
-    // If this player cleared a room without an ancestor, we queued a pending boon.
-    if (playerState && playerState.pendingFreeBoon && typeof BoonManager !== 'undefined' && BoonManager.offerBoons) {
-      delete playerState.pendingFreeBoon;
-      if (typeof StateManager.setPlayer === 'function') StateManager.setPlayer(playerid, playerState);
-      BoonManager.offerBoons(playerid, canon, 'free');
-    }
   }
 
   function handleNextRoom(playerid, arg) {
@@ -296,94 +446,119 @@ var RunFlowManager = (function () {
 
     try {
       var run = getRun();
-      if (!run.started) { whisperText(playerid, '⚠️ No active run. Use <b>!startrun</b> first.'); return; }
-
-      if (!StateManager || !StateManager.getPlayer) { whisperText(playerid, '⚠️ StateManager not ready.'); return; }
-      var ps = StateManager.getPlayer(playerid);
-      if (!ps || !ps.focus) {
-        whisperPanel(playerid, 'Choose Your Weapon',
-          '⚠️ Select a weapon to attune with:<br><br>' + formatButtons([
-            { label: '⚔️ Greataxe', command: '!selectweapon Greataxe' },
-            { label: '🗡️ Rapier',   command: '!selectweapon Rapier'   },
-            { label: '🏹 Bow',      command: '!selectweapon Bow'      },
-            { label: '🔮 Orb',      command: '!selectweapon Orb'      },
-            { label: '📚 Staff',    command: '!selectweapon Staff'    }
-          ])
-        );
+      if (!run.started) {
+        whisperText(playerid, '⚠️ No active run. Use <b>!startrun</b> first.');
         return;
       }
 
-// --- decide / advance room (pure engine) ---
-var result = null;
-if (typeof RoomManager !== 'undefined' && typeof RoomManager.advanceRoom === 'function') {
-  // Preferred: central engine does room math and extras (squares, first-clear bonus)
-  result = RoomManager.advanceRoom(playerid, 'room');
-} else {
-  whisperGM('Room Engine Warning', '⚠️ Room progression engine not ready.');
-  return;
-}
+      var targets = getProcessingList(playerid);
+      var useBossType = !!run.bossPending;
+      var anyReady = false;
+      var anyCleared = false;
 
-// --- entering Room 1 for the first time ---
-if (result && result.firstEntry) {
-  whisperPanel(playerid, 'Room 1 Ready',
-    '⚔️ The first chamber opens. Run the encounter, then use <b>!nextroom</b> again to claim rewards.'
-  );
-  return;
-}
+      for (var i = 0; i < targets.length; i += 1) {
+        var pid = targets[i];
+        var outcome = processNextRoomFor(pid, useBossType);
+        if (!outcome) {
+          continue;
+        }
 
-// --- we’re in post-clear stage now ---
-var ps = (typeof StateManager !== 'undefined' && StateManager.getPlayer)
-  ? StateManager.getPlayer(playerid)
-  : null;
+        if (useBossType) {
+          if (outcome.status === 'ready') {
+            anyReady = true;
+          } else if (outcome.status === 'cleared') {
+            anyCleared = true;
+          }
+        }
 
-// If the player has no ancestor yet, prompt selection (once).
-if (ps && !ps.ancestor_id) {
-  var ancestors = ANCESTOR_SETS[ps.focus] || [];
-  if (ancestors.length) {
-    var ancestorButtons = ancestors.map(function (a) {
-      var ident = String(a || '').replace(/\s+/g, '_').replace(/"/g, '');
-      return { label: 'Select ' + _.escape(a), command: '!selectancestor ' + ident };
-    });
-    whisperPanel(
-      playerid,
-      'Choose Your Ancestor',
-      '🌟 Bind to an ancestor to unlock room-end boons:<br><br>' + formatButtons(ancestorButtons)
-    );
-  }
-}
+        if (outcome.status === 'cleared' && outcome.room && run.currentHighestCleared < outcome.room) {
+          run.currentHighestCleared = outcome.room;
+        }
+      }
 
-// Normal clear summary
-var clearedRoom = (result && result.clearedRoom) || 0;
-var totals      = (result && result.totals)      || { scrip: 0, fse: 0 };
-
-whisperPanel(
-  playerid,
-  'Room Complete',
-  '🏁 <b>Room ' + clearedRoom + '</b> cleared!<br>' +
-  '+20 Scrip, +1 FSE earned.<br><br>' +
-  'Total — Scrip: <b>' + totals.scrip + '</b> | FSE: <b>' + totals.fse + '</b>'
-);
-
-// Offer a FREE boon now if the player already has an ancestor
-if (ps && ps.ancestor_id && typeof BoonManager !== 'undefined' && BoonManager.offerBoons) {
-  BoonManager.offerBoons(playerid, ps.ancestor_id, 'free');
-}
-
-// Boss first-clear bonus announcement (value computed in RoomManager)
-if (result && result.firstClearBonusFSE && result.firstClearBonusFSE > 0) {
-  whisperPanel(
-    playerid,
-    'First Clear Bonus',
-    '✪ +' + result.firstClearBonusFSE + ' FSE for your first boss clear!'
-  );
-}
-
+      if (useBossType) {
+        if (anyReady) {
+          run.bossPending = true;
+        } else if (anyCleared) {
+          run.bossPending = false;
+        }
+      }
     } catch (e) {
       log('[RunFlow] next room error: ' + e);
     } finally {
       _advancing = false;
     }
 
+  }
+
+  function handleFinalRoom(playerid) {
+    if (typeof isGM === 'function' && !isGM(playerid)) {
+      whisperText(playerid, '⚠️ Only the GM can flag the final room.');
+      return;
+    }
+
+    var run = getRun();
+    run.bossPending = true;
+    whisperGM('Final Room Flagged', '👑 Next <b>!nextroom</b> call will prepare the boss encounter for each player.');
+  }
+
+  function handleCompleteRun(playerid) {
+    if (typeof isGM === 'function' && !isGM(playerid)) {
+      whisperText(playerid, '⚠️ Only the GM can complete the run.');
+      return;
+    }
+
+    if (!StateManager || !StateManager.getPlayer) {
+      whisperGM('State Warning', '⚠️ StateManager not ready.');
+      return;
+    }
+
+    var run = getRun();
+    var roster = getKnownPlayerIds();
+    if (!roster.length) {
+      whisperGM('Complete Run', '⚠️ No players are currently registered for this run.');
+      return;
+    }
+
+    var gmLines = [];
+    for (var i = 0; i < roster.length; i += 1) {
+      var pid = roster[i];
+      var state = StateManager.getPlayer(pid);
+      if (!state) {
+        continue;
+      }
+
+      var totals = StateManager.getCurrencies(pid) || { scrip: 0, fse: 0, squares: 0 };
+      var gold = totals.scrip || 0;
+      var ancestorName = state.ancestor_id ? escapeHTML(state.ancestor_id) : 'No Ancestor';
+
+      state.scrip = 0;
+      state.currentRoom = 0;
+      state.stage = 'pre-room';
+      if (StateManager.setPlayer) {
+        StateManager.setPlayer(pid, state);
+      }
+
+      var body =
+        'Run complete!<br>' +
+        'Ancestor: <b>' + ancestorName + '</b><br>' +
+        'Converted <b>' + gold + '</b> Scrip into <b>' + gold + '</b> Gold.<br>' +
+        'FSE Earned: <b>' + totals.fse + '</b><br>' +
+        'Squares Remaining: <b>' + totals.squares + '</b><br><br>' +
+        'Keepsakes and boons remain bound to your player ID.';
+
+      whisperPanel(pid, 'Hoard Run Complete', body);
+
+      gmLines.push(getPlayerName(pid) + ': ' + gold + ' Gold, ' + totals.fse + ' FSE, ancestor ' + ancestorName);
+    }
+
+    run.started = false;
+    run.bossPending = false;
+    run.currentHighestCleared = 0;
+
+    if (gmLines.length) {
+      whisperGM('Run Completion Summary', gmLines.join('<br>'));
+    }
   }
 
 
@@ -421,6 +596,12 @@ if (result && result.firstClearBonusFSE && result.firstClearBonusFSE > 0) {
         break;
       case '!nextroom':
         handleNextRoom(msg.playerid, argString);
+        break;
+      case '!finalroom':
+        handleFinalRoom(msg.playerid);
+        break;
+      case '!completerun':
+        handleCompleteRun(msg.playerid);
         break;
     }
   }
