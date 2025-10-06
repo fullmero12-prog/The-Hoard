@@ -299,10 +299,13 @@ var ShopManager = (function () {
     const name = getPlayerDisplayName(playerid);
 
     const shop = getPlayerShop(playerid);
+    const currencies = StateManager.getCurrencies(playerid) || {};
+    const scripTotal = typeof currencies.scrip !== "undefined" ? currencies.scrip : 0;
     const entries = slots || (shop.slots.length ? shop.slots : generateShop(playerid));
 
     let html = `<div style="border:1px solid #555;background:#111;padding:5px;color:#eee">`;
     html += `<b>Unified Shop – Bing, Bang & Bongo</b><br><br>`;
+    html += `<span style="color:#ffd700">Current Scrip: ${scripTotal}</span><br><br>`;
 
     entries.forEach((s, index) => {
       if (s.sold) return;
