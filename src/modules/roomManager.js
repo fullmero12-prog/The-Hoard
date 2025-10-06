@@ -1,42 +1,28 @@
 // ------------------------------------------------------------
-// Room Manager
+// Room Manager (pure helper)
 // ------------------------------------------------------------
 // What this does (in simple terms):
-//   Provides pure helpers for corridor progression.
-//   Handles reward bundle lookups and communicates with StateManager
-//   without sending UI or chat output directly.
+//   Provides corridor math for advancing rooms and awarding base
+//   currencies. This module is UI-free and has no chat handlers.
+//   RunFlowManager owns all chat/UI and boon/shop triggers.
 // ------------------------------------------------------------
 
 var RoomManager = (function () {
-
-  // ------------------------------------------------------------
-  // Constants (temporary until moved to config/constants.js)
-  // ------------------------------------------------------------
+  // ---- constants -------------------------------------------------
   var REWARDS = {
     room:     { scrip: 20, fse: 1 },
     miniboss: { scrip: 20, fse: 2, squareChance: 0.5 },
     boss:     { scrip: 40, fse: 5, squareChance: 0.5 }
   };
 
-  // ------------------------------------------------------------
-  // Internal Helpers
-  // ------------------------------------------------------------
-
-  function sanitizeRoomType(type) {
-    return (type === 'miniboss' || type === 'boss') ? type : 'room';
+  // ---- helpers ---------------------------------------------------
+  function sanitizeRoomType(t) {
+    return (t === 'miniboss' || t === 'boss') ? t : 'room';
   }
 
-  // ------------------------------------------------------------
-  // Core Functions
-  // ------------------------------------------------------------
-
   /**
-   * Applies post-clear extras (Squares, totals) after the main bundle is handled by StateManager.
-   * Pure helper — no UI.
-   * @param {string} playerid - Roll20 player ID.
-   * @param {'room'|'miniboss'|'boss'} type - Room reward type.
-   * @param {Object} totals - Currency totals after the base bundle was awarded.
-   * @returns {{bundle: Object, totals: Object}}
+   * Apply post-clear extras (e.g., chance to add a Square).
+   * Returns the bundle used and the updated totals.
    */
   function applyRewards(playerid, type, totals) {
     var bundle = REWARDS[sanitizeRoomType(type)] || REWARDS.room;
@@ -48,91 +34,76 @@ var RoomManager = (function () {
       }
     }
 
-    return {
-      bundle: bundle,
-      totals: totals
-    };
+    return { bundle: bundle, totals: totals };
   }
 
   /**
-   * Advances to the next room in the corridor.
-   * Pure helper — no UI.
+   * Advance one player by one room (or miniboss/boss).
+   * PURE helper: no UI, no chat, no boon/shop prompts.
+   *
+   * Returns an object with:
+   *   { firstEntry: bool,
+   *     clearedRoom: number,
+   *     totals: {scrip,fse},
+   *     player: <playerState> }
    */
   function advanceRoom(playerid, roomType) {
-    var safe = sanitizeRoomType(roomType);
-    var reward = REWARDS[safe] || REWARDS.room;
+    var safeType    = sanitizeRoomType(roomType);
+    var rewardBundle = REWARDS[safeType] || REWARDS.room;
 
-    var res;
+    var result = null;
+
+    // Preferred path: delegate to StateManager if available.
     if (typeof StateManager.advanceRoom === 'function') {
-      res = StateManager.advanceRoom(playerid, { scrip: reward.scrip, fse: reward.fse });
+      result = StateManager.advanceRoom(playerid, {
+        scrip: rewardBundle.scrip,
+        fse:   rewardBundle.fse
+      });
+
     } else {
+      // Fallback legacy path: keep minimal bookkeeping, no UI.
       StateManager.initPlayer(playerid);
       var p = StateManager.getPlayer(playerid);
+
+      // First entry to Room 1 gate.
       if (!p.hasEnteredFirstRoom) {
         p.hasEnteredFirstRoom = true;
-        if (StateManager.setPlayer) StateManager.setPlayer(playerid, p);
+        if (typeof StateManager.setPlayer === 'function') {
+          StateManager.setPlayer(playerid, p);
+        }
         return { firstEntry: true, player: p };
       }
+
+      // Normal clear.
       p.currentRoom = (p.currentRoom || 0) + 1;
-      StateManager.addCurrency(playerid, 'scrip', reward.scrip);
-      StateManager.addCurrency(playerid, 'fse', reward.fse);
-      res = {
-        firstEntry: false,
+      StateManager.addCurrency(playerid, 'scrip', rewardBundle.scrip);
+      StateManager.addCurrency(playerid, 'fse',   rewardBundle.fse);
+
+      result = {
+        firstEntry : false,
         clearedRoom: p.currentRoom,
-        totals: (typeof StateManager.getCurrencies === 'function')
+        totals     : (typeof StateManager.getCurrencies === 'function')
           ? StateManager.getCurrencies(playerid)
           : { scrip: p.scrip, fse: p.fse },
-        player: p
+        player     : p
       };
     }
 
-    if (!res.firstEntry) {
-      var totals = res.totals || { scrip: 0, fse: 0 };
-      var r = applyRewards(playerid, safe, totals);
-      res.totals = r.totals || totals;
+    // If it wasn’t just a “firstEntry” gate, apply extra rewards (Squares).
+    if (!result.firstEntry) {
+      var post = applyRewards(playerid, safeType, result.totals || { scrip: 0, fse: 0 });
+      result.totals = post.totals;
     }
 
-    return res;
+    return result;
   }
 
-  /**
-   * Starts a new corridor run (resets counters) without UI side effects.
-   * @param {string} playerid
-   */
-  function startRun(playerid) {
-    StateManager.initPlayer(playerid);
-    if (typeof StateManager.resetPlayerRun === 'function') {
-      StateManager.resetPlayerRun(playerid);
-    } else {
-      var p = StateManager.getPlayer(playerid);
-      p.currentRoom = 0;
-      p.scrip = 0;
-      p.fse = 0;
-      p.squares = 0;
-      p.boons = [];
-      p.relics = [];
-      p.boonOffered = false;
-      p.firstClearAwarded = false;
-      p.hasEnteredFirstRoom = false;
-      if (StateManager.setPlayer) {
-        StateManager.setPlayer(playerid, p);
-      }
-    }
-  }
-
-  // ------------------------------------------------------------
-  // Command Registration
-  // ------------------------------------------------------------
-  function register() {
-    // intentionally disabled: RunFlowManager owns chat commands
-    // (We leave RoomManager as a pure helper.)
-  }
+  // Intentionally no chat handlers — RunFlowManager owns commands.
+  function register() { /* no-op */ }
 
   return {
-    startRun: startRun,
-    advanceRoom: advanceRoom,
+    advanceRoom : advanceRoom,
     applyRewards: applyRewards,
-    register: register
+    register    : register
   };
-
 })();
