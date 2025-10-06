@@ -28,7 +28,7 @@ var UIManager = (function () {
    * @returns {string} HTML block
    */
   function panel(title, bodyHTML) {
-    return '**' + title + '**\n' + bodyHTML;
+    return '<div><strong>' + title + '</strong><br>' + bodyHTML + '</div>';
   }
 
   /**
