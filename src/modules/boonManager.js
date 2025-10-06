@@ -22,6 +22,65 @@ var BoonManager = (function () {
     return (name || '').replace(/[^A-Za-z0-9]/g, '');
   }
 
+  function findDeckEntry(decks, key) {
+    if (!decks || !key) {
+      return null;
+    }
+
+    if (decks[key]) {
+      return { name: key, deck: decks[key] };
+    }
+
+    var lower = String(key).toLowerCase();
+    for (var k in decks) {
+      if (!decks.hasOwnProperty(k)) {
+        continue;
+      }
+      if (String(k).toLowerCase() === lower) {
+        return { name: k, deck: decks[k] };
+      }
+    }
+
+    return null;
+  }
+
+  function ensureDeckCache(preferredKey) {
+    if (!state.HoardRun) {
+      state.HoardRun = {};
+    }
+
+    var decks = state.HoardRun.boons;
+    var needsReload = !decks;
+    if (!needsReload) {
+      var hasAny = false;
+      for (var existingKey in decks) {
+        if (decks.hasOwnProperty(existingKey)) {
+          hasAny = true;
+          break;
+        }
+      }
+      needsReload = !hasAny;
+    }
+    if (!needsReload && preferredKey) {
+      needsReload = !findDeckEntry(decks, preferredKey);
+    }
+
+    if (needsReload && typeof AncestorRegistry !== 'undefined' && AncestorRegistry && typeof AncestorRegistry.getBoonDecks === 'function') {
+      decks = AncestorRegistry.getBoonDecks() || {};
+      state.HoardRun.boons = decks;
+      var count = 0;
+      for (var key in decks) {
+        if (decks.hasOwnProperty(key)) {
+          count += 1;
+        }
+      }
+      log('[BoonManager] Rebuilt boon deck cache from registry (' + count + ' ancestors).');
+    }
+
+    state.HoardRun.boons = decks || {};
+    return state.HoardRun.boons;
+  }
+
   function rarityLabel(r) {
     return r === 'Signature' ? 'Signature' : (r === 'Greater' ? 'Greater' : 'Common');
   }
@@ -306,13 +365,15 @@ var BoonManager = (function () {
   }
 
   function drawBoons(playerid, ancestor, historyList) {
-    var decksRoot = (state.HoardRun && state.HoardRun.boons) || {};
     var key = canonAncestor(ancestor);
-    var deck = decksRoot[key];
-    if (!deck) {
+    var decksRoot = ensureDeckCache(key);
+    var deckInfo = findDeckEntry(decksRoot, key);
+    if (!deckInfo) {
       gmSay('⚠️ No boon deck found for "' + ancestor + '" (key: ' + key + ').');
       return [];
     }
+
+    var deck = deckInfo.deck;
 
     var pools = {
       Common:    (deck.Common    || []).slice(),
@@ -464,6 +525,7 @@ var BoonManager = (function () {
   return {
     offerBoons: offerBoons,
     chooseBoon: chooseBoon,
+    ensureDeckCache: ensureDeckCache,
     register: register
   };
 
