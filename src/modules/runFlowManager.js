@@ -318,9 +318,6 @@ var result = null;
 if (typeof RoomManager !== 'undefined' && typeof RoomManager.advanceRoom === 'function') {
   // Preferred: central engine does room math and extras (squares, first-clear bonus)
   result = RoomManager.advanceRoom(playerid, 'room');
-} else if (typeof StateManager !== 'undefined' && typeof StateManager.advanceRoom === 'function') {
-  // Minimal fallback: just award base bundle
-  result = StateManager.advanceRoom(playerid, { scrip: 20, fse: 1 });
 } else {
   whisperGM('Room Engine Warning', '⚠️ Room progression engine not ready.');
   return;
