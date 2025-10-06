@@ -89,16 +89,22 @@ var BoonManager = (function () {
     var title   = 'Ancestor Boons — ' + _.escape(ancestor);
     var content = cards.map(cardHTML).join('');
 
-    if (typeof sendDirect === 'function') {
-      // IMPORTANT: do not escape content here; buttons must remain raw.
-      sendDirect(title, content);
-    } else {
-      var shell = (UIManager && UIManager.panel)
-        ? UIManager.panel(title, content)
-        : '<div style="border:1px solid #444;background:#111;color:#eee;padding:8px;">'
-            + '<div style="font-weight:bold;margin-bottom:6px;">' + title + '</div>' + content + '</div>';
-      sendChat('Hoard Run', '/direct ' + shell);
+    if (!freeMode) {
+      content = '<div style="margin-bottom:6px;font-size:11px;opacity:0.85;">Scrip cost applies when you confirm a boon.</div>' + content;
     }
+
+    if (UIManager && UIManager.whisper) {
+      // IMPORTANT: do not escape content here; buttons must remain raw.
+      UIManager.whisper(playerName, title, content);
+      return;
+    }
+
+    var shell = (UIManager && UIManager.panel)
+      ? UIManager.panel(title, content)
+      : '<div style="border:1px solid #444;background:#111;color:#eee;padding:8px;">'
+          + '<div style="font-weight:bold;margin-bottom:6px;">' + title + '</div>' + content + '</div>';
+
+    sendChat('Hoard Run', '/w ' + playerName + ' ' + shell);
   }
 
   // --- weighted draw helpers
