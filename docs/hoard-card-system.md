@@ -16,14 +16,12 @@ Default payout dials: successful run grants 20 FSE; expect ~20 Scrip per room pl
 ## Shop Loop Overview
 
 1. **Enter Shop** after Room 3 (mandatory) and optionally after Room 5.
-2. **Deal Relics**: Generate four Relic slots. For each slot roll rarity (suggested 55% Common / 35% Greater / 10% Signature) and draw from the matching deck.
-3. **Flip Special Slot**: Use a coin or helper card to determine Boon vs. Upgrade.
-   * **Boon**: Draw 1–3 ancestor-specific Boons (rarity by table dial; default 45/40/15 for C/G/S).
-   * **Upgrade**: Draw 1–2 weapon/focus Upgrades matching the equipped type.
+2. **Deal Relics**: Generate three Relic slots. For each slot roll rarity (suggested 55% Common / 35% Greater / 10% Signature) and draw from the matching deck.
+3. **Offer Boon**: Draw a single ancestor-specific Boon (rarity by table dial; default 45/40/15 for C/G/S) and present it alongside the relics.
 4. **Purchasing**: Players spend Scrip at the default prices listed per deck below.
 5. **Rerolls**:
    * Single-slot reroll costs 15 Scrip, max twice per visit.
-   * Full refresh (all five slots) costs 35 Scrip, max once per visit.
+   * Full refresh (all four slots) costs 35 Scrip, max once per visit.
 6. **Token Handling**: Track Reroll Tokens as consumable cards; Squares can be converted 1→15 Scrip or 1→5 FSE via Bongo.
 
 ## Deck Reference
@@ -46,9 +44,9 @@ The Roll20 implementation should maintain separate decks for each category. Tag 
 
 ### Deck 2 — Boons (Ancestor-Specific)
 
-* **Purpose**: Modify the chosen Ancestor’s kit. Offered only via the Special slot when it resolves to Boon.
-* **Shop Pricing**: C 35, G 55, S 90 Scrip.
-* **Draw Rules**: Player’s selected Ancestor locks the available Boon pool. Provide 1–3 options when Boon appears.
+* **Purpose**: Modify the chosen Ancestor’s kit. Offered as a dedicated shop slot every visit.
+* **Shop Pricing**: 65 Scrip flat (rarity does not alter cost).
+* **Draw Rules**: Player’s selected Ancestor locks the available Boon pool. Present exactly one Boon in the shop.
 * **Schema**:
   * Name
   * Rarity
@@ -62,8 +60,9 @@ Design cue: Signature Boons should dramatically change gameplay—think new acti
 ### Deck 3 — Weapon / Focus Upgrades
 
 * **Purpose**: General upgrades for the current weapon/focus (Greataxe, Rapier, Longsword, Dagger, Bow, Staff, Orb, Talisman).
+* **Status**: Not currently offered in the unified shop rotation but retained here for future design notes.
 * **Pricing**: Basic 40, Advanced 70, Premium 100 Scrip (no rarity labels).
-* **Draw Rules**: When Special slot resolves to Upgrade, draw 1–2 cards matching the equipped weapon/focus. DM selects deck for edge cases.
+* **Draw Rules**: If re-enabled, draw 1–2 cards matching the equipped weapon/focus. DM selects deck for edge cases.
 * **Schema**:
   * Name
   * Weapon/Focus Type

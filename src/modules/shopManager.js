@@ -2,11 +2,11 @@
 // Shop Manager (Unified: Bing, Bang & Bongo)
 // ------------------------------------------------------------
 // What this does (in simple terms):
-//   Builds and manages the 5-slot shop shown after Room 3 and 5.
-//   Handles Relics, Boons, Focus Upgrades, Rerolls, and Bongo’s Square trades.
+//   Builds and manages the 4-slot shop shown after Room 3 and 5.
+//   Handles Relics, Boons, rerolls, and Bongo’s Square trades.
 //
-//   Bing = Relics  (4 slots)
-//   Bang = Special (Boon or Focus Upgrade)
+//   Bing = Relics  (3 slots)
+//   Bang = Boon   (Always offered, fixed price)
 //   Bongo = Square trade counter
 // ------------------------------------------------------------
 
@@ -19,7 +19,7 @@ var ShopManager = (function () {
   ];
 
   const RELIC_PRICES = { C: 30, G: 50, S: 70 };
-  const BOON_PRICES = { C: 45, G: 70, S: 90 };
+  const BOON_PRICE = 65;
   const COST_REROLL_SLOT = 15;
   const COST_REROLL_FULL = 35;
   const MAX_SLOT_REROLLS = 2;
@@ -235,52 +235,27 @@ var ShopManager = (function () {
     return slot;
   }
 
-  /** Builds the special slot (boon or focus upgrade) */
+  /** Builds the boon slot */
   function createSpecialSlot(playerid, tier) {
-    const coin = randomInteger(2);
-    if (coin === 1) {
-      // Heads = Boon
-      let rarity;
-      if (tier === 1) {
-        rarity = randomInteger(2) === 1 ? "C" : "G";
-      } else {
-        const roll = randomInteger(100);
-        if (roll <= 45) rarity = "C";
-        else if (roll <= 85) rarity = "G";
-        else rarity = "S";
-      }
-
-      const deckName = rarity === "C"
-        ? "Boons.ActiveAncestor.Common"
-        : rarity === "G"
-          ? "Boons.ActiveAncestor.Greater"
-          : "Boons.ActiveAncestor.Signature";
-
-      const card = DeckManager.drawOne(deckName);
-      if (!card) return null;
-      return buildSlot("boon", rarity, card, BOON_PRICES[rarity]);
+    let rarity;
+    if (tier === 1) {
+      rarity = randomInteger(2) === 1 ? "C" : "G";
+    } else {
+      const roll = randomInteger(100);
+      if (roll <= 45) rarity = "C";
+      else if (roll <= 85) rarity = "G";
+      else rarity = "S";
     }
 
-    // Tails = Focus Upgrade
-    const ps = StateManager.getPlayer(playerid);
-    const focus = ps.focus || "Staff";
-    const card = DeckManager.drawOne(`Upgrades.${focus}`);
+    const deckName = rarity === "C"
+      ? "Boons.ActiveAncestor.Common"
+      : rarity === "G"
+        ? "Boons.ActiveAncestor.Greater"
+        : "Boons.ActiveAncestor.Signature";
+
+    const card = DeckManager.drawOne(deckName);
     if (!card) return null;
-
-    let price = 60;
-    const notes = card.get("gmnotes");
-    if (notes) {
-      try {
-        const parsed = JSON.parse(notes);
-        if (parsed && typeof parsed.price === "number") {
-          price = parsed.price;
-        }
-      } catch (err) {
-        log(`Upgrade price parse failed for ${card.get("name")}: ${err.message}`);
-      }
-    }
-
-    return buildSlot("upgrade", "—", card, price);
+    return buildSlot("boon", rarity, card, BOON_PRICE);
   }
 
   /** Builds a relic slot */
@@ -309,7 +284,7 @@ var ShopManager = (function () {
     return buildSlot("relic", rarity, card, price, extras);
   }
 
-  /** Generates the 5-slot shop layout */
+  /** Generates the 4-slot shop layout */
   function createSlots(playerid, tier) {
     const slots = [];
     const special = createSpecialSlot(playerid, tier);
@@ -317,7 +292,7 @@ var ShopManager = (function () {
       slots.push(special);
     }
 
-    for (let i = 0; i < 4; i++) {
+    for (let i = 0; i < 3; i++) {
       const relicSlot = createRelicSlot(tier);
       if (relicSlot) {
         slots.push(relicSlot);
@@ -327,7 +302,7 @@ var ShopManager = (function () {
     return slots;
   }
 
-  /** Generates a full 5-slot shop */
+  /** Generates a full 4-slot shop */
   function generateShop(playerid) {
     const tier = getShopTier(playerid);
     const shop = getPlayerShop(playerid);
