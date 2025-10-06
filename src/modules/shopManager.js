@@ -12,14 +12,10 @@
 
 var ShopManager = (function () {
 
-  const RELIC_RARITY_ROLLS = [
-    { min: 1, max: 12, rarity: "C" },
-    { min: 13, max: 18, rarity: "G" },
-    { min: 19, max: 20, rarity: "S" }
-  ];
-
+  const RELIC_RARITY_WEIGHTS = { C: 45, G: 40, S: 15 };
   const RELIC_PRICES = { C: 30, G: 50, S: 70 };
   const BOON_PRICE = 65;
+  const BOON_RARITY_WEIGHTS = { C: 45, G: 40, S: 15 };
   const COST_REROLL_SLOT = 15;
   const COST_REROLL_FULL = 35;
   const MAX_SLOT_REROLLS = 2;
@@ -287,19 +283,33 @@ var ShopManager = (function () {
     return ps.currentRoom >= 5 ? 2 : 1;
   }
 
-  /** Rolls rarity for a relic slot */
-  function rollRelicRarity(shopTier) {
-    const roll = randomInteger(20);
-    let rarity = "C";
-    RELIC_RARITY_ROLLS.forEach(r => {
-      if (roll >= r.min && roll <= r.max) {
-        rarity = r.rarity;
-      }
-    });
-    if (shopTier === 1 && rarity === "S") {
-      rarity = "G";
+  function rollByWeightTable(weights) {
+    if (!weights) {
+      return "C";
     }
-    return rarity;
+
+    const total = (weights.C || 0) + (weights.G || 0) + (weights.S || 0);
+    if (!total) {
+      return "C";
+    }
+
+    const roll = randomInteger(total);
+    let threshold = weights.C || 0;
+    if (roll <= threshold) {
+      return "C";
+    }
+
+    threshold += weights.G || 0;
+    if (roll <= threshold) {
+      return "G";
+    }
+
+    return "S";
+  }
+
+  /** Rolls rarity for a relic slot */
+  function rollRelicRarity() {
+    return rollByWeightTable(RELIC_RARITY_WEIGHTS);
   }
 
   /** Creates a generic slot payload */
@@ -335,27 +345,14 @@ var ShopManager = (function () {
   }
 
   /** Builds the boon slot */
-  function createSpecialSlot(playerid, tier) {
-    let rarity;
-    if (tier === 1) {
-      rarity = randomInteger(2) === 1 ? "C" : "G";
-    } else {
-      const roll = randomInteger(100);
-      if (roll <= 45) rarity = "C";
-      else if (roll <= 85) rarity = "G";
-      else rarity = "S";
-    }
-
+  function createSpecialSlot(playerid) {
+    const rarity = rollByWeightTable(BOON_RARITY_WEIGHTS);
     const rarityLabel = rarity === "C" ? "Common" : (rarity === "G" ? "Greater" : "Signature");
     const ancestorInfo = getAncestorDeckInfo(playerid);
     let card = null;
 
     if (ancestorInfo.key) {
       card = DeckManager.drawOne('Boons.' + ancestorInfo.key + '.' + rarityLabel);
-    }
-
-    if (!card) {
-      card = DeckManager.drawOne('Boons.ActiveAncestor.' + rarityLabel);
     }
 
     if (!card) {
@@ -375,8 +372,8 @@ var ShopManager = (function () {
   }
 
   /** Builds a relic slot */
-  function createRelicSlot(tier) {
-    const rarity = rollRelicRarity(tier);
+  function createRelicSlot() {
+    const rarity = rollRelicRarity();
     const deckName = rarity === "C"
       ? "Relics.Common"
       : rarity === "G"
@@ -405,15 +402,15 @@ var ShopManager = (function () {
   }
 
   /** Generates the 4-slot shop layout */
-  function createSlots(playerid, tier) {
+  function createSlots(playerid) {
     const slots = [];
-    const special = createSpecialSlot(playerid, tier);
+    const special = createSpecialSlot(playerid);
     if (special) {
       slots.push(special);
     }
 
     for (let i = 0; i < 3; i++) {
-      const relicSlot = createRelicSlot(tier);
+      const relicSlot = createRelicSlot();
       if (relicSlot) {
         slots.push(relicSlot);
       }
@@ -427,7 +424,7 @@ var ShopManager = (function () {
     const tier = getShopTier(playerid);
     const shop = getPlayerShop(playerid);
     shop.tier = tier;
-    shop.slots = createSlots(playerid, tier);
+    shop.slots = createSlots(playerid);
     shop.rerollSlotCount = 0;
     shop.rerollFullCount = 0;
     return shop.slots;
@@ -853,9 +850,9 @@ var ShopManager = (function () {
       const existing = shop.slots[index];
       let replacement = null;
       if (existing.type === "relic") {
-        replacement = createRelicSlot(shop.tier);
+        replacement = createRelicSlot();
       } else {
-        replacement = createSpecialSlot(playerid, shop.tier);
+        replacement = createSpecialSlot(playerid);
       }
 
       if (!replacement) {
@@ -884,7 +881,7 @@ var ShopManager = (function () {
         return;
       }
 
-      shop.slots = createSlots(playerid, shop.tier);
+      shop.slots = createSlots(playerid);
       shop.rerollFullCount += 1;
       shop.rerollSlotCount = 0;
       showShop(playerid, shop.slots);

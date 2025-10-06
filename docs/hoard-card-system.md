@@ -16,8 +16,8 @@ Default payout dials: successful run grants 20 FSE; expect ~20 Scrip per room pl
 ## Shop Loop Overview
 
 1. **Enter Shop** after Room 3 (mandatory) and optionally after Room 5.
-2. **Deal Relics**: Generate three Relic slots. For each slot roll rarity (suggested 55% Common / 35% Greater / 10% Signature) and draw from the matching deck.
-3. **Offer Boon**: Draw a single ancestor-specific Boon (rarity by table dial; default 45/40/15 for C/G/S) and present it alongside the relics.
+2. **Deal Relics**: Generate three Relic slots. For each slot roll rarity using the 45% Common / 40% Greater / 15% Signature dial and draw from the matching deck.
+3. **Offer Boon**: Draw a single ancestor-specific Boon using the same 45/40/15 rarity dial (C/G/S) and present it alongside the relics.
 4. **Purchasing**: Players spend Scrip at the default prices listed per deck below.
 5. **Rerolls**:
    * Single-slot reroll costs 15 Scrip, max twice per visit.
