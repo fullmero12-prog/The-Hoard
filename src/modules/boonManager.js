@@ -22,6 +22,26 @@ var BoonManager = (function () {
     return (name || '').replace(/[^A-Za-z0-9]/g, '');
   }
 
+  function resolveDeckKey(ancestor) {
+    var fallback = canonAncestor(ancestor);
+
+    if (typeof AncestorRegistry !== 'undefined' && AncestorRegistry) {
+      if (typeof AncestorRegistry.get === 'function') {
+        var entry = AncestorRegistry.get(ancestor) || AncestorRegistry.get(fallback);
+        if (entry) {
+          if (entry.boonKey) {
+            return entry.boonKey;
+          }
+          if (entry.displayName) {
+            return canonAncestor(entry.displayName);
+          }
+        }
+      }
+    }
+
+    return fallback;
+  }
+
   function findDeckEntry(decks, key) {
     if (!decks || !key) {
       return null;
@@ -365,11 +385,23 @@ var BoonManager = (function () {
   }
 
   function drawBoons(playerid, ancestor, historyList) {
-    var key = canonAncestor(ancestor);
-    var decksRoot = ensureDeckCache(key);
-    var deckInfo = findDeckEntry(decksRoot, key);
+    var canonicalKey = canonAncestor(ancestor);
+    var resolvedKey = resolveDeckKey(ancestor);
+    var preferredKey = resolvedKey || canonicalKey;
+
+    var decksRoot = ensureDeckCache(preferredKey);
+    var deckInfo = findDeckEntry(decksRoot, preferredKey);
+
+    if (!deckInfo && preferredKey !== canonicalKey) {
+      deckInfo = findDeckEntry(decksRoot, canonicalKey);
+    }
+
     if (!deckInfo) {
-      gmSay('⚠️ No boon deck found for "' + ancestor + '" (key: ' + key + ').');
+      var message = '⚠️ No boon deck found for "' + ancestor + '" (key: ' + canonicalKey + ')';
+      if (preferredKey && preferredKey !== canonicalKey) {
+        message += '; attempted resolved key: ' + preferredKey;
+      }
+      gmSay(message + '.');
       return [];
     }
 
