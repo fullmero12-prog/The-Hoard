@@ -10,40 +10,39 @@
 
 var AncestorDataLoader = (function () {
 
-  var AncestorData = {
-    'Azuren': {
-      title: 'The Stormheart',
-      summary: 'Master of wind and storm. Empowers mobility, deflection, and ranged control.'
-    },
-    'Sutra Vayla': {
-      title: 'The Timebinder',
-      summary: 'Chronomancer who manipulates tempo and shields allies from fate.'
-    },
-    'Seraphine Emberwright': {
-      title: 'The Forgelight',
-      summary: 'Radiant artist who channels flame into healing, renewal, and creative power.'
-    },
-    'Vladren Moroi': {
-      title: 'The Blood Regent',
-      summary: 'Vampiric tactician who thrives on sacrifice and relentless aggression.'
-    },
-    'Lian Veilbinder': {
-      title: 'The Duelist',
-      summary: 'Weaver of illusions and blade, combining elegance with deadly precision.'
-    },
-    'Morvox, Tiny Tyrant': {
-      title: 'The Miniature Monarch',
-      summary: 'Small body, massive ego. Commands minions, chaos, and unearned confidence.'
+  function fromRegistry(name) {
+    if (typeof AncestorRegistry !== 'undefined' && AncestorRegistry && typeof AncestorRegistry.getSummary === 'function') {
+      return AncestorRegistry.getSummary(name);
     }
-  };
+    return null;
+  }
+
+  function fallbackSummary(name) {
+    return {
+      title: name || 'Unknown Ancestor',
+      summary: ''
+    };
+  }
 
   on('ready', function () {
-    log('[AncestorDataLoader] Loaded ' + Object.keys(AncestorData).length + ' ancestors.');
+    var count = 0;
+    if (typeof AncestorRegistry !== 'undefined' && AncestorRegistry && typeof AncestorRegistry.count === 'function') {
+      count = AncestorRegistry.count();
+    }
+    if (count > 0) {
+      log('[AncestorDataLoader] Loaded ' + count + ' ancestors via registry.');
+    } else {
+      log('[AncestorDataLoader] Registry unavailable — ancestor summaries will be blank.');
+    }
   });
 
   return {
     get: function (name) {
-      return AncestorData[name];
+      var info = fromRegistry(name);
+      if (info) {
+        return info;
+      }
+      return fallbackSummary(name);
     }
   };
 

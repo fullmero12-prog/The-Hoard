@@ -22,49 +22,6 @@ var RunFlowManager = (function () {
 
   var WEAPONS = ['Staff', 'Orb', 'Greataxe', 'Rapier', 'Bow'];
 
-  // Only the 6 you actually have right now.
-  // Empty arrays for the 3 melee/ranged weapons become “Coming soon”.
-  var ANCESTOR_SETS = {
-    Orb: ['Sutra Vayla', 'Azuren', 'Vladren Moroi'],
-    Staff: ['Morvox, Tiny Tyrant', 'Lian Veilbinder', 'Seraphine Emberwright'],
-    Greataxe: [],
-    Rapier: [],
-    Bow: []
-  };
-
-  var ANCESTOR_INFO = {
-    'Azuren': {
-      title: 'Azuren, Ascendant of the Endless Bolt',
-      desc: 'Lightning artillery with Charges, line/burst nukes, and long-range Barrages.',
-      refs: 'Azuren.md'
-    },
-    'Sutra Vayla': {
-      title: 'Sutra Vayla, the Harmonized Mantra',
-      desc: 'Mantra forms (Bolt/Bond/Ward) that add radiant splash, tethers, or warding temp HP/speed.',
-      refs: 'Sutra Vayla.md'
-    },
-    'Vladren Moroi': {
-      title: 'Vladren Moroi, the Crimson Tide',
-      desc: 'Temp-HP engine; necrotic drain (Transfusion), damage shunts (Pool), and burst heal/damage.',
-      refs: 'Vladren Moroi.md'
-    },
-    'Lian Veilbinder': {
-      title: 'Lian the Veilbinder, Mistress of Mirrors',
-      desc: 'Stack Veils via spells/hits; invis on demand; Detonate to blind/stun with psychic damage.',
-      refs: 'Lian Veilbinder.md'
-    },
-    'Morvox, Tiny Tyrant': {
-      title: 'Morvox, Tiny Tyrant of the Umbral Staff',
-      desc: 'Build Malice from spell hits/fails; Dark Star + Event Horizon control; big single-target burst.',
-      refs: 'Morvox, Tiny Tyrant.md'
-    },
-    'Seraphine Emberwright': {
-      title: 'Seraphine Emberwright, Phoenix of the Nine Coals',
-      desc: 'Heat/Overheat loop, Vent nova + ignited terrain, and staff strings; fire boon escalations.',
-      refs: 'Seraphine Emberwright.md'
-    }
-  };
-
   // ------------------------------------------------------------
   // Internal Helpers
   // ------------------------------------------------------------
@@ -193,6 +150,44 @@ var RunFlowManager = (function () {
     whisperPanel(playerid, 'Choose Your Weapon', body);
   }
 
+  function registryFocusEntries(focus) {
+    if (typeof AncestorRegistry !== 'undefined' && AncestorRegistry && typeof AncestorRegistry.getFocusEntries === 'function') {
+      return AncestorRegistry.getFocusEntries(focus);
+    }
+    return [];
+  }
+
+  function registryFocusNames(focus) {
+    if (typeof AncestorRegistry !== 'undefined' && AncestorRegistry && typeof AncestorRegistry.getFocusNames === 'function') {
+      return AncestorRegistry.getFocusNames(focus);
+    }
+    return [];
+  }
+
+  function registryUiBlurb(name) {
+    if (typeof AncestorRegistry !== 'undefined' && AncestorRegistry && typeof AncestorRegistry.getUiBlurb === 'function') {
+      return AncestorRegistry.getUiBlurb(name);
+    }
+    return null;
+  }
+
+  function registryAncestorForFocus(focus, name) {
+    if (typeof AncestorRegistry === 'undefined' || !AncestorRegistry || typeof AncestorRegistry.get !== 'function') {
+      return null;
+    }
+    var entry = AncestorRegistry.get(name);
+    if (!entry || !entry.focusTags) {
+      return null;
+    }
+    var target = String(focus || '').toLowerCase();
+    for (var i = 0; i < entry.focusTags.length; i += 1) {
+      if (String(entry.focusTags[i] || '').toLowerCase() === target) {
+        return entry;
+      }
+    }
+    return null;
+  }
+
   function sanitizeAncestorCommand(name) {
     return String(name || '')
       .replace(/"/g, '')
@@ -200,17 +195,18 @@ var RunFlowManager = (function () {
   }
 
   function buildAncestorCards(focus) {
-    var options = ANCESTOR_SETS[focus] || [];
-    if (!options.length) {
+    var entries = registryFocusEntries(focus);
+    if (!entries.length) {
       return '⚠️ Ancestors for the ' + escapeHTML(focus) + ' are coming soon.';
     }
 
     var cards = [];
-    for (var i = 0; i < options.length; i += 1) {
-      var key = options[i];
-      var info = ANCESTOR_INFO[key] || {};
-      var title = escapeHTML(info.title || key);
-      var desc = escapeHTML(info.desc || '');
+    for (var i = 0; i < entries.length; i += 1) {
+      var entry = entries[i];
+      var key = entry.displayName || entry.name || 'Ancestor';
+      var info = registryUiBlurb(key) || {};
+      var title = escapeHTML(info.title || entry.title || key);
+      var desc = escapeHTML(info.desc || entry.description || entry.summary || '');
       var button = formatButtons([
         {
           label: 'Bind to ' + escapeHTML(key),
@@ -412,13 +408,22 @@ var RunFlowManager = (function () {
         ? StateManager.getPlayer(playerid) : null;
 
     var focus = playerState && playerState.focus ? playerState.focus : 'Staff';
-    var options = ANCESTOR_SETS[focus] || [];
-
-    var canon = null, i;
-    for (i = 0; i < options.length; i += 1) {
-      if (options[i].toLowerCase() === name.toLowerCase()) { canon = options[i]; break; }
+    var entry = registryAncestorForFocus(focus, name);
+    if (!entry) {
+      var available = registryFocusNames(focus);
+      var safeName = escapeHTML(name);
+      var message = '⚠️ ' + safeName + ' is not available for the ' + escapeHTML(focus) + '.';
+      if (available && available.length) {
+        var safeList = available.map(function (label) {
+          return escapeHTML(label);
+        }).join(', ');
+        message += ' Options: ' + safeList + '.';
+      }
+      whisperText(playerid, message);
+      return;
     }
-    if (!canon) { whisperText(playerid, '⚠️ ' + name + ' is not available for the ' + focus + '.'); return; }
+
+    var canon = entry.displayName || entry.name || name;
 
     if (playerState) {
       playerState.ancestor_id = canon;
