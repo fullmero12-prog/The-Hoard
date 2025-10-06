@@ -18,6 +18,11 @@ var SafetyGuards = (function () {
    */
   function installGMGuard() {
     root.isGM = function (playerid) {
+      if (!playerid || playerid === 'API') {
+        // Sandbox/system invocations lack a player ID but must stay GM-privileged.
+        return true;
+      }
+
       return typeof playerIsGM === 'function' ? playerIsGM(playerid) : true;
     };
   }
