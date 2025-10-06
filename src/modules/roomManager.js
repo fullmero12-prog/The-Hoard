@@ -43,7 +43,7 @@ var RoomManager = (function () {
     if (typeof UIManager !== 'undefined' && UIManager.panel) {
       return UIManager.panel(title, body);
     }
-    return '**' + title + '**\n' + body;
+    return '<div><strong>' + title + '</strong><br>' + body + '</div>';
   }
 
   function whisperPanel(playerid, title, body) {

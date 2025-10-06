@@ -102,7 +102,7 @@ var RunFlowManager = (function () {
     if (typeof UIManager !== 'undefined' && typeof UIManager.panel === 'function') {
       return UIManager.panel(title, bodyHTML);
     }
-    return '**' + title + '**\n' + bodyHTML;
+    return '<div><strong>' + title + '</strong><br>' + bodyHTML + '</div>';
   }
 
   function formatButtons(buttons) {
