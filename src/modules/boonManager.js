@@ -173,18 +173,39 @@ var BoonManager = (function () {
         continue;
       }
 
-      var id = String(boon.id || boon.name || '').toLowerCase();
-      if (!id) {
-        continue;
+      var rarity = rarityKey(boon.rarity || '');
+
+      var id = String(boon.id || '').toLowerCase();
+      if (id) {
+        ownedMap[id + '|' + rarity] = true;
       }
 
-      var rarity = rarityKey(boon.rarity || '');
-      ownedMap[id + '|' + rarity] = true;
+      // Record multiple identifiers so shop-purchased cards (Roll20 deck IDs)
+      // and catalog entries (static slug IDs) both get recognized.
+      var slug = '';
+      if (boon.data && boon.data.id) {
+        slug = String(boon.data.id).toLowerCase();
+      }
+
+      if (!slug) {
+        slug = String(boon.name || '').toLowerCase();
+      }
+
+      if (slug) {
+        ownedMap[slug + '|' + rarity] = true;
+      }
 
       if (!rarity) {
-        ownedMap[id + '|common'] = true;
-        ownedMap[id + '|greater'] = true;
-        ownedMap[id + '|signature'] = true;
+        var bases = [id, slug];
+        for (var j = 0; j < bases.length; j++) {
+          var base = bases[j];
+          if (!base) {
+            continue;
+          }
+          ownedMap[base + '|common'] = true;
+          ownedMap[base + '|greater'] = true;
+          ownedMap[base + '|signature'] = true;
+        }
       }
     }
 
