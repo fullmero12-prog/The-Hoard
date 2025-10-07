@@ -39,6 +39,62 @@ var RoomManager = (function () {
 
   var ROOM3_TARGET = { min: 50, max: 70 };
 
+  function ensureShopAnnouncementState() {
+    if (typeof StateManager !== 'undefined' && StateManager && typeof StateManager.init === 'function') {
+      StateManager.init();
+    } else if (typeof state !== 'undefined') {
+      if (!state.HoardRun) {
+        state.HoardRun = {};
+      }
+    }
+
+    if (typeof state === 'undefined') {
+      return null;
+    }
+
+    if (!state.HoardRun) {
+      state.HoardRun = {};
+    }
+
+    if (!state.HoardRun.shopAnnouncements) {
+      state.HoardRun.shopAnnouncements = {};
+    }
+
+    return state.HoardRun.shopAnnouncements;
+  }
+
+  function getRunSessionId() {
+    if (typeof state !== 'undefined' && state.HoardRun && state.HoardRun.runFlow && state.HoardRun.runFlow.sessionId) {
+      return state.HoardRun.runFlow.sessionId;
+    }
+    return 0;
+  }
+
+  function shouldNotifyShop(roomNumber) {
+    var store = ensureShopAnnouncementState();
+    if (!store) {
+      return true;
+    }
+
+    var sessionId = getRunSessionId();
+    if (!store.sessionId || store.sessionId !== sessionId) {
+      store.sessionId = sessionId;
+      store.cleared = {};
+    }
+
+    if (!store.cleared) {
+      store.cleared = {};
+    }
+
+    var key = String(roomNumber);
+    if (store.cleared[key]) {
+      return false;
+    }
+
+    store.cleared[key] = true;
+    return true;
+  }
+
   function sanitizeRoomType(type) {
     return (type === 'miniboss' || type === 'boss') ? type : 'room';
   }
@@ -160,16 +216,18 @@ var RoomManager = (function () {
       return;
     }
     if (phase === 'clear' && (roomNumber === 3 || roomNumber === 5)) {
-      var buttonHtml = '[Open Shop](!openshop)';
-      if (typeof UIManager !== 'undefined' && UIManager && typeof UIManager.buttons === 'function') {
-        buttonHtml = UIManager.buttons([{ label: 'Open Shop', command: 'openshop' }]);
-      }
-      var gmContent = 'Room ' + roomNumber + ' cleared — open Bing, Bang & Bongo when the party is ready.<br>' + buttonHtml;
-      var gmMessage = formatPanel('Shop Ready', gmContent);
-      if (typeof UIManager !== 'undefined' && UIManager && typeof UIManager.gmLog === 'function') {
-        UIManager.gmLog(gmMessage);
-      } else {
-        sendChat('Hoard Run', '/w gm ' + gmMessage);
+      if (shouldNotifyShop(roomNumber)) {
+        var buttonHtml = '[Open Shop](!openshop)';
+        if (typeof UIManager !== 'undefined' && UIManager && typeof UIManager.buttons === 'function') {
+          buttonHtml = UIManager.buttons([{ label: 'Open Shop', command: 'openshop' }]);
+        }
+        var gmContent = 'Room ' + roomNumber + ' cleared — open Bing, Bang & Bongo when the party is ready.<br>' + buttonHtml;
+        var gmMessage = formatPanel('Shop Ready', gmContent);
+        if (typeof UIManager !== 'undefined' && UIManager && typeof UIManager.gmLog === 'function') {
+          UIManager.gmLog(gmMessage);
+        } else {
+          sendChat('Hoard Run', '/w gm ' + gmMessage);
+        }
       }
     }
     if (roomNumber === 3) {
