@@ -52,7 +52,8 @@ var RunFlowManager = (function () {
   var DEFAULT_RUN_STATE = {
     started: false,
     bossPending: false,
-    currentHighestCleared: 0
+    currentHighestCleared: 0,
+    sessionId: 0
   };
 
   var WEAPONS = ['Staff', 'Orb', 'Greataxe', 'Rapier', 'Bow'];
@@ -85,7 +86,10 @@ var RunFlowManager = (function () {
 
   function resetRunState() {
     ensureState();
-    state.HoardRun.runFlow = clone(DEFAULT_RUN_STATE);
+    var previous = state.HoardRun.runFlow || {};
+    var next = clone(DEFAULT_RUN_STATE);
+    next.sessionId = (previous.sessionId || 0) + 1;
+    state.HoardRun.runFlow = next;
     info('Run state reset.');
     return state.HoardRun.runFlow;
   }
