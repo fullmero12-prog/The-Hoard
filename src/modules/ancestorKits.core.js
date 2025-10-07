@@ -282,7 +282,7 @@ var AncestorKits = (function (ns) {
 
     var pattern = prefix instanceof RegExp
       ? prefix
-      : new RegExp('^' + escapeRegExp(prefix));
+      : new RegExp('^' + escapeRegExp(prefix), 'i');
 
     findObjs({ _type: 'ability', _characterid: characterId }).forEach(function (ability) {
       var name = ability.get('name');
@@ -640,7 +640,7 @@ var AncestorKits = (function (ns) {
     }
 
     if (!stored.stripPattern && stored.abilityPrefix) {
-      stored.stripPattern = new RegExp('^' + escapeRegExp(stored.abilityPrefix));
+      stored.stripPattern = new RegExp('^' + escapeRegExp(stored.abilityPrefix), 'i');
     }
 
     _defs[key] = stored;
