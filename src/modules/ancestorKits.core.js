@@ -251,10 +251,23 @@ var AncestorKits = (function (ns) {
   }
 
   function mirrorAbilities(def, targetChar, opts) {
-    var source = ensureSourceCharacter(def);
-    if (!source) {
-      gmSay('⚠️ Could not find source character for <b>' + escapeHTML(def.ancestor) + '</b>.');
-      return false;
+    // Do we actually need a source character?
+    var needsSource = false;
+    (def.abilities || []).forEach(function (abilityDef) {
+      if (!abilityDef) return;
+      var hasAction = typeof abilityDef === 'string'
+        ? false // a string means "copy from source" by name
+        : !!abilityDef.action; // explicit action provided
+      if (!hasAction) needsSource = true;
+    });
+
+    var source = null;
+    if (needsSource) {
+      source = ensureSourceCharacter(def);
+      if (!source) {
+        gmSay('⚠️ Could not find source character for <b>' + escapeHTML(def.ancestor) + '</b>.');
+        return false;
+      }
     }
 
     if (!def.abilities || !def.abilities.length) {
@@ -266,26 +279,24 @@ var AncestorKits = (function (ns) {
     var installed = 0;
 
     def.abilities.forEach(function (abilityDef) {
-      var config = typeof abilityDef === 'string' ? { name: abilityDef } : abilityDef || {};
-      var sourceName = config.source || config.name;
-      var action = config.action || '';
-      var tokenAction = typeof config.tokenAction === 'boolean' ? config.tokenAction : null;
-      var sourceAbility;
+      var cfg = typeof abilityDef === 'string' ? { name: abilityDef } : (abilityDef || {});
+      var sourceName = cfg.source || cfg.name;
+      var action = cfg.action || '';
+      var tokenAction = (typeof cfg.tokenAction === 'boolean') ? cfg.tokenAction : null;
 
       if (!action) {
-        sourceAbility = readSourceAbility(source, sourceName);
-        if (!sourceAbility) {
+        if (!source) { return; } // should not occur due to needsSource gate
+        var srcAbility = readSourceAbility(source, sourceName);
+        if (!srcAbility) {
           gmSay('⚠️ Missing ability <b>' + escapeHTML(sourceName) + '</b> on <b>' + escapeHTML(source.get('name')) + '</b>.');
           return;
         }
-        action = sourceAbility.get('action');
-        if (tokenAction === null) {
-          tokenAction = !!sourceAbility.get('istokenaction');
-        }
+        action = srcAbility.get('action');
+        if (tokenAction === null) tokenAction = !!srcAbility.get('istokenaction');
       }
 
-      var targetName = deriveAbilityName(def, config);
-      upsertAbility(targetChar.id, targetName, action, tokenAction === null ? !!config.defaultTokenAction : tokenAction);
+      var targetName = deriveAbilityName(def, cfg);
+      upsertAbility(targetChar.id, targetName, action, tokenAction === null ? !!cfg.defaultTokenAction : tokenAction);
       installed += 1;
     });
 
@@ -295,19 +306,13 @@ var AncestorKits = (function (ns) {
     }
 
     if (def.onInstall && typeof def.onInstall === 'function') {
-      try {
-        def.onInstall(targetChar, opts || {});
-      } catch (err) {
-        gmSay('⚠️ Kit hook error: ' + escapeHTML(err.message || err));
-      }
+      try { def.onInstall(targetChar, opts || {}); } catch (err) { gmSay('⚠️ Kit hook error: ' + escapeHTML(err.message || err)); }
     }
 
     gmSay('✅ Mirrored <b>' + installed + '</b> ability' + (installed === 1 ? '' : 'ies')
-      + ' from <b>' + escapeHTML(def.ancestor) + '</b>'
-      + ' onto <b>' + escapeHTML(targetChar.get('name')) + '</b>.'
-      + (removed ? ' (Replaced ' + removed + ' previous entries.)' : ''));
-
-    return installed > 0;
+          + ' from <b>' + escapeHTML(def.ancestor) + '</b> onto <b>' + escapeHTML(targetChar.get('name')) + '</b>.'
+          + (removed ? ' (Replaced ' + removed + ' previous entries.)' : ''));
+    return true;
   }
 
   /**
