@@ -159,6 +159,19 @@ var RoomManager = (function () {
     if (!roomNumber) {
       return;
     }
+    if (phase === 'clear' && (roomNumber === 3 || roomNumber === 5)) {
+      var buttonHtml = '[Open Shop](!openshop)';
+      if (typeof UIManager !== 'undefined' && UIManager && typeof UIManager.buttons === 'function') {
+        buttonHtml = UIManager.buttons([{ label: 'Open Shop', command: 'openshop' }]);
+      }
+      var gmContent = 'Room ' + roomNumber + ' cleared — open Bing, Bang & Bongo when the party is ready.<br>' + buttonHtml;
+      var gmMessage = formatPanel('Shop Ready', gmContent);
+      if (typeof UIManager !== 'undefined' && UIManager && typeof UIManager.gmLog === 'function') {
+        UIManager.gmLog(gmMessage);
+      } else {
+        sendChat('Hoard Run', '/w gm ' + gmMessage);
+      }
+    }
     if (roomNumber === 3) {
       whisperText(playerid, '🛒 Shop Available — the GM can open Bing, Bang & Bongo with <b>!openshop</b>.');
     }
