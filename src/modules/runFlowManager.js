@@ -115,6 +115,57 @@ var RunFlowManager = (function () {
     sendChat('Hoard Run', '/w "' + name + '" ' + textHTML);
   }
 
+  function HR_findAutoPCForPlayer(playerid) {
+    var chars = findObjs({ _type: 'character' }).filter(function (c) {
+      var ctrl = (c.get('controlledby') || '');
+      if (ctrl === 'all') {
+        return true;
+      }
+      var segments = ctrl.split(',');
+      for (var i = 0; i < segments.length; i += 1) {
+        if ((segments[i] || '').trim() === playerid) {
+          return true;
+        }
+      }
+      return false;
+    });
+
+    if (!chars.length) {
+      return null;
+    }
+
+    var campaign = typeof Campaign === 'function' ? Campaign() : null;
+    var pageId = null;
+
+    if (campaign) {
+      var psp = campaign.get('playerspecificpages') || {};
+      pageId = psp[playerid] || campaign.get('playerpageid') || null;
+    }
+
+    if (pageId) {
+      var tokenList = findObjs({ _type: 'graphic', _pageid: pageId, layer: 'objects' }) || [];
+      for (var t = 0; t < tokenList.length; t += 1) {
+        var token = tokenList[t];
+        var rep = token.get('represents');
+        if (!rep) {
+          continue;
+        }
+        for (var j = 0; j < chars.length; j += 1) {
+          if (chars[j] && chars[j].id === rep) {
+            var cid = token.get('represents');
+            return getObj('character', cid) || null;
+          }
+        }
+      }
+    }
+
+    if (chars.length === 1) {
+      return chars[0];
+    }
+
+    return null;
+  }
+
   function escapeHTML(value) {
     if (value === null || value === undefined) {
       return '';
@@ -509,7 +560,30 @@ var RunFlowManager = (function () {
     );
 
     if (ancestorKitRegistered(canon)) {
-      promptAncestorKitBinding(canon);
+      try {
+        if (typeof AncestorKits !== 'undefined' && AncestorKits && typeof AncestorKits.install === 'function') {
+          var pc = HR_findAutoPCForPlayer(playerid);
+          if (pc) {
+            AncestorKits.install((playerState && playerState.ancestor_id) || canon, pc, { by: playerid });
+            if (typeof AncestorKits.gmSay === 'function') {
+              var ancestorLabel = escapeHTML((playerState && playerState.ancestor_id) || canon);
+              var pcName = pc.get && pc.get('name') ? pc.get('name') : 'Character';
+              AncestorKits.gmSay('✅ Auto-bound <b>' + ancestorLabel + '</b> to <b>' + escapeHTML(pcName) + '</b>.');
+            }
+          } else {
+            if (typeof AncestorKits.promptBindToSelectedPC === 'function') {
+              AncestorKits.promptBindToSelectedPC();
+            }
+            if (typeof AncestorKits.gmSay === 'function') {
+              AncestorKits.gmSay('⚠️ Select a PC token and click a kit to mirror actions.');
+            }
+          }
+        }
+      } catch (e) {
+        if (typeof log === 'function') {
+          log('[RunFlow] auto-bind error: ' + (e && e.message ? e.message : e));
+        }
+      }
     }
   }
 
