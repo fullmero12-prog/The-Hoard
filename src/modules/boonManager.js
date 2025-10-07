@@ -291,7 +291,7 @@ var BoonManager = (function () {
       return fallback.card;
     }
 
-    return pool.splice(0, 1)[0] || null;
+    return null;
   }
 
   function getPlayerName(playerid) {
