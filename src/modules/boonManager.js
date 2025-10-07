@@ -488,12 +488,29 @@ var BoonManager = (function () {
       Signature: (deck.Signature || []).slice()
     };
 
-    var bannedMap = {};
-    (historyList || []).forEach(function (entry) {
-      bannedMap[entry] = true;
-    });
-
     var ownedMap = buildOwnedBoonMap(playerid);
+    var bannedMap = {};
+    var prunedHistory = [];
+
+    if (historyList && historyList.length) {
+      for (var h = 0; h < historyList.length; h++) {
+        var entry = historyList[h];
+        if (entry && ownedMap[entry]) {
+          bannedMap[entry] = true;
+          prunedHistory.push(entry);
+        }
+      }
+
+      // Remove any stale preview-only entries from the player's history so
+      // existing saves immediately benefit from the newer tracking rules.
+      if (prunedHistory.length !== historyList.length) {
+        historyList.length = 0;
+        for (var p = 0; p < prunedHistory.length; p++) {
+          historyList.push(prunedHistory[p]);
+        }
+      }
+    }
+
     for (var ownedKey in ownedMap) {
       if (ownedMap.hasOwnProperty(ownedKey)) {
         bannedMap[ownedKey] = true;
