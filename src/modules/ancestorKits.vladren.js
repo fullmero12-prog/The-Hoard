@@ -39,17 +39,18 @@
   }
 
   function buildCrimsonPactAction() {
+    // Uses hr_pb/hr_spellmod attributes set during install; refresh with !hr-sync / !bindkit if stats change.
     return buildRollTemplate('Crimson Pact (Info)', [
-      { label: 'Cap', value: '[[ 5*?{PB|3} + ?{Spell Mod|4} ]]' },
+      { label: 'Cap', value: '[[ 5*@{selected|hr_pb} + @{selected|hr_spellmod} ]]' },
       { label: 'While active', value: '+1 AC; your necrotic ignores resistance (treat immunity as resistance).' },
-      { label: 'Convert healing to temp HP?', value: '[[?{Healed Amount|0}]] (apply up to cap)' }
+      { label: 'Convert healing', value: 'Excess healing becomes Pact temp HP (up to cap).' }
     ]);
   }
 
   function buildTransfusionAction() {
     return buildRollTemplate('Transfusion (Bonus; 60 ft; Con save)', [
-      { label: 'Save DC', value: '[[ 8 + ?{PB|3} + ?{Spell Mod|4} ]]' },
-      { label: 'Damage', value: '[[ 2d8 + ?{PB|3} ]] necrotic (half on success)' },
+      { label: 'Save DC', value: '[[ @{selected|spell_save_dc} ]]' },
+      { label: 'Damage', value: '[[ 2d8 + @{selected|hr_pb} ]] necrotic (half on success)' },
       { label: 'Bloodied bonus', value: 'If target ≤ 1/2 HP, add [[ 1d8 ]] necrotic' },
       { label: 'Heal yourself', value: 'Equal to total necrotic dealt' }
     ]);
@@ -63,7 +64,7 @@
 
   function buildHemoplagueAction() {
     return buildRollTemplate('Hemoplague (1/SR; 20-ft; 60 ft; Con save)', [
-      { label: 'Plagued', value: 'Target is <b>Plagued</b> until end of its next turn (takes <b>+?{PB|3}</b> damage from all sources).' },
+      { label: 'Plagued', value: 'Target is <b>Plagued</b> until end of its next turn (takes <b>+@{selected|hr_pb}</b> damage from all sources).' },
       { label: 'Then', value: 'Take [[ 6d6 ]] necrotic (success [[ 3d6 ]] necrotic).' },
       { label: 'Heal yourself', value: 'Equal to necrotic dealt; excess becomes Pact temp HP.' }
     ]);
@@ -117,6 +118,7 @@
 
   function onInstall(targetChar, opts) {
     var ids = gatherPlayerIds(targetChar, opts || {});
+    var charId = targetChar && (targetChar.id || targetChar.get('_id'));
 
     if (!ids.length) {
       return;
@@ -127,6 +129,39 @@
       var name = player ? player.get('_displayname') : 'Unknown Player';
       ensureHandoutForPlayer(playerId, name);
     });
+
+    if (!charId) {
+      return;
+    }
+
+    // Persist key stats so actions can roll without prompts. Re-run !hr-sync / !bindkit if PB or spell mods change.
+    var pbAttr = findObjs({ _type: 'attribute', _characterid: charId, name: 'pb' })[0];
+    var spellModAttr = findObjs({ _type: 'attribute', _characterid: charId, name: 'spell_mod' })[0];
+    var pbValue = parseInt(pbAttr ? pbAttr.get('current') : 0, 10);
+    var spellModValue = parseInt(spellModAttr ? spellModAttr.get('current') : 0, 10);
+
+    if (isNaN(pbValue)) {
+      pbValue = 0;
+    }
+    if (isNaN(spellModValue)) {
+      spellModValue = 0;
+    }
+
+    function upsertAttr(name, value) {
+      var existing = findObjs({ _type: 'attribute', _characterid: charId, name: name })[0];
+      if (existing) {
+        existing.set('current', value);
+      } else {
+        createObj('attribute', {
+          _characterid: charId,
+          name: name,
+          current: value
+        });
+      }
+    }
+
+    upsertAttr('hr_pb', pbValue);
+    upsertAttr('hr_spellmod', spellModValue);
   }
 
   var _registered = false;
