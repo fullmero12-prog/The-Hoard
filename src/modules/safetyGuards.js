@@ -10,6 +10,15 @@
 var SafetyGuards = (function () {
   var VERSION = '1.0.0';
   var root = (typeof globalThis !== 'undefined') ? globalThis : this;
+  var logger = root.HRLog || null;
+
+  function ready(message) {
+    if (logger && logger.ready) {
+      logger.ready('SafetyGuards', message);
+    } else {
+      log('[Hoard Run] [SafetyGuards] ✅ ' + message);
+    }
+  }
 
   /**
    * Installs a global GM helper that falls back gracefully when the
@@ -75,7 +84,7 @@ var SafetyGuards = (function () {
   function register() {
     installGMGuard();
     installChatLimiter();
-    log('=== Safety Guards ' + VERSION + ' active ===');
+    ready('Safety Guards ' + VERSION + ' active.');
   }
 
   return {

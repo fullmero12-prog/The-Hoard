@@ -9,7 +9,43 @@
 
 on('ready', function () {
   var VERSION = 'v1.1.0';
+  var root = (typeof globalThis !== 'undefined') ? globalThis : this;
+  var logger = root.HRLog || null;
+
+  function info(message) {
+    if (logger && logger.info) {
+      logger.info('Bootstrap', message);
+    } else {
+      log('[Hoard Run] [Bootstrap] ℹ️ ' + message);
+    }
+  }
+
+  function warn(message) {
+    if (logger && logger.warn) {
+      logger.warn('Bootstrap', message);
+    } else {
+      log('[Hoard Run] [Bootstrap] ⚠️ ' + message);
+    }
+  }
+
+  function error(message) {
+    if (logger && logger.error) {
+      logger.error('Bootstrap', message);
+    } else {
+      log('[Hoard Run] [Bootstrap] ❌ ' + message);
+    }
+  }
+
+  function ready(message) {
+    if (logger && logger.ready) {
+      logger.ready('Bootstrap', message);
+    } else {
+      log('[Hoard Run] [Bootstrap] ✅ ' + message);
+    }
+  }
+
   var MODULES = [
+    'LogManager',
     'SafetyGuards',
     'StateManager',
     'DeckManager',
@@ -32,7 +68,7 @@ on('ready', function () {
       players: {},
       initialized: false
     };
-    log('[Hoard Run] Created new state.HoardRun.');
+    info('Created new state.HoardRun container.');
   }
 
   // ------------------------------------------------------------
@@ -44,27 +80,25 @@ on('ready', function () {
   //   return;
   // }
 
-  log('=== Hoard Run ' + VERSION + ' initializing... ===');
+  info('Initialization sequence started for Hoard Run ' + VERSION + '.');
 
   // ------------------------------------------------------------
   // Register all modules if available
   // ------------------------------------------------------------
-  var root = (typeof globalThis !== 'undefined') ? globalThis : this;
-
-  MODULES.forEach(function (moduleName) {
-    try {
-      var moduleRef = root[moduleName];
+    MODULES.forEach(function (moduleName) {
+      try {
+        var moduleRef = root[moduleName];
       if (moduleRef && typeof moduleRef.register === 'function') {
         moduleRef.register();
-        log('[Hoard Run] ' + moduleName + ' registered.');
+        info(moduleName + ' registered.');
       } else if (moduleRef && typeof moduleRef.init === 'function') {
         moduleRef.init();
-        log('[Hoard Run] ' + moduleName + ' initialized.');
+        info(moduleName + ' initialized.');
       } else {
-        log('[Hoard Run] ⚠️ ' + moduleName + ' not found or missing register/init.');
+        warn(moduleName + ' not found or missing register/init.');
       }
     } catch (err) {
-      log('[Hoard Run] ❌ Error loading ' + moduleName + ': ' + err);
+      error('Error loading ' + moduleName + ': ' + err);
     }
   });
 
@@ -99,5 +133,5 @@ on('ready', function () {
     sendChat('Hoard Run', '/w gm ' + gmMessage);
   }
 
-  log('=== Hoard Run ' + VERSION + ' initialized successfully ===');
+  ready('Hoard Run ' + VERSION + ' initialized successfully.');
 });

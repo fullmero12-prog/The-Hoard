@@ -9,6 +9,24 @@
 // ------------------------------------------------------------
 
 var AncestorDataLoader = (function () {
+  var root = (typeof globalThis !== 'undefined') ? globalThis : this;
+  var logger = root.HRLog || null;
+
+  function info(message) {
+    if (logger && logger.info) {
+      logger.info('AncestorDataLoader', message);
+    } else {
+      log('[Hoard Run] [AncestorDataLoader] ℹ️ ' + message);
+    }
+  }
+
+  function warn(message) {
+    if (logger && logger.warn) {
+      logger.warn('AncestorDataLoader', message);
+    } else {
+      log('[Hoard Run] [AncestorDataLoader] ⚠️ ' + message);
+    }
+  }
 
   function fromRegistry(name) {
     if (typeof AncestorRegistry !== 'undefined' && AncestorRegistry && typeof AncestorRegistry.getSummary === 'function') {
@@ -30,9 +48,9 @@ var AncestorDataLoader = (function () {
       count = AncestorRegistry.count();
     }
     if (count > 0) {
-      log('[AncestorDataLoader] Loaded ' + count + ' ancestors via registry.');
+      info('Loaded ' + count + ' ancestors via registry.');
     } else {
-      log('[AncestorDataLoader] Registry unavailable — ancestor summaries will be blank.');
+      warn('Registry unavailable — ancestor summaries will be blank.');
     }
   });
 

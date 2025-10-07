@@ -10,6 +10,41 @@
 
 var RunFlowManager = (function () {
 
+  var root = (typeof globalThis !== 'undefined') ? globalThis : this;
+  var logger = root.HRLog || null;
+
+  function info(message) {
+    if (logger && logger.info) {
+      logger.info('RunFlow', message);
+    } else {
+      log('[Hoard Run] [RunFlow] ℹ️ ' + message);
+    }
+  }
+
+  function warn(message) {
+    if (logger && logger.warn) {
+      logger.warn('RunFlow', message);
+    } else {
+      log('[Hoard Run] [RunFlow] ⚠️ ' + message);
+    }
+  }
+
+  function error(message) {
+    if (logger && logger.error) {
+      logger.error('RunFlow', message);
+    } else {
+      log('[Hoard Run] [RunFlow] ❌ ' + message);
+    }
+  }
+
+  function ready(message) {
+    if (logger && logger.ready) {
+      logger.ready('RunFlow', message);
+    } else {
+      log('[Hoard Run] [RunFlow] ✅ ' + message);
+    }
+  }
+
   var VERSION = '1.2.0';
   var isRegistered = false;
   var _advancing = false;
@@ -35,7 +70,7 @@ var RunFlowManager = (function () {
     }
     if (!state.HoardRun.runFlow) {
       state.HoardRun.runFlow = clone(DEFAULT_RUN_STATE);
-      log('[RunFlow] Initialized run flow state.');
+      info('Initialized run flow state.');
     }
   }
 
@@ -51,7 +86,7 @@ var RunFlowManager = (function () {
   function resetRunState() {
     ensureState();
     state.HoardRun.runFlow = clone(DEFAULT_RUN_STATE);
-    log('[RunFlow] Run state reset.');
+    info('Run state reset.');
     return state.HoardRun.runFlow;
   }
 
@@ -474,7 +509,7 @@ var RunFlowManager = (function () {
       whisperGM('Hoard Run Ready', 'No active players detected. Use <b>!selectweapon</b> once players join.');
     }
 
-    log('[RunFlow] New Hoard Run started — awaiting weapon selections.');
+    info('New Hoard Run started — awaiting weapon selections.');
     whisperAdvanceRoomPrompt('Click after each encounter to distribute room rewards.', 'Advance Room Control');
   }
 
@@ -513,7 +548,7 @@ var RunFlowManager = (function () {
       'Your run progress will now be tracked under your player ID.<br><br>' +
       'The GM will advance rooms once each encounter is finished.'
     );
-    log('[RunFlow] Weapon selected for ' + playerid + ': ' + weapon);
+    info('Weapon selected for ' + playerid + ': ' + weapon + '.');
   }
 
   function handleSelectAncestor(playerid, arg) {
@@ -580,9 +615,7 @@ var RunFlowManager = (function () {
           }
         }
       } catch (e) {
-        if (typeof log === 'function') {
-          log('[RunFlow] auto-bind error: ' + (e && e.message ? e.message : e));
-        }
+        warn('Auto-bind error: ' + (e && e.message ? e.message : e));
       }
     }
   }
@@ -663,7 +696,7 @@ var RunFlowManager = (function () {
         }
       }
     } catch (e) {
-      log('[RunFlow] next room error: ' + e);
+      error('Next room error: ' + e);
     } finally {
       _advancing = false;
 
@@ -802,7 +835,7 @@ var RunFlowManager = (function () {
     }
     ensureState();
     on('chat:message', handleMessage);
-    log('=== Run Flow Manager ' + VERSION + ' ready ===');
+    ready('Run Flow Manager ' + VERSION + ' ready.');
     isRegistered = true;
   }
 

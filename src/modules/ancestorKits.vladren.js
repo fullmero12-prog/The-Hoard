@@ -10,6 +10,17 @@
 (function(){
   'use strict';
 
+  var root = (typeof globalThis !== 'undefined') ? globalThis : this;
+  var logger = root.HRLog || null;
+
+  function warn(message) {
+    if (logger && logger.warn) {
+      logger.warn('AncestorKits', message);
+    } else if (typeof log === 'function') {
+      log('[Hoard Run] [AncestorKits] ⚠️ ' + message);
+    }
+  }
+
   var KIT_KEY = 'Vladren';
   var KIT_NAME = 'Vladren Moroi';
   var SOURCE_CHARACTER_NAME = 'Ancestor — Vladren Moroi';
@@ -195,8 +206,8 @@
 
   if (!registerKit() && typeof on === 'function') {
     on('ready', function(){
-      if (!registerKit() && typeof log === 'function') {
-        log('[AncestorKits] ⚠️ Vladren kit failed to register – AncestorKits.register unavailable.');
+      if (!registerKit()) {
+        warn('Vladren kit failed to register – AncestorKits.register unavailable.');
       }
     });
   }

@@ -11,6 +11,16 @@
 // ------------------------------------------------------------
 
 var BoonManager = (function () {
+  var root = (typeof globalThis !== 'undefined') ? globalThis : this;
+  var logger = root.HRLog || null;
+
+  function info(message) {
+    if (logger && logger.info) {
+      logger.info('BoonManager', message);
+    } else {
+      log('[Hoard Run] [BoonManager] ℹ️ ' + message);
+    }
+  }
 
   // --- config
   var RARITY_WEIGHTS = { C: 0.45, G: 0.40, S: 0.15 };
@@ -94,7 +104,7 @@ var BoonManager = (function () {
           count += 1;
         }
       }
-      log('[BoonManager] Rebuilt boon deck cache from registry (' + count + ' ancestors).');
+      info('Rebuilt boon deck cache from registry (' + count + ' ancestors).');
     }
 
     state.HoardRun.boons = decks || {};
