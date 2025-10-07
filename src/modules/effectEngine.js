@@ -164,6 +164,10 @@ var EffectEngine = (function () {
       return;
     }
 
+    if (effect.id && String(effect.id).indexOf('vladren_') === 0) {
+      syncVladrenStats(characterId);
+    }
+
     var patches = effect.patches || [];
     for (var i = 0; i < patches.length; i++) {
       var patch = patches[i];
@@ -187,6 +191,42 @@ var EffectEngine = (function () {
 
   function register() {
     info('EffectEngine ready.');
+  }
+
+  // Mirrors AncestorKits' stat sync so Vladren boon buttons can pull PB/spell mod.
+  function syncVladrenStats(characterId) {
+    if (!characterId) {
+      return;
+    }
+
+    function readNumberAttr(name) {
+      var attr = findObjs({
+        _type: 'attribute',
+        _characterid: characterId,
+        name: name
+      })[0];
+
+      var value = attr ? attr.get('current') : 0;
+      var parsed = parseInt(value, 10);
+      if (isNaN(parsed)) {
+        parsed = 0;
+      }
+      return parsed;
+    }
+
+    function writeNumberAttr(name, value) {
+      var attr = ensureAttribute(characterId, name);
+      if (!attr) {
+        return;
+      }
+      attr.set('current', value);
+    }
+
+    var pb = readNumberAttr('pb');
+    var spellMod = readNumberAttr('spell_mod');
+
+    writeNumberAttr('hr_pb', pb);
+    writeNumberAttr('hr_spellmod', spellMod);
   }
 
   return {
