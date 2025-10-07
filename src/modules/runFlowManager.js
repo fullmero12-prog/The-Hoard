@@ -151,6 +151,32 @@ var RunFlowManager = (function () {
   }
 
   function HR_findAutoPCForPlayer(playerid) {
+    if (typeof StateManager !== 'undefined' && StateManager && typeof StateManager.getPlayer === 'function') {
+      // Prefer an explicit kit binding if one is recorded on the player state.
+      var ps = StateManager.getPlayer(playerid);
+      if (ps && ps.boundCharacterId) {
+        var existing = getObj('character', ps.boundCharacterId);
+        if (existing) {
+          var ctrl = existing.get('controlledby') || '';
+          if (ctrl === 'all') {
+            return existing;
+          }
+          var owners = ctrl.split(',');
+          for (var o = 0; o < owners.length; o += 1) {
+            if ((owners[o] || '').trim() === playerid) {
+              return existing;
+            }
+          }
+        }
+
+        if (typeof StateManager.setPlayer === 'function') {
+          StateManager.setPlayer(playerid, { boundCharacterId: null });
+        } else if (ps) {
+          ps.boundCharacterId = null;
+        }
+      }
+    }
+
     var chars = findObjs({ _type: 'character' }).filter(function (c) {
       var ctrl = (c.get('controlledby') || '');
       if (ctrl === 'all') {
@@ -584,7 +610,10 @@ var RunFlowManager = (function () {
 
     if (playerState) {
       playerState.ancestor_id = canon;
-      if (typeof StateManager.setPlayer === 'function') StateManager.setPlayer(playerid, playerState);
+      playerState.boundCharacterId = null;
+      if (typeof StateManager.setPlayer === 'function') {
+        playerState = StateManager.setPlayer(playerid, playerState);
+      }
     }
 
     whisperPanel(
@@ -599,7 +628,14 @@ var RunFlowManager = (function () {
         if (typeof AncestorKits !== 'undefined' && AncestorKits && typeof AncestorKits.install === 'function') {
           var pc = HR_findAutoPCForPlayer(playerid);
           if (pc) {
-            AncestorKits.install((playerState && playerState.ancestor_id) || canon, pc, { by: playerid });
+            var autoResult = AncestorKits.install((playerState && playerState.ancestor_id) || canon, pc, { by: playerid });
+            var charId = pc.id || (pc.get && pc.get('_id')) || null;
+            if (autoResult && charId && playerState) {
+              playerState.boundCharacterId = charId;
+              if (typeof StateManager.setPlayer === 'function') {
+                playerState = StateManager.setPlayer(playerid, playerState);
+              }
+            }
             if (typeof AncestorKits.gmSay === 'function') {
               var ancestorLabel = escapeHTML((playerState && playerState.ancestor_id) || canon);
               var pcName = pc.get && pc.get('name') ? pc.get('name') : 'Character';
