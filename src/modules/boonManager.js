@@ -510,8 +510,6 @@ var BoonManager = (function () {
         if (pool && pool.length) {
           chosen = pickFromPool(pool, order[j], seen, bannedMap);
           if (chosen) {
-            chosen._rarity = order[j];
-            chosen._idx = picks.length;
             break;
           }
         }
@@ -520,7 +518,18 @@ var BoonManager = (function () {
       if (!chosen) {
         break;
       }
-      picks.push(chosen);
+
+      var picked = JSON.parse(JSON.stringify(chosen));
+      picked._rarity = order[j];
+      picked._idx = picks.length;
+      if (!picked.effectId && chosen.effectId) {
+        picked.effectId = chosen.effectId;
+      }
+      if (!picked.effectId && picked.id) {
+        picked.effectId = picked.id;
+      }
+
+      picks.push(picked);
     }
 
     rememberHistory(playerid, picks);
@@ -582,6 +591,7 @@ var BoonManager = (function () {
     ps.boons.push({
       id: picked.id || picked.name,
       name: picked.name,
+      effectId: picked.effectId || picked.id || picked.name,
       rarity: rarity,
       ancestor: offer.ancestor,
       acquiredAt: new Date().toISOString(),
