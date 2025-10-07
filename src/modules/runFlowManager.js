@@ -155,6 +155,32 @@ var RunFlowManager = (function () {
   }
 
   function HR_findAutoPCForPlayer(playerid) {
+    if (typeof StateManager !== 'undefined' && StateManager && typeof StateManager.getPlayer === 'function') {
+      // Prefer an explicit kit binding if one is recorded on the player state.
+      var ps = StateManager.getPlayer(playerid);
+      if (ps && ps.boundCharacterId) {
+        var existing = getObj('character', ps.boundCharacterId);
+        if (existing) {
+          var ctrl = existing.get('controlledby') || '';
+          if (ctrl === 'all') {
+            return existing;
+          }
+          var owners = ctrl.split(',');
+          for (var o = 0; o < owners.length; o += 1) {
+            if ((owners[o] || '').trim() === playerid) {
+              return existing;
+            }
+          }
+        }
+
+        if (typeof StateManager.setPlayer === 'function') {
+          StateManager.setPlayer(playerid, { boundCharacterId: null });
+        } else if (ps) {
+          ps.boundCharacterId = null;
+        }
+      }
+    }
+
     var chars = findObjs({ _type: 'character' }).filter(function (c) {
       var ctrl = (c.get('controlledby') || '');
       if (ctrl === 'all') {
