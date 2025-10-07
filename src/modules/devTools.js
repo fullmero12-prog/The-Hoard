@@ -25,6 +25,9 @@ var DevTools = (function () {
    * Clears all progress, currencies, boons, etc.
    */
   function resetState() {
+    if (typeof AncestorKits !== 'undefined' && AncestorKits && typeof AncestorKits.clearAllMirroredAbilities === 'function') {
+      AncestorKits.clearAllMirroredAbilities();
+    }
     delete state.HoardRun;
     state.HoardRun = { players: {}, version: 'dev' };
     if (typeof RunFlowManager !== 'undefined' && typeof RunFlowManager.resetRunState === 'function') {

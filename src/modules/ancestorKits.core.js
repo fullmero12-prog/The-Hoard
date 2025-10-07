@@ -367,6 +367,103 @@ var AncestorKits = (function (ns) {
   }
 
   /**
+   * Clears mirrored abilities for all registered kits across every character.
+   * Useful when wiping the campaign state or reimporting player sheets.
+   * @param {object=} options
+   * @returns {{removed:number, characters:number, summary:string}}
+   */
+  function clearAllMirroredAbilities(options) {
+    var opts = options || {};
+    var quiet = !!opts.quiet;
+    var result = { removed: 0, characters: 0, summary: '' };
+
+    if (typeof findObjs !== 'function') {
+      result.summary = 'Cannot clear mirrored abilities; Roll20 object search unavailable.';
+      if (!quiet) {
+        gmSay('⚠️ ' + result.summary);
+      }
+      return result;
+    }
+
+    var defs = _defs || {};
+    var keys = Object.keys(defs);
+    if (!keys.length) {
+      result.summary = 'No ancestor kits registered; nothing to clear.';
+      if (!quiet) {
+        gmSay('ℹ️ ' + result.summary);
+      }
+      return result;
+    }
+
+    var seen = {};
+    var patterns = [];
+    for (var i = 0; i < keys.length; i += 1) {
+      var entry = defs[keys[i]] || {};
+      var pattern = entry.stripPattern || entry.abilityPrefix;
+      if (!pattern) {
+        continue;
+      }
+      var label = pattern instanceof RegExp ? pattern.toString() : String(pattern);
+      if (seen[label]) {
+        continue;
+      }
+      seen[label] = true;
+      patterns.push(pattern);
+    }
+
+    if (!patterns.length) {
+      result.summary = 'Registered kits do not define prefixes to clear.';
+      if (!quiet) {
+        gmSay('ℹ️ ' + result.summary);
+      }
+      return result;
+    }
+
+    var characters = findObjs({ _type: 'character' }) || [];
+    if (!characters.length) {
+      result.summary = 'No characters found while clearing mirrored abilities.';
+      if (!quiet) {
+        gmSay('ℹ️ ' + result.summary);
+      }
+      return result;
+    }
+
+    for (var c = 0; c < characters.length; c += 1) {
+      var character = characters[c];
+      if (!character) {
+        continue;
+      }
+      var charId = character.id || (character.get && character.get('_id'));
+      if (!charId) {
+        continue;
+      }
+      var removedForChar = 0;
+      for (var p = 0; p < patterns.length; p += 1) {
+        removedForChar += removePrefixedAbilities(charId, patterns[p]);
+      }
+      if (removedForChar > 0) {
+        result.removed += removedForChar;
+        result.characters += 1;
+      }
+    }
+
+    if (result.removed > 0) {
+      result.summary = 'Cleared <b>' + result.removed + '</b> mirrored ability' + (result.removed === 1 ? '' : 'ies')
+        + ' from <b>' + result.characters + '</b> character' + (result.characters === 1 ? '' : 's') + '.';
+      if (!quiet) {
+        gmSay('♻️ ' + result.summary);
+      }
+    } else {
+      result.summary = 'No mirrored abilities matched the registered kit prefixes.';
+      if (!quiet) {
+        gmSay('ℹ️ ' + result.summary);
+      }
+    }
+
+    return result;
+  }
+
+  /**
    * Registers a kit definition for later binding.
    * @param {string|object} name
    * @param {object=} config
@@ -531,6 +628,7 @@ var AncestorKits = (function (ns) {
   ns.register = register;
   ns.install = install;
   ns.uninstallFrom = uninstallFrom;
+  ns.clearAllMirroredAbilities = clearAllMirroredAbilities;
   ns.promptBindToSelectedPC = promptBindToSelectedPC;
   ns.gmSay = gmSay;
   ns.panel = panel;
