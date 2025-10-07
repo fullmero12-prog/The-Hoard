@@ -207,6 +207,13 @@ var AncestorKits = (function (ns) {
     return _defs[canonical] || null;
   }
 
+  /**
+   * Pulls the first selected token and resolves it to a player character sheet.
+   * Roll20 treats any token that "represents" a character with the sheet's PC
+   * toggle enabled as a player-controlled token, which is what kit mirroring expects.
+   * @param {Object} msg
+   * @returns {Roll20Object|null}
+   */
   function selectedCharacterFromMessage(msg) {
     if (!msg || !msg.selected || !msg.selected.length) {
       return null;
@@ -485,7 +492,7 @@ var AncestorKits = (function (ns) {
 
     var target = selectedCharacterFromMessage(msg);
     if (!target) {
-      gmSay('⚠️ Select a PC token on the map before running the bind command.');
+      gmSay('⚠️ Select a token that represents a Player Character sheet (PC toggle enabled) before running the bind command.');
       return;
     }
 
