@@ -223,6 +223,10 @@ var BoonManager = (function () {
   }
 
   function rememberHistory(playerid, cards) {
+    // Track only the boons the player actually claimed so future draws
+    // avoid repeating permanent acquisitions. We intentionally skip
+    // recording previewed cards so the same options can surface again
+    // if the player declined them earlier.
     var history = getPlayerHistory(playerid);
     var limit = 24;
     (cards || []).forEach(function (card) {
@@ -532,7 +536,6 @@ var BoonManager = (function () {
       picks.push(picked);
     }
 
-    rememberHistory(playerid, picks);
     return picks;
   }
 
