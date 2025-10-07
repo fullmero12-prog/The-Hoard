@@ -584,7 +584,10 @@ var RunFlowManager = (function () {
 
     if (playerState) {
       playerState.ancestor_id = canon;
-      if (typeof StateManager.setPlayer === 'function') StateManager.setPlayer(playerid, playerState);
+      playerState.boundCharacterId = null;
+      if (typeof StateManager.setPlayer === 'function') {
+        playerState = StateManager.setPlayer(playerid, playerState);
+      }
     }
 
     whisperPanel(
@@ -599,7 +602,14 @@ var RunFlowManager = (function () {
         if (typeof AncestorKits !== 'undefined' && AncestorKits && typeof AncestorKits.install === 'function') {
           var pc = HR_findAutoPCForPlayer(playerid);
           if (pc) {
-            AncestorKits.install((playerState && playerState.ancestor_id) || canon, pc, { by: playerid });
+            var autoResult = AncestorKits.install((playerState && playerState.ancestor_id) || canon, pc, { by: playerid });
+            var charId = pc.id || (pc.get && pc.get('_id')) || null;
+            if (autoResult && charId && playerState) {
+              playerState.boundCharacterId = charId;
+              if (typeof StateManager.setPlayer === 'function') {
+                playerState = StateManager.setPlayer(playerid, playerState);
+              }
+            }
             if (typeof AncestorKits.gmSay === 'function') {
               var ancestorLabel = escapeHTML((playerState && playerState.ancestor_id) || canon);
               var pcName = pc.get && pc.get('name') ? pc.get('name') : 'Character';

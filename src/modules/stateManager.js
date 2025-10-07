@@ -28,6 +28,7 @@ var StateManager = (function () {
   var DEFAULT_PLAYER_STATE = {
     focus: null,
     ancestor_id: null,
+    boundCharacterId: null,
     currentRoom: 0,
     stage: 'pre-room',
     scrip: 0,
@@ -42,6 +43,20 @@ var StateManager = (function () {
 
   function cloneDefaultPlayerState() {
     return JSON.parse(JSON.stringify(DEFAULT_PLAYER_STATE));
+  }
+
+  function applyDefaultStateShape(playerState) {
+    var defaults = cloneDefaultPlayerState();
+    var result = playerState || {};
+    var key;
+
+    for (key in defaults) {
+      if (defaults.hasOwnProperty(key) && typeof result[key] === 'undefined') {
+        result[key] = defaults[key];
+      }
+    }
+
+    return result;
   }
 
   /** Initializes the global storage if it doesn't exist */
@@ -65,6 +80,8 @@ var StateManager = (function () {
     if (!state.HoardRun.players[playerid]) {
       state.HoardRun.players[playerid] = cloneDefaultPlayerState();
       info('Created new run data for player ' + playerid + '.');
+    } else {
+      state.HoardRun.players[playerid] = applyDefaultStateShape(state.HoardRun.players[playerid]);
     }
     return state.HoardRun.players[playerid];
   }
@@ -81,7 +98,25 @@ var StateManager = (function () {
     if (!state.HoardRun.players) {
       state.HoardRun.players = {};
     }
-    state.HoardRun.players[playerid] = payload;
+    var existing = state.HoardRun.players[playerid] || cloneDefaultPlayerState();
+    var merged = {};
+    var key;
+
+    for (key in existing) {
+      if (existing.hasOwnProperty(key)) {
+        merged[key] = existing[key];
+      }
+    }
+
+    if (payload) {
+      for (key in payload) {
+        if (payload.hasOwnProperty(key)) {
+          merged[key] = payload[key];
+        }
+      }
+    }
+
+    state.HoardRun.players[playerid] = applyDefaultStateShape(merged);
     return state.HoardRun.players[playerid];
   }
 
