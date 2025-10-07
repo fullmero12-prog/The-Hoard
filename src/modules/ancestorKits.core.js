@@ -50,6 +50,111 @@ var AncestorKits = (function (ns) {
     }
   }
 
+  function characterId(character) {
+    if (!character) {
+      return null;
+    }
+    if (character.id) {
+      return character.id;
+    }
+    if (typeof character.get === 'function') {
+      return character.get('_id') || character.get('id') || null;
+    }
+    return null;
+  }
+
+  function controllerIdsForCharacter(character) {
+    if (!character || typeof character.get !== 'function') {
+      return [];
+    }
+
+    var controlledBy = character.get('controlledby') || '';
+    if (!controlledBy || controlledBy === 'all') {
+      return [];
+    }
+
+    var parts = controlledBy.split(',');
+    var ids = [];
+    for (var i = 0; i < parts.length; i += 1) {
+      var id = (parts[i] || '').trim();
+      if (!id || id === 'all') {
+        continue;
+      }
+      ids.push(id);
+    }
+    return ids;
+  }
+
+  function uniqueIds(list) {
+    var seen = {};
+    var result = [];
+    for (var i = 0; i < list.length; i += 1) {
+      var id = list[i];
+      if (!id || seen[id]) {
+        continue;
+      }
+      seen[id] = true;
+      result.push(id);
+    }
+    return result;
+  }
+
+  function applyBoundCharacterToPlayers(playerIds, charId) {
+    if (typeof StateManager === 'undefined' || !StateManager || typeof StateManager.getPlayer !== 'function' || typeof StateManager.setPlayer !== 'function') {
+      return;
+    }
+
+    var ids = uniqueIds(playerIds || []);
+    if (!ids.length || !charId) {
+      return;
+    }
+
+    for (var i = 0; i < ids.length; i += 1) {
+      var pid = ids[i];
+      if (!pid) {
+        continue;
+      }
+      var ps = StateManager.getPlayer(pid);
+      if (!ps) {
+        continue;
+      }
+      ps.boundCharacterId = charId;
+      StateManager.setPlayer(pid, ps);
+    }
+  }
+
+  function clearBoundCharacterFromPlayers(playerIds, charId) {
+    if (typeof StateManager === 'undefined' || !StateManager || typeof StateManager.setPlayer !== 'function') {
+      return;
+    }
+
+    if (!charId) {
+      return;
+    }
+
+    var ids = uniqueIds(playerIds || []);
+    if (!ids.length) {
+      return;
+    }
+
+    for (var i = 0; i < ids.length; i += 1) {
+      var pid = ids[i];
+      if (!pid) {
+        continue;
+      }
+
+      if (typeof state === 'undefined' || !state.HoardRun || !state.HoardRun.players || !state.HoardRun.players[pid]) {
+        continue;
+      }
+
+      var ps = StateManager.getPlayer ? StateManager.getPlayer(pid) : state.HoardRun.players[pid];
+      if (ps && ps.boundCharacterId === charId) {
+        ps.boundCharacterId = null;
+        StateManager.setPlayer(pid, ps);
+      }
+    }
+  }
+
   /**
    * Sends a styled whisper to the GM.
    * Falls back to raw sendChat if UIManager is unavailable.
@@ -342,7 +447,27 @@ var AncestorKits = (function (ns) {
       return false;
     }
 
-    return mirrorAbilities(def, targetChar, opts || {});
+    var controllers = controllerIdsForCharacter(targetChar);
+    var options = opts || {};
+    if (options.by) {
+      var invokerIsGM = false;
+      if (typeof playerIsGM === 'function') {
+        invokerIsGM = playerIsGM(options.by);
+      } else if (typeof isGM === 'function') {
+        invokerIsGM = isGM(options.by);
+      }
+      if (!invokerIsGM) {
+        controllers.push(options.by);
+      }
+    }
+
+    var didInstall = mirrorAbilities(def, targetChar, options);
+
+    if (didInstall) {
+      applyBoundCharacterToPlayers(controllers, characterId(targetChar));
+    }
+
+    return didInstall;
   }
 
   /**
@@ -369,6 +494,7 @@ var AncestorKits = (function (ns) {
     if (removed) {
       gmSay('♻️ Removed <b>' + removed + '</b> mirrored ability' + (removed === 1 ? '' : 'ies')
         + ' from <b>' + escapeHTML(targetChar.get('name')) + '</b>.');
+      clearBoundCharacterFromPlayers(controllerIdsForCharacter(targetChar), characterId(targetChar));
     }
     return removed;
   }
@@ -451,6 +577,7 @@ var AncestorKits = (function (ns) {
       if (removedForChar > 0) {
         result.removed += removedForChar;
         result.characters += 1;
+        clearBoundCharacterFromPlayers(controllerIdsForCharacter(character), charId);
       }
     }
 
