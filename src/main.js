@@ -51,6 +51,7 @@ on('ready', function () {
     'DeckManager',
     'UIManager',
     'EffectRegistry',
+    'EffectEngine',
     'BoonDataLoader',
     'BoonManager',
     'ShopManager',
