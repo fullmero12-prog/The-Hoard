@@ -74,6 +74,135 @@ var ShopManager = (function () {
     }
   };
 
+  function normalizeEffectId(value) {
+    if (value === null || typeof value === 'undefined') {
+      return null;
+    }
+    if (typeof value === 'string') {
+      return value.trim() || null;
+    }
+    return String(value);
+  }
+
+  function safeJsonParse(text) {
+    try {
+      return JSON.parse(text);
+    } catch (err) {
+      return null;
+    }
+  }
+
+  function decodeHtmlEntities(text) {
+    if (!text) {
+      return '';
+    }
+    return text
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'")
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&amp;/g, '&');
+  }
+
+  function normalizeGMNotes(raw) {
+    if (!raw) {
+      return '';
+    }
+
+    var text = String(raw).trim();
+    if (!text) {
+      return '';
+    }
+
+    try {
+      text = decodeURIComponent(text);
+    } catch (err) {
+      // ignore decode errors, keep original text
+    }
+
+    text = decodeHtmlEntities(text);
+
+    if (/^<[^>]+>/.test(text)) {
+      text = text.replace(/<[^>]*>/g, '');
+    }
+
+    return text.trim();
+  }
+
+  function findEffectIdInObject(value) {
+    if (!value || typeof value !== 'object') {
+      return null;
+    }
+
+    var queue = [value];
+    while (queue.length) {
+      var current = queue.shift();
+      if (!current || typeof current !== 'object') {
+        continue;
+      }
+
+      if (Object.prototype.hasOwnProperty.call(current, 'effectId')) {
+        var candidate = normalizeEffectId(current.effectId);
+        if (candidate) {
+          return candidate;
+        }
+      }
+
+      if (Object.prototype.hasOwnProperty.call(current, 'effect_id')) {
+        var candidate = normalizeEffectId(current.effect_id);
+        if (candidate) {
+          return candidate;
+        }
+      }
+
+      if (Object.prototype.hasOwnProperty.call(current, 'id')) {
+        var candidate = normalizeEffectId(current.id);
+        if (candidate) {
+          return candidate;
+        }
+      }
+
+      for (var key in current) {
+        if (Object.prototype.hasOwnProperty.call(current, key)) {
+          queue.push(current[key]);
+        }
+      }
+    }
+
+    return null;
+  }
+
+  function resolveEffectIdFromCard(card) {
+    if (!card || typeof card.get !== 'function') {
+      return null;
+    }
+
+    var attr = normalizeEffectId(card.get('hr_effect_id'));
+    if (attr) {
+      return attr;
+    }
+
+    var gmnotes = normalizeGMNotes(card.get('gmnotes'));
+    if (!gmnotes) {
+      return null;
+    }
+
+    var parsed = safeJsonParse(gmnotes);
+    if (parsed) {
+      var fromObject = findEffectIdInObject(parsed);
+      if (fromObject) {
+        return fromObject;
+      }
+    }
+
+    var match = gmnotes.match(/effect[_\-]?id"?\s*[:=]\s*"?([A-Za-z0-9_:\-]+)/i);
+    if (match && match[1]) {
+      return normalizeEffectId(match[1]);
+    }
+
+    return null;
+  }
+
   function canonAncestorName(name) {
     return (name || '').replace(/[^A-Za-z0-9]/g, '');
   }
@@ -177,6 +306,15 @@ var ShopManager = (function () {
     }
 
     const clone = JSON.parse(JSON.stringify(entry));
+    if (clone && typeof clone === 'object') {
+      if (!clone.effectId && clone.effect_id) {
+        clone.effectId = clone.effect_id;
+      }
+      if (!clone.effectId && clone.id) {
+        clone.effectId = clone.id;
+      }
+    }
+
     return {
       id: clone.id || (clone.name + '_' + label),
       name: clone.name,
@@ -358,6 +496,7 @@ var ShopManager = (function () {
 
     var id = typeof card.id !== "undefined" ? card.id : "";
     var name = typeof card.get === "function" ? card.get("name") : card.name;
+    var effectId = null;
 
     var slot = {
       type,
@@ -369,14 +508,40 @@ var ShopManager = (function () {
 
     if (card.isStub) {
       slot.isStub = true;
-      slot.cardData = card.data || null;
+      var payload = card.data || null;
+      if (payload && typeof payload === "object") {
+        if (!payload.effectId && payload.effect_id) {
+          payload.effectId = payload.effect_id;
+        }
+        if (!payload.effectId && payload.id) {
+          payload.effectId = payload.id;
+        }
+        effectId = normalizeEffectId(payload.effectId);
+      }
+      slot.cardData = payload;
       slot.deckSource = card.deckSource || null;
+      if (!effectId && card.effectId) {
+        effectId = normalizeEffectId(card.effectId);
+      }
+    } else {
+      effectId = resolveEffectIdFromCard(card);
     }
 
     if (extras) {
       Object.keys(extras).forEach(key => {
         slot[key] = extras[key];
       });
+      if (!effectId && Object.prototype.hasOwnProperty.call(extras, "effectId")) {
+        effectId = normalizeEffectId(extras.effectId);
+      }
+    }
+
+    if (!effectId && slot.cardData && slot.cardData.effectId) {
+      effectId = normalizeEffectId(slot.cardData.effectId);
+    }
+
+    if (effectId) {
+      slot.effectId = effectId;
     }
 
     return slot;
@@ -835,6 +1000,18 @@ var ShopManager = (function () {
     }
     if (slot.type === "boon" && slot.ancestorName) {
       record.ancestor = slot.ancestorName;
+    }
+
+    var recordEffectId = slot.effectId || null;
+    if (!recordEffectId && slot.cardData && slot.cardData.effectId) {
+      recordEffectId = slot.cardData.effectId;
+    }
+    if (!recordEffectId && card) {
+      recordEffectId = resolveEffectIdFromCard(card);
+    }
+    recordEffectId = normalizeEffectId(recordEffectId);
+    if (recordEffectId) {
+      record.effectId = recordEffectId;
     }
 
     if (slot.type === "relic") {
