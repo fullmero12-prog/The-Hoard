@@ -66,10 +66,10 @@ var EffectRegistry = (function () {
       patches: [
         // False life 1/room w/o slot, +PB temp HP; +10 ft speed while you have temp HP
         { type: 'attr', name: 'hr_false_life_free_per_room', op: 'set', value: 1 },
-        { type: 'attr', name: 'hr_false_life_pb_bonus', op: 'set', value: '@{pb}' }, // store as marker (informational)
+        { type: 'attr', name: 'hr_false_life_pb_bonus', op: 'set', value: '@{hr_pb}' }, // store as marker (informational)
         { type: 'attr', name: 'hr_speed_bonus_when_thp', op: 'set', value: 10 },
         { type: 'ability', name: '[Vladren] Thickened Vitae (Info)', token: true,
-          action: '&{template:default} {{name=Thickened Vitae}} {{False Life=1/room without slot; add **+PB** temp HP}} {{Speed=While you have temp HP, gain **+10 ft** speed}}' },
+          action: '&{template:default} {{name=Thickened Vitae}} {{False Life=1/room without slot; add **+@{selected|hr_pb}** temp HP}} {{Pact Cap=Your Pact temp HP cap is [[ 5*@{selected|hr_pb} + @{selected|hr_spellmod} ]]}} {{Speed=While you have temp HP, gain **+10 ft** speed}}' },
         { type: 'note', text: 'False Life 1/room w/o slot; add +PB temp HP. +10 ft speed while you have temp HP.' }
       ]
     },
@@ -96,7 +96,7 @@ var EffectRegistry = (function () {
         // Action 1/turn: 15-ft radius surge; Con save → 4d6+PB necrotic (half on success)
         // You may lose up to PBd6 HP to add that much necrotic; heal half total dealt.
         { type: 'ability', name: '[Vladren] Tides of Blood (Action)', token: true,
-          action: '&{template:default} {{name=Tides of Blood (Action, 1/turn)}} {{Area=15-ft radius centered on you}} {{Save=Con save}} {{Damage=**4d6 + PB** necrotic (half on success)}} {{Empower=You may lose up to **PBd6 HP** to add that much necrotic}} {{Heal=You heal **half** the total necrotic dealt}}' },
+          action: '&{template:default} {{name=Tides of Blood (Action, 1/turn)}} {{Area=15-ft radius centered on you}} {{Save=Con save (DC [[ 8 + @{selected|hr_pb} + @{selected|hr_spellmod} ]])}} {{Damage=[[ 4d6 + @{selected|hr_pb} ]] necrotic (half on success)}} {{Empower=You may lose up to **@{selected|hr_pb}d6 HP** to add that much necrotic}} {{Heal=You heal **half** the total necrotic dealt}}' },
         { type: 'note', text: 'Action (1/turn). 15-ft surge; Con save. 4d6+PB necrotic; may lose up to PBd6 HP to add; heal half total dealt.' }
       ]
     },
@@ -125,7 +125,7 @@ var EffectRegistry = (function () {
         { type: 'attr', name: 'hr_resistance_all_active', op: 'set', value: 1 },
         { type: 'attr', name: 'hr_transfusion_per_turn', op: 'set', value: 2 },
         { type: 'ability', name: '[Vladren] Crimson Apotheosis (1/SR)', token: true,
-          action: '&{template:default} {{name=Crimson Apotheosis (1/SR)}} {{Duration=2 rounds}} {{Pact=Temp HP cap **doubles**}} {{Defense=**Resistance to all damage**}} {{Transfusion=Use **twice each turn** (still one Bonus Action each)}}' },
+          action: '&{template:default} {{name=Crimson Apotheosis (1/SR)}} {{Duration=2 rounds}} {{Pact=Temp HP cap becomes [[ 2*(5*@{selected|hr_pb} + @{selected|hr_spellmod}) ]]}} {{Defense=**Resistance to all damage**}} {{Transfusion=Use **twice each turn** (still one Bonus Action each)}}' },
         { type: 'note', text: 'Apotheosis (1/SR): 2 rounds. THP cap ×2; resistance to all; Transfusion ×2/turn.' }
       ]
     },
