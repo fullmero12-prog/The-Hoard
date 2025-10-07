@@ -92,10 +92,20 @@ var DeckManager = (function () {
 
   /** Build a faux card object so downstream code can reuse existing paths */
   function buildCardStub(baseName, rarity, entry) {
+    var payload = deepClone(entry);
+    if (payload && typeof payload === 'object') {
+      if (!payload.effectId && payload.effect_id) {
+        payload.effectId = payload.effect_id;
+      }
+      if (!payload.effectId && payload.id) {
+        payload.effectId = payload.id;
+      }
+    }
+
     var card = {
       id: entry.id,
       name: entry.name,
-      data: entry,
+      data: payload,
       deckSource: baseName,
       rarity: rarity,
       isStub: true,
@@ -104,14 +114,17 @@ var DeckManager = (function () {
           return entry.name;
         }
         if (prop === "gmnotes") {
-          return JSON.stringify(entry);
+          return JSON.stringify(payload);
         }
         if (prop === "notes") {
-          return entry.text_in_run || "";
+          return payload && payload.text_in_run ? payload.text_in_run : "";
         }
         return null;
       }
     };
+    if (payload && payload.effectId) {
+      card.effectId = payload.effectId;
+    }
     return card;
   }
 
