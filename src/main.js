@@ -50,6 +50,7 @@ on('ready', function () {
     'StateManager',
     'DeckManager',
     'UIManager',
+    'EffectRegistry',
     'BoonDataLoader',
     'BoonManager',
     'ShopManager',
