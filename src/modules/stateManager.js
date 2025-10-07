@@ -14,6 +14,16 @@
 // ------------------------------------------------------------
 
 var StateManager = (function () {
+  var root = (typeof globalThis !== 'undefined') ? globalThis : this;
+  var logger = root.HRLog || null;
+
+  function info(message) {
+    if (logger && logger.info) {
+      logger.info('StateManager', message);
+    } else {
+      log('[Hoard Run] [StateManager] ℹ️ ' + message);
+    }
+  }
 
   var DEFAULT_PLAYER_STATE = {
     focus: null,
@@ -38,7 +48,7 @@ var StateManager = (function () {
   function init() {
     if (!state.HoardRun) {
       state.HoardRun = { players: {}, shops: {} };
-      log('HoardRun state initialized.');
+      info('Created HoardRun state container.');
     } else {
       if (!state.HoardRun.players) {
         state.HoardRun.players = {};
@@ -54,7 +64,7 @@ var StateManager = (function () {
     init();
     if (!state.HoardRun.players[playerid]) {
       state.HoardRun.players[playerid] = cloneDefaultPlayerState();
-      log('Created new run data for player ' + playerid);
+      info('Created new run data for player ' + playerid + '.');
     }
     return state.HoardRun.players[playerid];
   }
@@ -91,7 +101,7 @@ var StateManager = (function () {
       var current = normalizeNumber(p[type]);
       var delta = normalizeNumber(amount);
       p[type] = current + delta;
-      log(type + ' +' + delta + ' for player ' + playerid);
+      info('Currency ' + type + ' +' + delta + ' for player ' + playerid + '.');
     }
   }
 
@@ -221,7 +231,7 @@ var StateManager = (function () {
   /** Clears all data (use with care!) */
   function resetAll() {
     state.HoardRun = { players: {}, shops: {} };
-    log('All HoardRun data cleared.');
+    info('All HoardRun data cleared.');
   }
 
   /** Dumps a readable summary for GM */

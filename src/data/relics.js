@@ -9,6 +9,16 @@
 // ------------------------------------------------------------
 
 var RelicData = (function () {
+  var root = (typeof globalThis !== 'undefined') ? globalThis : this;
+  var logger = root.HRLog || null;
+
+  function info(message) {
+    if (logger && logger.info) {
+      logger.info('RelicDataLoader', message);
+    } else {
+      log('[Hoard Run] [RelicDataLoader] ℹ️ ' + message);
+    }
+  }
 
   var RELIC_CATALOG = [
     // Tempo & Action Economy
@@ -538,7 +548,7 @@ var RelicData = (function () {
     var relics = getAll();
     state.HoardRun.relics = relics;
     state.HoardRun.relicBuckets = buildBucketsFrom(relics);
-    log('[RelicDataLoader] Loaded ' + relics.length + ' relics.');
+    info('Loaded ' + relics.length + ' relics.');
   }
 
   on('ready', register);

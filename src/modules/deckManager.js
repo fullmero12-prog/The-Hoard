@@ -12,6 +12,24 @@
 // ------------------------------------------------------------
 
 var DeckManager = (function () {
+  var root = (typeof globalThis !== 'undefined') ? globalThis : this;
+  var logger = root.HRLog || null;
+
+  function info(message) {
+    if (logger && logger.info) {
+      logger.info('DeckManager', message);
+    } else {
+      log('[Hoard Run] [DeckManager] ℹ️ ' + message);
+    }
+  }
+
+  function warn(message) {
+    if (logger && logger.warn) {
+      logger.warn('DeckManager', message);
+    } else {
+      log('[Hoard Run] [DeckManager] ⚠️ ' + message);
+    }
+  }
 
   // ------------------------------------------------------------
   // Static deck data (for manual import + fallback draws)
@@ -118,7 +136,7 @@ var DeckManager = (function () {
 
     var index = randomInteger(entries.length) - 1;
     var entry = entries[index];
-    log(`DeckManager: using static ${baseName}.${rarityName} entry (${entry.name}).`);
+    info('Using static ' + baseName + '.' + rarityName + ' entry (' + entry.name + ').');
     return buildCardStub(baseName, rarityName, entry);
   }
 
@@ -126,7 +144,7 @@ var DeckManager = (function () {
   function getDeck(deckName) {
     var deck = findObjs({ type: "deck", name: deckName })[0];
     if (!deck) {
-      log(`Deck "${deckName}" not found! Falling back to static data if available.`);
+      warn('Deck "' + deckName + '" not found. Using static data if available.');
     }
     return deck;
   }
@@ -140,7 +158,7 @@ var DeckManager = (function () {
 
     var cards = deck.get("cards");
     if (!cards || cards.length === 0) {
-      log(`Deck ${deckName} is empty! Using static fallback.`);
+      warn('Deck ' + deckName + ' is empty. Using static fallback.');
       return drawFromStatic(deckName);
     }
 
@@ -151,7 +169,7 @@ var DeckManager = (function () {
       return card;
     }
 
-    log(`DeckManager: Card ${cardId} missing, using static fallback for ${deckName}.`);
+    warn('Card ' + cardId + ' missing from deck ' + deckName + '. Using static fallback.');
     return drawFromStatic(deckName);
   }
 

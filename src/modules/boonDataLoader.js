@@ -8,6 +8,24 @@
 // ------------------------------------------------------------
 
 var BoonDataLoader = (function () {
+  var root = (typeof globalThis !== 'undefined') ? globalThis : this;
+  var logger = root.HRLog || null;
+
+  function info(message) {
+    if (logger && logger.info) {
+      logger.info('BoonDataLoader', message);
+    } else {
+      log('[Hoard Run] [BoonDataLoader] ℹ️ ' + message);
+    }
+  }
+
+  function warn(message) {
+    if (logger && logger.warn) {
+      logger.warn('BoonDataLoader', message);
+    } else {
+      log('[Hoard Run] [BoonDataLoader] ⚠️ ' + message);
+    }
+  }
 
   function fromRegistry() {
     if (typeof AncestorRegistry !== 'undefined' && AncestorRegistry && typeof AncestorRegistry.getBoonDecks === 'function') {
@@ -26,9 +44,9 @@ var BoonDataLoader = (function () {
 
     var count = Object.keys(decks).length;
     if (count > 0) {
-      log('[BoonDataLoader] Loaded ' + count + ' ancestor decks from registry.');
+      info('Loaded ' + count + ' ancestor boon decks from registry.');
     } else {
-      log('[BoonDataLoader] ⚠️ Registry returned no boon decks; state.HoardRun.boons is empty.');
+      warn('Registry returned no boon decks; state.HoardRun.boons is empty.');
     }
   }
 

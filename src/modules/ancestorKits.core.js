@@ -13,6 +13,9 @@ var AncestorKits = (function (ns) {
 
   ns = ns || {};
 
+  var root = (typeof globalThis !== 'undefined') ? globalThis : this;
+  var logger = root.HRLog || null;
+
   // ------------------------------------------------------------
   // Internal Registries
   // ------------------------------------------------------------
@@ -38,8 +41,12 @@ var AncestorKits = (function (ns) {
   }
 
   function logInfo(msg) {
+    if (logger && logger.info) {
+      logger.info('AncestorKits', msg);
+      return;
+    }
     if (typeof log === 'function') {
-      log('[AncestorKits] ' + msg);
+      log('[Hoard Run] [AncestorKits] ℹ️ ' + msg);
     }
   }
 
