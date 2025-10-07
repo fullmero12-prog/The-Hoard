@@ -485,7 +485,7 @@ var AncestorKits = (function (ns) {
 
     var target = selectedCharacterFromMessage(msg);
     if (!target) {
-      gmSay('⚠️ Select a PC token on the map before running the bind command.');
+      gmSay('⚠️ No token selected. On the same page, single-click the PC token (must represent a Character), then click the bind button again.');
       return;
     }
 
