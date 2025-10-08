@@ -127,6 +127,7 @@ on('ready', function () {
     '• <b>!offerboons [Ancestor]</b> – Offer boon choices<br>' +
     '• <b>!chooseboon [CardID]</b> – Choose a boon<br>' +
     '• <b>!tradeSquares scrip|fse</b> – Trade Squares<br><br>' +
+    '• <b>!givecurrency [Target] [Type] [Amount]</b> – GM grant helper<br><br>' +
     'Roll20 API sandbox ready.' +
     '</div>';
 

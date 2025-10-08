@@ -16,6 +16,7 @@
 
 ## Currency Utilities
 - `!tradeSquares scrip|fse` — Convert Squares into the specified currency reward.
+- `!givecurrency <player|"Player Name"|all|online> <scrip|fse|squares|reroll> <amount>` — (GM only) Grant Hoard Run currencies directly to players. Comma-separate targets to reach multiple players; use quotes or underscores for names with spaces.
 
 ## Developer Utilities (GM Only)
 - `!resetstate` — Wipe all Hoard Run data, purge mirrored kit abilities, and remove generated handouts.
