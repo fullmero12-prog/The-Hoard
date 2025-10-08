@@ -142,8 +142,19 @@ var StateManager = (function () {
 
   /** Resets a player's corridor progress and currencies */
   function resetPlayerRun(playerid) {
-    var fresh = cloneDefaultPlayerState();
     init();
+
+    var existing = state.HoardRun.players[playerid] || null;
+    if (
+      existing &&
+      typeof EffectEngine !== 'undefined' &&
+      EffectEngine &&
+      typeof EffectEngine.removeTokenAbilitiesForPlayer === 'function'
+    ) {
+      EffectEngine.removeTokenAbilitiesForPlayer(existing);
+    }
+
+    var fresh = cloneDefaultPlayerState();
     state.HoardRun.players[playerid] = fresh;
     return state.HoardRun.players[playerid];
   }

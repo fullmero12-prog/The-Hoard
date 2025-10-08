@@ -249,6 +249,52 @@ var EffectEngine = (function () {
     return removed;
   }
 
+  function getEffectDefinition(effectId) {
+    if (!effectId) {
+      return null;
+    }
+
+    if (typeof EffectRegistry === 'undefined' || !EffectRegistry || typeof EffectRegistry.get !== 'function') {
+      return null;
+    }
+
+    return EffectRegistry.get(effectId);
+  }
+
+  function removeTokenAbilitiesForPlayer(playerState) {
+    if (!playerState || !playerState.boundCharacterId) {
+      return 0;
+    }
+
+    var removed = 0;
+    var pools = ['boons', 'relics'];
+
+    for (var p = 0; p < pools.length; p += 1) {
+      var poolName = pools[p];
+      var list = playerState[poolName];
+      if (!list || !list.length) {
+        continue;
+      }
+
+      for (var i = 0; i < list.length; i += 1) {
+        var entry = list[i];
+        if (!entry) {
+          continue;
+        }
+
+        var effectId = entry.effectId || entry.effect_id || entry.id || entry.name;
+        var effectDef = getEffectDefinition(effectId);
+        if (!effectDef) {
+          continue;
+        }
+
+        removed += removeTokenAbilitiesForEffect(playerState.boundCharacterId, effectDef);
+      }
+    }
+
+    return removed;
+  }
+
   function removeTokenAbilitiesFromRunState() {
     if (typeof state === 'undefined' || !state || !state.HoardRun || !state.HoardRun.players) {
       return 0;
@@ -261,44 +307,13 @@ var EffectEngine = (function () {
 
     var removed = 0;
     var players = state.HoardRun.players;
-    var pools = ['boons', 'relics'];
 
     for (var pid in players) {
       if (!players.hasOwnProperty(pid)) {
         continue;
       }
 
-      var player = players[pid];
-      if (!player || !player.boundCharacterId) {
-        continue;
-      }
-
-      for (var p = 0; p < pools.length; p += 1) {
-        var poolName = pools[p];
-        var list = player[poolName];
-        if (!list || !list.length) {
-          continue;
-        }
-
-        for (var i = 0; i < list.length; i += 1) {
-          var entry = list[i];
-          if (!entry) {
-            continue;
-          }
-
-          var effectId = entry.effectId || entry.effect_id || entry.id || entry.name;
-          if (!effectId) {
-            continue;
-          }
-
-          var effectDef = EffectRegistry.get(effectId);
-          if (!effectDef) {
-            continue;
-          }
-
-          removed += removeTokenAbilitiesForEffect(player.boundCharacterId, effectDef);
-        }
-      }
+      removed += removeTokenAbilitiesForPlayer(players[pid]);
     }
 
     if (removed > 0) {
@@ -398,6 +413,7 @@ var EffectEngine = (function () {
   return {
     apply: apply,
     register: register,
+    removeTokenAbilitiesForPlayer: removeTokenAbilitiesForPlayer,
     removeTokenAbilitiesFromRunState: removeTokenAbilitiesFromRunState
   };
 })();
