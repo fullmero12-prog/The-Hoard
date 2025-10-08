@@ -135,7 +135,7 @@ var AncestorRegistry = (function () {
         {
           id: 'azuren_shocking_orb',
           effectId: 'azuren_shocking_orb',
-          name: 'Shocking Orb (1/SR)',
+          name: 'Shocking Orb (1/room)',
           text_in_run:
             'Bonus Action; 90 ft. Make a ranged spell attack: on a hit, 3d8 lightning, and the target must make a Con save or be stunned until the end of its next turn.',
           hook: 'Summon'
@@ -223,7 +223,7 @@ var AncestorRegistry = (function () {
           id: 'vayla_twin_mantra',
           effectId: 'vayla_twin_mantra',
           name: 'Twin Mantra',
-          text_in_run: 'You can Mantra 2/Short Rest.',
+          text_in_run: 'You can Mantra 2/room.',
           hook: 'Balance'
         },
         {
@@ -255,7 +255,7 @@ var AncestorRegistry = (function () {
     references: 'Vladren Moroi.md',
     baseKit: {
       summary: 'Crimson Pact temp HP and necrotic siphons sustain the Blood Regent on the front line.',
-      html: '<div style="font-family:inherit;font-size:13px;line-height:1.25;"><h3 style="margin:0 0 6px 0;">Vladren Moroi — The Crimson Tide</h3><b>Crimson Pact.</b> Excess healing becomes <b>temp HP</b> (cap <b>5×PB + spell mod</b>). While you have Pact temp HP: <b>+1 AC</b>; your <b>necrotic ignores resistance</b> (treat immunity as resistance).<br><br><b>Transfusion (Bonus, 1/turn).</b> One creature within <b>60 ft</b> makes a <b>Con save</b>. Fail: <b>2d8 necrotic + PB</b> (success half). You <b>heal</b> for the damage dealt. If the target is <b>½ HP or less</b>, Transfusion deals <b>+1d8 necrotic</b>.<br><br><b>Sanguine Pool (Reaction, 1/SR).</b> When you take damage, become <b>blood mist</b> until the start of your next turn: <b>resistance to all</b>, you can <b>move through creatures</b>, you <b>can’t cast leveled spells or make attacks</b>, and <b>enemies can’t make OAs</b> against you.<br><br><b>Hemoplague (1/SR).</b> <b>20-ft radius</b> point within 60 ft, Con save → target is <b>Plagued</b> until end of next turn (<b>+PB damage</b> from all sources), then it takes <b>6d6 necrotic</b> (success <b>3d6</b>). You <b>heal</b> for the total necrotic; excess healing becomes <b>Pact temp HP</b>.</div>',
+      html: '<div style="font-family:inherit;font-size:13px;line-height:1.25;"><h3 style="margin:0 0 6px 0;">Vladren Moroi — The Crimson Tide</h3><b>Crimson Pact.</b> Excess healing becomes <b>temp HP</b> (cap <b>5×PB + spell mod</b>). While you have Pact temp HP: <b>+1 AC</b>; your <b>necrotic ignores resistance</b> (treat immunity as resistance).<br><br><b>Transfusion (Bonus, 1/turn).</b> One creature within <b>60 ft</b> makes a <b>Con save</b>. Fail: <b>2d8 necrotic + PB</b> (success half). You <b>heal</b> for the damage dealt. If the target is <b>½ HP or less</b>, Transfusion deals <b>+1d8 necrotic</b>.<br><br><b>Sanguine Pool (Reaction, 1/room).</b> When you take damage, become <b>blood mist</b> until the start of your next turn: <b>resistance to all</b>, you can <b>move through creatures</b>, you <b>can’t cast leveled spells or make attacks</b>, and <b>enemies can’t make OAs</b> against you.<br><br><b>Hemoplague (1/room).</b> <b>20-ft radius</b> point within 60 ft, Con save → target is <b>Plagued</b> until end of next turn (<b>+PB damage</b> from all sources), then it takes <b>6d6 necrotic</b> (success <b>3d6</b>). You <b>heal</b> for the total necrotic; excess healing becomes <b>Pact temp HP</b>.</div>',
       alwaysPreparedSpells: [],
       empowerments: []
     },
@@ -300,7 +300,7 @@ var AncestorRegistry = (function () {
         {
           id: 'vladren_crimson_apotheosis',
           effectId: 'vladren_crimson_apotheosis',
-          name: 'Crimson Apotheosis (1/SR)',
+          name: 'Crimson Apotheosis (1/room)',
           text_in_run:
             'For 2 rounds, your temp HP cap doubles, you have resistance to all damage, and Transfusion can be used twice each turn (still one Bonus Action each).',
           hook: 'Survival'
@@ -395,7 +395,7 @@ var AncestorRegistry = (function () {
         {
           id: 'lian_cataclysmic_shatter',
           effectId: 'lian_cataclysmic_shatter',
-          name: 'Cataclysmic Shatter (1/SR)',
+          name: 'Cataclysmic Shatter (1/room)',
           text_in_run:
             'This turn, Shatter is a Bonus Action and deals 3d8/stack + PB. Each time Shatter drops a creature this turn, all enemies within 10 ft of it gain 1 Veil.',
           hook: 'Burst'
@@ -474,7 +474,7 @@ var AncestorRegistry = (function () {
         {
           id: 'morvox_cataclysm',
           effectId: 'morvox_cataclysm',
-          name: 'Cataclysm (1/SR)',
+          name: 'Cataclysm (1/room)',
           text_in_run:
             'Primordial Burst becomes a Bonus Action and doesn’t consume Malice. Against targets at ½ HP or less, the save is made at disadvantage.',
           hook: 'Ultimate'
@@ -545,7 +545,7 @@ var AncestorRegistry = (function () {
         {
           id: 'seraphine_phoenix_bloom',
           effectId: 'seraphine_phoenix_bloom',
-          name: 'Phoenix Bloom (1/SR)',
+          name: 'Phoenix Bloom (1/room)',
           text_in_run:
             'Instantly Overheat and make two staff attacks. Then refund 25 Heat and move 10 ft without provoking.',
           hook: 'Revive'
@@ -553,7 +553,7 @@ var AncestorRegistry = (function () {
         {
           id: 'seraphine_phoenix_coronation',
           effectId: 'seraphine_phoenix_coronation',
-          name: 'Phoenix Coronation (1/SR)',
+          name: 'Phoenix Coronation (1/room)',
           text_in_run:
             'Empower a major burn: Fireball — after it resolves, the 20-ft radius edge becomes a Cinder Ring for 1 minute (ignited terrain; 1d6 fire on enter/start). Immolation — if the target dies while burning, the flames jump to a new creature within 15 ft (new save; remaining duration). This casting ignores fire resistance and treats immunity as resistance.',
           hook: 'Ultimate'

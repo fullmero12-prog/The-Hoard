@@ -224,8 +224,8 @@ var EffectRegistry = (function () {
         // Sanguine Pool gains +15 ft move on enter; recharges on 5–6 if THP >=10
         { type: 'attr', name: 'hr_pool_bonus_move_on_enter', op: 'set', value: 15 },
         { type: 'attr', name: 'hr_pool_recharge_5_6_if_thp10', op: 'set', value: 1 },
-        { type: 'ability', name: '[Vladren] Sanguine Pool (Reaction • 1/SR)', token: true,
-          action: '&{template:default} {{name=Sanguine Pool (Reaction • 1/SR)}} {{Effect=Until the start of your next turn you are blood mist: resistance to all damage; move through creatures; cannot cast leveled spells or make attacks; enemies cannot make OAs against you.}} {{On enter=When you enter the Pool, gain **+15 ft** movement.}} {{Recharge=At the start of your turn, recharge on a **5–6** while you have **≥10 temp HP**.}}' },
+        { type: 'ability', name: '[Vladren] Sanguine Pool (Reaction • 1/room)', token: true,
+          action: '&{template:default} {{name=Sanguine Pool (Reaction • 1/room)}} {{Effect=Until the start of your next turn you are blood mist: resistance to all damage; move through creatures; cannot cast leveled spells or make attacks; enemies cannot make OAs against you.}} {{On enter=When you enter the Pool, gain **+15 ft** movement.}} {{Recharge=At the start of your turn, recharge on a **5–6** while you have **≥10 temp HP**.}}' },
         { type: 'ability', name: '[Vladren] Sovereign Pool (Info)', token: false,
           action: '&{template:default} {{name=Sovereign Pool}} {{Move=When you enter, gain **+15 ft** movement}} {{Recharge=At start of your turn, **recharges on 5–6** while you have **≥10 temp HP**}}' },
         { type: 'note', text: 'Pool: +15 ft move on enter; recharge on 5–6 while you have ≥10 temp HP.' }
@@ -235,15 +235,15 @@ var EffectRegistry = (function () {
     'vladren_crimson_apotheosis': {
       id: 'vladren_crimson_apotheosis',
       name: 'Crimson Apotheosis',
-      source: 'Vladren Moroi (Signature, 1/SR)',
+      source: 'Vladren Moroi (Signature, 1/room)',
       patches: [
         // 2 rounds: temp HP cap doubles; resistance to all; Transfusion twice/turn
         { type: 'attr', name: 'hr_pact_cap_multiplier', op: 'set', value: 2 },
         { type: 'attr', name: 'hr_resistance_all_active', op: 'set', value: 1 },
         { type: 'attr', name: 'hr_transfusion_per_turn', op: 'set', value: 2 },
-        { type: 'ability', name: '[Vladren] Crimson Apotheosis (1/SR)', token: true,
-          action: '&{template:default} {{name=Crimson Apotheosis (1/SR)}} {{Duration=2 rounds}} {{Pact=Temp HP cap becomes [[ 2*(5*@{selected|hr_pb} + @{selected|hr_spellmod}) ]]}} {{Defense=**Resistance to all damage**}} {{Transfusion=Use **twice each turn** (still one Bonus Action each)}}' },
-        { type: 'note', text: 'Apotheosis (1/SR): 2 rounds. THP cap ×2; resistance to all; Transfusion ×2/turn.' }
+        { type: 'ability', name: '[Vladren] Crimson Apotheosis (1/room)', token: true,
+          action: '&{template:default} {{name=Crimson Apotheosis (1/room)}} {{Duration=2 rounds}} {{Pact=Temp HP cap becomes [[ 2*(5*@{selected|hr_pb} + @{selected|hr_spellmod}) ]]}} {{Defense=**Resistance to all damage**}} {{Transfusion=Use **twice each turn** (still one Bonus Action each)}}' },
+        { type: 'note', text: 'Apotheosis (1/room): 2 rounds. THP cap ×2; resistance to all; Transfusion ×2/turn.' }
       ]
     },
 
@@ -257,8 +257,8 @@ var EffectRegistry = (function () {
         { type: 'attr', name: 'hr_hemo_plague_bonus_damage', op: 'set', value: '2d6' },
         { type: 'attr', name: 'hr_necrotic_dc_bonus', op: 'set', value: 1 },
         { type: 'attr', name: 'hr_adv_vs_plagued', op: 'set', value: 1 },
-        { type: 'ability', name: '[Vladren] Hemoplague (1/SR)', token: true,
-          action: '&{template:default} {{name=Hemoplague (1/SR; 20-ft; 60 ft; Con save)}} {{Plagued=Target is <b>Plagued</b> until end of its next turn (takes <b>+@{selected|hr_pb}</b> damage from all sources) and is <b>vulnerable to necrotic</b> until the burst resolves.}} {{Burst=Then take [[ 6d6 + 2d6 ]] necrotic (success [[ 3d6 + 2d6 ]] necrotic).}} {{Dominance=While a creature is Plagued, you have advantage on attacks and +1 to spell save DC against it.}} {{Heal yourself=Equal to necrotic dealt; excess becomes Pact temp HP.}}' },
+        { type: 'ability', name: '[Vladren] Hemoplague (1/room)', token: true,
+          action: '&{template:default} {{name=Hemoplague (1/room; 20-ft; 60 ft; Con save)}} {{Plagued=Target is <b>Plagued</b> until end of its next turn (takes <b>+@{selected|hr_pb}</b> damage from all sources) and is <b>vulnerable to necrotic</b> until the burst resolves.}} {{Burst=Then take [[ 6d6 + 2d6 ]] necrotic (success [[ 3d6 + 2d6 ]] necrotic).}} {{Dominance=While a creature is Plagued, you have advantage on attacks and +1 to spell save DC against it.}} {{Heal yourself=Equal to necrotic dealt; excess becomes Pact temp HP.}}' },
         { type: 'ability', name: '[Vladren] Hemarch\u2019s Decree (Info)', token: true,
           action: '&{template:default} {{name=Hemarch’s Decree}} {{Hemoplague=Targets are **vulnerable to necrotic** until the burst}} {{Burst=Burst deals **+2d6 necrotic**}} {{Targeting=You have **advantage** on attacks and **+1** to spell save DC vs **Plagued** creatures}}' },
         { type: 'note', text: 'Hemoplague: necrotic vuln; burst +2d6 necrotic; +1 DC & advantage vs Plagued.' }

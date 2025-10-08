@@ -32,8 +32,8 @@
   var KIT_RULES_HTML = [
     '<b>Crimson Pact.</b> Excess healing becomes <b>temp HP</b> (cap <b>5×PB + spell mod</b>). While you have Pact temp HP: <b>+1 AC</b>; your <b>necrotic ignores resistance</b> (treat immunity as resistance).',
     '<b>Transfusion (Bonus, 1/turn).</b> One creature within <b>60 ft</b> makes a <b>Con save</b>. Fail: <b>2d8 necrotic + PB</b> (success half). You <b>heal</b> for the damage dealt. If the target is <b>½ HP or less</b>, Transfusion deals <b>+1d8 necrotic</b>.',
-    '<b>Sanguine Pool (Reaction, 1/SR).</b> When you take damage, become <b>blood mist</b> until the start of your next turn: <b>resistance to all</b>, you can <b>move through creatures</b>, you <b>can’t cast leveled spells or make attacks</b>, and <b>enemies can’t make OAs</b> against you.',
-    '<b>Hemoplague (1/SR).</b> <b>20-ft radius</b> point within 60 ft, Con save → target is <b>Plagued</b> until end of next turn (<b>+PB damage</b> from all sources), then it takes <b>6d6 necrotic</b> (success <b>3d6</b>). You <b>heal</b> for the total necrotic; excess healing becomes <b>Pact temp HP</b>.'
+    '<b>Sanguine Pool (Reaction, 1/room).</b> When you take damage, become <b>blood mist</b> until the start of your next turn: <b>resistance to all</b>, you can <b>move through creatures</b>, you <b>can’t cast leveled spells or make attacks</b>, and <b>enemies can’t make OAs</b> against you.',
+    '<b>Hemoplague (1/room).</b> <b>20-ft radius</b> point within 60 ft, Con save → target is <b>Plagued</b> until end of next turn (<b>+PB damage</b> from all sources), then it takes <b>6d6 necrotic</b> (success <b>3d6</b>). You <b>heal</b> for the total necrotic; excess healing becomes <b>Pact temp HP</b>.'
   ].join('<br><br>');
 
   function buildRollTemplate(title, rows) {
@@ -68,13 +68,13 @@
   }
 
   function buildSanguinePoolAction() {
-    return buildRollTemplate('Sanguine Pool (Reaction • 1/SR)', [
+    return buildRollTemplate('Sanguine Pool (Reaction • 1/room)', [
       { label: 'Effect', value: 'Until the start of your next turn you are blood mist: resistance to all damage; move through creatures; cannot cast leveled spells or make attacks; enemies cannot make OAs against you.' }
     ]);
   }
 
   function buildHemoplagueAction() {
-    return buildRollTemplate('Hemoplague (1/SR; 20-ft; 60 ft; Con save)', [
+    return buildRollTemplate('Hemoplague (1/room; 20-ft; 60 ft; Con save)', [
       { label: 'Plagued', value: 'Target is <b>Plagued</b> until end of its next turn (takes <b>+@{selected|hr_pb}</b> damage from all sources).' },
       { label: 'Then', value: 'Take [[ 6d6 ]] necrotic (success [[ 3d6 ]] necrotic).' },
       { label: 'Heal yourself', value: 'Equal to necrotic dealt; excess becomes Pact temp HP.' }
@@ -194,8 +194,8 @@
       abilities: [
         { name: 'Crimson Pact (Info)', action: buildCrimsonPactAction(), tokenAction: true },
         { name: 'Transfusion (Bonus)', action: buildTransfusionAction(), tokenAction: true },
-        { name: 'Sanguine Pool (Reaction • 1/SR)', action: buildSanguinePoolAction(), tokenAction: true },
-        { name: 'Hemoplague (1/SR)', action: buildHemoplagueAction(), tokenAction: true }
+        { name: 'Sanguine Pool (Reaction • 1/room)', action: buildSanguinePoolAction(), tokenAction: true },
+        { name: 'Hemoplague (1/room)', action: buildHemoplagueAction(), tokenAction: true }
       ],
       onInstall: onInstall
     });
