@@ -27,6 +27,11 @@ var EffectEngine = (function () {
     }
   }
 
+  var ancestorStatMirrorMap = {
+    'hr_pb': { source: 'pb' },
+    'hr_spellmod': { source: 'spell_mod' }
+  };
+
   function escapeHTML(text) {
     if (!text) {
       return '';
@@ -358,6 +363,37 @@ var EffectEngine = (function () {
     appendGMNote(character, effect.name || effect.id || 'Effect', patch.text || '');
   }
 
+  function getRequestedAncestorStatMirrors(effect) {
+    if (!effect || !effect.meta) {
+      return [];
+    }
+
+    var raw = effect.meta.syncStats;
+    var list = [];
+
+    if (typeof raw === 'undefined' || raw === null) {
+      return list;
+    }
+
+    if (Object.prototype.toString.call(raw) === '[object Array]') {
+      for (var i = 0; i < raw.length; i++) {
+        list.push(raw[i]);
+      }
+    } else if (typeof raw === 'string') {
+      list.push(raw);
+    }
+
+    var normalized = [];
+    for (var n = 0; n < list.length; n++) {
+      var entry = list[n];
+      if (typeof entry === 'string' && entry) {
+        normalized.push(entry);
+      }
+    }
+
+    return normalized;
+  }
+
   function apply(characterId, effect) {
     if (!characterId || !effect) {
       return;
@@ -369,8 +405,9 @@ var EffectEngine = (function () {
       return;
     }
 
-    if (effect.id && String(effect.id).indexOf('vladren_') === 0) {
-      syncVladrenStats(characterId);
+    var statMirrors = getRequestedAncestorStatMirrors(effect);
+    if (statMirrors.length) {
+      syncAncestorStats(characterId, statMirrors);
     }
 
     var patches = effect.patches || [];
@@ -407,13 +444,19 @@ var EffectEngine = (function () {
     info('EffectEngine ready.');
   }
 
-  // Mirrors AncestorKits' stat sync so Vladren boon buttons can pull PB/spell mod.
-  function syncVladrenStats(characterId) {
-    if (!characterId) {
+  // Mirrors sheet stats into Hoard Run attributes for ancestors requesting them via metadata.
+  function syncAncestorStats(characterId, requestedStats) {
+    if (!characterId || !requestedStats || !requestedStats.length) {
       return;
     }
 
+    var cache = {};
+
     function readNumberAttr(name) {
+      if (Object.prototype.hasOwnProperty.call(cache, name)) {
+        return cache[name];
+      }
+
       var attr = findObjs({
         _type: 'attribute',
         _characterid: characterId,
@@ -425,6 +468,8 @@ var EffectEngine = (function () {
       if (isNaN(parsed)) {
         parsed = 0;
       }
+
+      cache[name] = parsed;
       return parsed;
     }
 
@@ -436,11 +481,21 @@ var EffectEngine = (function () {
       attr.set('current', value);
     }
 
-    var pb = readNumberAttr('pb');
-    var spellMod = readNumberAttr('spell_mod');
+    for (var i = 0; i < requestedStats.length; i++) {
+      var targetName = requestedStats[i];
+      if (!Object.prototype.hasOwnProperty.call(ancestorStatMirrorMap, targetName)) {
+        continue;
+      }
 
-    writeNumberAttr('hr_pb', pb);
-    writeNumberAttr('hr_spellmod', spellMod);
+      var mapping = ancestorStatMirrorMap[targetName] || {};
+      var sourceName = mapping.source;
+      if (!sourceName) {
+        continue;
+      }
+
+      var mirroredValue = readNumberAttr(sourceName);
+      writeNumberAttr(targetName, mirroredValue);
+    }
   }
 
   return {

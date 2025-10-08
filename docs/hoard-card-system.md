@@ -153,3 +153,4 @@ Staff upgrades lean toward melee-spell hybrids and stance windows; orb upgrades 
 * Maintain a GM-only reference handout with dial values (A = 20, drop rates, pricing).
 * Build API macro buttons for common actions: draw shop, flip Special slot, reroll, refresh, adjust Scrip/FSE, and manage Reroll Tokens.
 * Enemy cards can link to full stat blocks stored in Roll20 handouts if more depth is required.
+* When adding new ancestor boons, set `meta.syncStats` on the EffectRegistry entry (e.g., `['hr_pb','hr_spellmod']`) so the EffectEngine mirrors the necessary sheet stats before any ability buttons fire.
