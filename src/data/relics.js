@@ -175,6 +175,16 @@ var RelicData = (function () {
       "tags": ["Defense", "Survival", "Cleanse"]
     },
     {
+      "id": "relic_guardians_band_C",
+      "name": "Guardian's Band",
+      "rarity": "Common",
+      "category": "Defense",
+      "price": 30,
+      "text_in_run": "Gain a +1 bonus to AC.",
+      "uses": { "cadence": "per_room", "value": 0 },
+      "tags": ["Defense", "Armor", "Passive"]
+    },
+    {
       "id": "relic_counterglyph_C",
       "name": "Counterglyph",
       "rarity": "Common",
