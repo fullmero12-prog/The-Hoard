@@ -21,6 +21,272 @@ var DevTools = (function () {
   }
 
   /**
+   * Splits a command argument string into tokens while honoring quoted names.
+   * @param {string} argString
+   * @returns {string[]}
+   */
+  function tokenizeArgs(argString) {
+    var tokens = [];
+    if (!argString) {
+      return tokens;
+    }
+
+    var pattern = /"([^"]+)"|(\S+)/g;
+    var match;
+    while ((match = pattern.exec(argString)) !== null) {
+      tokens.push(match[1] || match[2]);
+    }
+
+    return tokens;
+  }
+
+  /**
+   * Returns all player IDs that currently have Hoard Run state entries.
+   * @returns {string[]}
+   */
+  function getKnownPlayerIds() {
+    if (!state.HoardRun || !state.HoardRun.players) {
+      return [];
+    }
+
+    var roster = [];
+    for (var pid in state.HoardRun.players) {
+      if (!state.HoardRun.players.hasOwnProperty(pid)) {
+        continue;
+      }
+      roster.push(pid);
+    }
+    return roster;
+  }
+
+  /**
+   * Returns the IDs for players currently marked as online in Roll20.
+   * @returns {string[]}
+   */
+  function getOnlinePlayerIds() {
+    var online = [];
+    if (typeof findObjs !== 'function') {
+      return online;
+    }
+
+    var players = findObjs({ _type: 'player' }) || [];
+    for (var i = 0; i < players.length; i += 1) {
+      var player = players[i];
+      try {
+        if (player.get('online')) {
+          online.push(player.id);
+        }
+      } catch (err) {
+        // Ignore sandbox errors when fetching display name / status.
+      }
+    }
+    return online;
+  }
+
+  /**
+   * Resolves a single target specifier (player name, ID, all, online) into IDs.
+   * @param {string} token
+   * @returns {string[]}
+   */
+  function resolvePlayerTargets(token) {
+    var resolved = [];
+    var seen = {};
+
+    function push(id) {
+      if (id && !seen[id]) {
+        resolved.push(id);
+        seen[id] = true;
+      }
+    }
+
+    if (!token) {
+      return resolved;
+    }
+
+    var lowered = token.toLowerCase();
+    if (lowered === 'all') {
+      var known = getKnownPlayerIds();
+      if (!known.length) {
+        known = getOnlinePlayerIds();
+      }
+      for (var k = 0; k < known.length; k += 1) {
+        push(known[k]);
+      }
+      return resolved;
+    }
+
+    if (lowered === 'online') {
+      var online = getOnlinePlayerIds();
+      for (var o = 0; o < online.length; o += 1) {
+        push(online[o]);
+      }
+      return resolved;
+    }
+
+    if (state.HoardRun && state.HoardRun.players && state.HoardRun.players[token]) {
+      push(token);
+      return resolved;
+    }
+
+    if (typeof getObj === 'function') {
+      var directPlayer = getObj('player', token);
+      if (directPlayer) {
+        push(token);
+        return resolved;
+      }
+    }
+
+    if (typeof findObjs === 'function') {
+      var candidates = findObjs({ _type: 'player' }) || [];
+      var normalized = token.replace(/_/g, ' ').toLowerCase();
+      for (var i = 0; i < candidates.length; i += 1) {
+        var candidate = candidates[i];
+        try {
+          var name = String(candidate.get('_displayname') || '').toLowerCase();
+          if (name === normalized) {
+            push(candidate.id);
+            return resolved;
+          }
+        } catch (err) {
+          // continue searching when sandbox properties are unavailable
+        }
+      }
+    }
+
+    return resolved;
+  }
+
+  /**
+   * Produces a readable label for a currency key.
+   * @param {string} key
+   * @returns {string}
+   */
+  function formatCurrencyLabel(key) {
+    if (!key) {
+      return '';
+    }
+
+    if (key === 'fse') {
+      return 'FSE';
+    }
+
+    if (key === 'rerollTokens') {
+      return 'Reroll Tokens';
+    }
+
+    return key.charAt(0).toUpperCase() + key.slice(1);
+  }
+
+  /**
+   * Sends a styled whisper to the targeted player when currencies are granted.
+   * @param {string} playerid
+   * @param {string} title
+   * @param {string} body
+   */
+  function whisperPlayer(playerid, title, body) {
+    if (!playerid) {
+      return;
+    }
+
+    var player = typeof getObj === 'function' ? getObj('player', playerid) : null;
+    var name = player ? player.get('_displayname') : null;
+    if (!name) {
+      return;
+    }
+
+    if (typeof UIManager !== 'undefined' && UIManager && typeof UIManager.whisper === 'function') {
+      UIManager.whisper(name, title, body);
+    } else {
+      var payload = '/w "' + name + '" ' + title + ': ' + body;
+      sendChat('Hoard Run', payload);
+    }
+  }
+
+  /**
+   * Core implementation for !givecurrency.
+   * Parses arguments, resolves targets, updates StateManager, and whispers results.
+   * @param {string} argString
+   */
+  function grantCurrency(argString) {
+    var tokens = tokenizeArgs(argString);
+    if (tokens.length < 3) {
+      gmSay('Usage: !givecurrency <player|"Player Name"|all|online> <scrip|fse|squares|reroll> <amount>');
+      return;
+    }
+
+    var targetSpec = tokens[0];
+    var currencyToken = tokens[1].toLowerCase();
+    var amountToken = tokens[2];
+
+    var currencyMap = {
+      scrip: 'scrip',
+      fse: 'fse',
+      square: 'squares',
+      squares: 'squares',
+      reroll: 'rerollTokens',
+      rerolls: 'rerollTokens',
+      rerolltoken: 'rerollTokens',
+      rerolltokens: 'rerollTokens'
+    };
+
+    var currencyKey = currencyMap[currencyToken];
+    if (!currencyKey) {
+      gmSay('Unknown currency "' + currencyToken + '". Use scrip, fse, squares, or reroll.');
+      return;
+    }
+
+    var amount = parseInt(amountToken, 10);
+    if (isNaN(amount) || amount === 0) {
+      gmSay('Provide a non-zero whole number amount to grant.');
+      return;
+    }
+
+    var specs = targetSpec.split(',');
+    var targets = [];
+    var seenTargets = {};
+    for (var i = 0; i < specs.length; i += 1) {
+      var spec = specs[i].trim();
+      if (!spec) {
+        continue;
+      }
+      var resolved = resolvePlayerTargets(spec);
+      for (var r = 0; r < resolved.length; r += 1) {
+        var pid = resolved[r];
+        if (!seenTargets[pid]) {
+          targets.push(pid);
+          seenTargets[pid] = true;
+        }
+      }
+    }
+
+    if (!targets.length) {
+      gmSay('No players matched "' + targetSpec + '". Use the Roll20 display name, player ID, all, or online.');
+      return;
+    }
+
+    if (typeof StateManager === 'undefined' || !StateManager || typeof StateManager.addCurrency !== 'function') {
+      gmSay('StateManager unavailable; cannot grant currency.');
+      return;
+    }
+
+    var summaries = [];
+    var currencyLabel = formatCurrencyLabel(currencyKey);
+    for (var t = 0; t < targets.length; t += 1) {
+      var pid = targets[t];
+      StateManager.addCurrency(pid, currencyKey, amount);
+      var player = typeof getObj === 'function' ? getObj('player', pid) : null;
+      var display = player ? player.get('_displayname') : pid;
+      summaries.push(display);
+
+      var body = (amount > 0 ? '+' : '') + amount + ' ' + currencyLabel;
+      whisperPlayer(pid, 'GM Gift', body);
+    }
+
+    var summary = 'Granted ' + (amount > 0 ? '+' : '') + amount + ' ' + currencyLabel + ' to ' + summaries.join(', ') + '.';
+    gmSay(summary);
+  }
+
+  /**
    * Remove helper attributes created during Hoard Run sessions.
    * These are namespaced as hr_* and can linger across resets.
    * @return {number} Count of removed attributes.
@@ -426,6 +692,13 @@ var DevTools = (function () {
       case '!resethandouts':
         resetHandouts();
         break;
+      case '!givecurrency':
+        if (typeof isGM === 'function' && !isGM(msg.playerid)) {
+          gmSay('⚠️ Only the GM can grant currencies.');
+          return;
+        }
+        grantCurrency(argString);
+        break;
     }
   }
 
@@ -437,7 +710,7 @@ var DevTools = (function () {
       return;
     }
     on('chat:message', handleInput);
-    gmSay('🧰 DevTools loaded. Commands: !resetstate, !debugstate, !testshop, !testrelic, !resethandouts');
+    gmSay('🧰 DevTools loaded. Commands: !resetstate, !debugstate, !testshop, !testrelic, !resethandouts, !givecurrency');
     isRegistered = true;
   }
 
