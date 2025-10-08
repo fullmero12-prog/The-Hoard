@@ -18,7 +18,7 @@
 - `!tradeSquares scrip|fse` — Convert Squares into the specified currency reward.
 
 ## Developer Utilities (GM Only)
-- `!resetstate` — Wipe all Hoard Run data and purge mirrored kit abilities from player sheets.
+- `!resetstate` — Wipe all Hoard Run data, purge mirrored kit abilities, and remove generated handouts.
 - `!debugstate [playerName|playerId]` — Whisper the current Hoard Run state block (optionally filtered to a player).
 - `!testshop` — Generate a mock Bing, Bang & Bongo shop for the first online player.
 - `!testrelic` — Roll a random relic using DeckManager (falls back to static data if decks are missing).

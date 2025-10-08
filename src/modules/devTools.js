@@ -28,6 +28,7 @@ var DevTools = (function () {
     if (typeof AncestorKits !== 'undefined' && AncestorKits && typeof AncestorKits.clearAllMirroredAbilities === 'function') {
       AncestorKits.clearAllMirroredAbilities();
     }
+    resetHandouts();
     delete state.HoardRun;
     state.HoardRun = { players: {}, version: 'dev' };
     if (typeof RunFlowManager !== 'undefined' && typeof RunFlowManager.resetRunState === 'function') {
