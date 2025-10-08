@@ -90,32 +90,37 @@ var EffectEngine = (function () {
     attr.set('current', value);
   }
 
-  function upsertAbility(characterId, name, action, isTokenAction) {
+  function upsertAbility(characterId, name, action, isTokenAction, ability) {
     if (!characterId || !name) {
       return null;
     }
 
-    var ability = findObjs({
+    var existing = ability || findObjs({
       _type: 'ability',
       _characterid: characterId,
       name: name
     })[0];
 
-    if (!ability) {
-      ability = createObj('ability', {
-        _characterid: characterId,
-        name: name,
-        action: action || '',
-        istokenaction: !!isTokenAction
-      });
-    } else {
-      ability.set({
-        action: action || '',
-        istokenaction: !!isTokenAction
-      });
+    var payload = {
+      action: action || ''
+    };
+
+    if (typeof isTokenAction === 'boolean') {
+      payload.istokenaction = !!isTokenAction;
     }
 
-    return ability || null;
+    if (!existing) {
+      existing = createObj('ability', {
+        _characterid: characterId,
+        name: name,
+        action: payload.action,
+        istokenaction: payload.hasOwnProperty('istokenaction') ? payload.istokenaction : !!isTokenAction
+      });
+    } else {
+      existing.set(payload);
+    }
+
+    return existing || null;
   }
 
   function appendGMNote(character, effectName, text) {
@@ -144,9 +149,28 @@ var EffectEngine = (function () {
 
   function applyAbilityPatch(characterId, patch) {
     var name = patch.name || patch.label;
+    if (!name) {
+      return;
+    }
+
     var action = patch.action || '';
-    var tokenAction = patch.token || false;
-    upsertAbility(characterId, name, action, tokenAction);
+    var explicitToken = patch.hasOwnProperty('token');
+    var ability = findObjs({
+      _type: 'ability',
+      _characterid: characterId,
+      name: name
+    })[0];
+    var tokenAction;
+
+    if (explicitToken) {
+      tokenAction = !!patch.token;
+    } else if (ability && typeof ability.get === 'function') {
+      tokenAction = !!ability.get('istokenaction');
+    } else {
+      tokenAction = false;
+    }
+
+    upsertAbility(characterId, name, action, tokenAction, ability);
   }
 
   function applyNotePatch(character, effect, patch) {
