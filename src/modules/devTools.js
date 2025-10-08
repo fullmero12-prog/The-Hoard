@@ -221,40 +221,135 @@ var DevTools = (function () {
       return false;
     }
 
+    function decodeHandoutField(text) {
+      if (!text) {
+        return '';
+      }
+
+      var decoded = String(text);
+
+      // gmnotes often return base64 blobs; try to decode but fall back if invalid.
+      if (
+        typeof atob === 'function' &&
+        decoded.length % 4 === 0 &&
+        /^[A-Za-z0-9+/=]+$/.test(decoded)
+      ) {
+        try {
+          decoded = atob(decoded);
+        } catch (err) {}
+      }
+
+      try {
+        decoded = decodeURIComponent(decoded);
+      } catch (e) {}
+
+      return decoded;
+    }
+
     var removed = 0;
     var handouts = findObjs({ _type: 'handout' }) || [];
-    for (var h = 0; h < handouts.length; h += 1) {
-      var handout = handouts[h];
+
+    function processHandout(index) {
+      if (index >= handouts.length) {
+        var suffix = removed === 1 ? '' : 's';
+        gmSay('🗑️ Removed ' + removed + ' Hoard Run handout' + suffix + '.');
+        return;
+      }
+
+      var handout = handouts[index];
       if (!handout) {
-        continue;
+        processHandout(index + 1);
+        return;
       }
 
       var id = handout.id;
       var name = handout.get('name') || '';
-      var notes = handout.get('notes') || '';
-      var gmnotes = handout.get('gmnotes') || '';
-      var shouldRemove = false;
+      var notesLoaded = false;
+      var gmNotesLoaded = false;
+      var notesText = '';
+      var gmnotesText = '';
 
-      if (tracked[id]) {
-        shouldRemove = true;
+      function finalize() {
+        if (!notesLoaded || !gmNotesLoaded) {
+          return;
+        }
+
+        var shouldRemove = false;
+
+        if (tracked[id]) {
+          shouldRemove = true;
+        }
+
+        if (!shouldRemove && (hasAutoFooter(notesText) || hasAutoFooter(gmnotesText))) {
+          shouldRemove = true;
+        }
+
+        if (!shouldRemove && isAncestorKitHandout(name, notesText)) {
+          shouldRemove = true;
+        }
+
+        if (shouldRemove) {
+          handout.remove();
+          removed += 1;
+        }
+
+        processHandout(index + 1);
       }
 
-      if (!shouldRemove && (hasAutoFooter(notes) || hasAutoFooter(gmnotes))) {
-        shouldRemove = true;
+      function safeGet(prop, done) {
+        if (!handout || typeof handout.get !== 'function') {
+          done('');
+          return;
+        }
+
+        if (prop === 'notes' || prop === 'gmnotes') {
+          try {
+            var didCallback = false;
+            var direct = handout.get(prop, function (value) {
+              didCallback = true;
+              done(value || '');
+            });
+
+            if (didCallback) {
+              return;
+            }
+
+            if (typeof direct !== 'undefined' && direct !== null) {
+              done(direct || '');
+              return;
+            }
+          } catch (err) {}
+
+          try {
+            done(handout.get(prop) || '');
+            return;
+          } catch (syncErr) {}
+
+          done('');
+          return;
+        }
+
+        try {
+          done(handout.get(prop) || '');
+        } catch (e) {
+          done('');
+        }
       }
 
-      if (!shouldRemove && isAncestorKitHandout(name, notes)) {
-        shouldRemove = true;
-      }
+      safeGet('notes', function (value) {
+        notesText = decodeHandoutField(value);
+        notesLoaded = true;
+        finalize();
+      });
 
-      if (shouldRemove) {
-        handout.remove();
-        removed += 1;
-      }
+      safeGet('gmnotes', function (value) {
+        gmnotesText = decodeHandoutField(value);
+        gmNotesLoaded = true;
+        finalize();
+      });
     }
 
-    var suffix = removed === 1 ? '' : 's';
-    gmSay('🗑️ Removed ' + removed + ' Hoard Run handout' + suffix + '.');
+    processHandout(0);
   }
 
   /**
