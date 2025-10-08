@@ -221,7 +221,12 @@ var RoomManager = (function () {
         if (typeof UIManager !== 'undefined' && UIManager && typeof UIManager.buttons === 'function') {
           buttonHtml = UIManager.buttons([{ label: 'Open Shop', command: 'openshop' }]);
         }
-        var gmContent = 'Room ' + roomNumber + ' cleared — open Bing, Bang & Bongo when the party is ready.<br>' + buttonHtml;
+        var gmContent;
+        if (roomNumber === 5) {
+          gmContent = 'Room 5 concluded — Final Shop is live. This is the last visit before the boss.<br>' + buttonHtml;
+        } else {
+          gmContent = 'Room ' + roomNumber + ' cleared — open Bing, Bang & Bongo when the party is ready.<br>' + buttonHtml;
+        }
         var gmMessage = formatPanel('Shop Ready', gmContent);
         if (typeof UIManager !== 'undefined' && UIManager && typeof UIManager.gmLog === 'function') {
           UIManager.gmLog(gmMessage);
@@ -230,11 +235,14 @@ var RoomManager = (function () {
         }
       }
     }
+    if (phase === 'enter' && roomNumber === 5) {
+      whisperText(playerid, '🗣️ Social Encounter — spend this scene roleplaying with the corridor NPC. No combat this round.');
+    }
     if (roomNumber === 3) {
       whisperText(playerid, '🛒 Shop Available — the GM can open Bing, Bang & Bongo with <b>!openshop</b>.');
     }
-    if (roomNumber === 5) {
-      whisperText(playerid, '🛒 Optional Shop unlocked — ask the GM when you would like to browse.');
+    if (phase === 'clear' && roomNumber === 5) {
+      whisperText(playerid, '🛒 Final Shop unlocked — let the GM know when you are ready for one last browse before the boss.');
     }
   }
 
@@ -315,6 +323,9 @@ var RoomManager = (function () {
       var body;
       if (type === 'boss') {
         body = '👑 The final chamber awaits.<br>Run the encounter, then the GM will advance once combat ends.';
+      } else if (nextRoom === 5) {
+        title = 'Room 5 — Social Encounter Ready';
+        body = '🗣️ Gather for the social scene with the corridor\'s NPC guide.<br>No combat here — conclude the roleplay, then the GM will advance to unlock the Final Shop.';
       } else {
         body = '⚔️ Room ' + nextRoom + ' Ready.<br>Resolve the encounter, then the GM will advance once you are victorious.';
       }
@@ -407,7 +418,13 @@ var RoomManager = (function () {
     }
 
     var summaryTitle = type === 'boss' ? 'Boss Defeated!' : 'Room ' + clearedRoom + ' Cleared';
+    if (type === 'room' && clearedRoom === 5) {
+      summaryTitle = 'Social Encounter Concluded';
+    }
     var summaryBody = summarizeRewards(type, bundle, bonusFSE, squareData.squareEarned, totals);
+    if (type === 'room' && clearedRoom === 5) {
+      summaryBody += '<br><br>🛒 Final Shop is available — Room 6 is the boss fight when you are ready.';
+    }
     whisperPanel(playerid, summaryTitle, summaryBody);
 
     if (opts.freeBoon && playerState.ancestor_id && typeof BoonManager !== 'undefined' && BoonManager.offerBoons) {
