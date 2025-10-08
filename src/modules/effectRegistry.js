@@ -184,7 +184,6 @@ var EffectRegistry = (function () {
       patches: [
         // False life 1/room w/o slot, +PB temp HP; +10 ft speed while you have temp HP
         { type: 'attr', name: 'hr_false_life_free_per_room', op: 'set', value: 1 },
-        { type: 'attr', name: 'hr_false_life_pb_bonus', op: 'set', value: '@{hr_pb}' }, // store as marker (informational)
         { type: 'attr', name: 'hr_speed_bonus_when_thp', op: 'set', value: 10 },
         { type: 'ability', name: '[Vladren] Thickened Vitae (Info)', token: true,
           action: '&{template:default} {{name=Thickened Vitae}} {{False Life=1/room without slot; add **+@{selected|hr_pb}** temp HP}} {{Pact Cap=Your Pact temp HP cap is [[ 5*@{selected|hr_pb} + @{selected|hr_spellmod} ]]}} {{Speed=While you have temp HP, gain **+10 ft** speed}}' },

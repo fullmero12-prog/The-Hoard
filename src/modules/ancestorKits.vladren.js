@@ -177,7 +177,7 @@
     // Install Vladren's Always Prepared spell list and token actions when available.
     if (typeof SpellbookHelper !== 'undefined') {
       SpellbookHelper.installAlwaysPrepared(charId, [
-        { name: 'False Life', level: 1, school: 'Necromancy', range: 'Self', components: 'V,S,M', duration: '1 hour', effect: 'Gain [[ 1d4 + 4 + @{selected|hr_spellmod} ]] temp HP as per spell.' },
+        { name: 'False Life', level: 1, school: 'Necromancy', range: 'Self', components: 'V,S,M', duration: '1 hour', effect: 'Gain [[ 1d4 + 4 + @{selected|hr_spellmod} + @{selected|hr_pb} ]] temp HP as per spell.' },
         { name: 'Ray of Sickness', level: 1, school: 'Necromancy', range: '60 ft', components: 'V,S', duration: 'Instant', hit: 'Ranged spell attack; poison on failed Con save.', damage: { roll: '2d8 + @{selected|hr_spellmod}', type: 'poison', notes: 'On a failed Con save the target is poisoned until the end of your next turn.' } },
         { name: 'Ray of Enfeeblement', level: 2, school: 'Necromancy', range: '60 ft', components: 'V,S', duration: '1 minute (Concentration)', effect: 'Target deals half damage with Str attacks (save ends).' },
         { name: 'Mirror Image', level: 2, school: 'Illusion', range: 'Self', components: 'V,S', duration: '1 minute', effect: 'Creates illusory duplicates (no concentration).' },
