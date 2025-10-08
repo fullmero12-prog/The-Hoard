@@ -1016,6 +1016,25 @@ var ShopManager = (function () {
 
     if (slot.type === "relic") {
       playerState.relics.push(record);
+
+      var characterId = playerState && playerState.boundCharacterId;
+      var effectId = record && record.effectId;
+      var buyerName = getPlayerDisplayName(playerid);
+      var relicName = slot.cardName || 'Unknown Relic';
+      if (!characterId) {
+        whisperGM('Relic "' + relicName + '" bought by ' + buyerName + ' has no bound character. Effect not applied.');
+      } else if (!effectId) {
+        whisperGM('Relic "' + relicName + '" bought by ' + buyerName + ' has no effectId. Effect not applied.');
+      } else if (typeof EffectRegistry !== 'undefined' && EffectRegistry && typeof EffectRegistry.get === 'function') {
+        var effectDef = EffectRegistry.get(effectId);
+        if (effectDef && typeof EffectEngine !== 'undefined' && EffectEngine && typeof EffectEngine.apply === 'function') {
+          EffectEngine.apply(characterId, effectDef);
+        } else {
+          whisperGM('Relic "' + relicName + '" effect "' + effectId + '" missing definition or EffectEngine.');
+        }
+      } else {
+        whisperGM('Relic effects could not be resolved because EffectRegistry is unavailable.');
+      }
     } else if (slot.type === "boon") {
       playerState.boons.push(record);
     } else if (slot.type === "upgrade") {
