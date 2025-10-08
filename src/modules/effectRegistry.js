@@ -169,6 +169,10 @@ var EffectRegistry = (function () {
   // Effect Definitions
   // ------------------------------------------------------------
   var initialEffects = {
+    // Metadata helpers:
+    //   - meta.syncStats: Array of hr_* attributes to mirror from core sheet values before
+    //     any ancestor ability buttons fire. Keeps macros portable across ancestors without
+    //     editing EffectEngine when more kits need the same primitives.
     // === VLADREN — The Crimson Tide (Boons) ===
     // IDs match your deck data so BoonManager can apply by picked.id
 
@@ -176,6 +180,7 @@ var EffectRegistry = (function () {
       id: 'vladren_thickened_vitae',
       name: 'Thickened Vitae',
       source: 'Vladren Moroi (Common)',
+      meta: { syncStats: ['hr_pb', 'hr_spellmod'] },
       patches: [
         // False life 1/room w/o slot, +PB temp HP; +10 ft speed while you have temp HP
         { type: 'attr', name: 'hr_false_life_free_per_room', op: 'set', value: 1 },
@@ -191,6 +196,7 @@ var EffectRegistry = (function () {
       id: 'vladren_crimson_drip',
       name: 'Crimson Drip',
       source: 'Vladren Moroi (Common)',
+      meta: { syncStats: ['hr_pb', 'hr_spellmod'] },
       patches: [
         // Transfusion +1d8 necrotic; on a kill, refresh Transfusion
         { type: 'attr', name: 'hr_transfusion_bonus_die', op: 'set', value: '1d8' },
@@ -207,6 +213,7 @@ var EffectRegistry = (function () {
       id: 'vladren_tides_of_blood',
       name: 'Tides of Blood',
       source: 'Vladren Moroi (Greater)',
+      meta: { syncStats: ['hr_pb', 'hr_spellmod'] },
       patches: [
         // Action 1/turn: 15-ft radius surge; Con save → 4d6+PB necrotic (half on success)
         // You may lose up to PBd6 HP to add that much necrotic; heal half total dealt.
@@ -220,6 +227,7 @@ var EffectRegistry = (function () {
       id: 'vladren_sovereign_pool',
       name: 'Sovereign Pool',
       source: 'Vladren Moroi (Greater)',
+      meta: { syncStats: ['hr_pb', 'hr_spellmod'] },
       patches: [
         // Sanguine Pool gains +15 ft move on enter; recharges on 5–6 if THP >=10
         { type: 'attr', name: 'hr_pool_bonus_move_on_enter', op: 'set', value: 15 },
@@ -236,6 +244,7 @@ var EffectRegistry = (function () {
       id: 'vladren_crimson_apotheosis',
       name: 'Crimson Apotheosis',
       source: 'Vladren Moroi (Signature, 1/room)',
+      meta: { syncStats: ['hr_pb', 'hr_spellmod'] },
       patches: [
         // 2 rounds: temp HP cap doubles; resistance to all; Transfusion twice/turn
         { type: 'attr', name: 'hr_pact_cap_multiplier', op: 'set', value: 2 },
@@ -251,6 +260,7 @@ var EffectRegistry = (function () {
       id: 'vladren_hemarchs_decree',
       name: 'Hemarch\u2019s Decree',
       source: 'Vladren Moroi (Signature)',
+      meta: { syncStats: ['hr_pb', 'hr_spellmod'] },
       patches: [
         // Hemoplague upgrades: vuln to necrotic; +2d6 necrotic; +1 DC & advantage vs Plagued
         { type: 'attr', name: 'hr_hemo_plague_vuln_necrotic', op: 'set', value: 1 },
