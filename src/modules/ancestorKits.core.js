@@ -276,7 +276,7 @@ var AncestorKits = (function (ns) {
    */
   function removePrefixedAbilities(characterId, prefix) {
     var removed = 0;
-    if (!characterId || !prefix) {
+    if (!characterId || !prefix || typeof findObjs !== 'function') {
       return removed;
     }
 
@@ -291,6 +291,84 @@ var AncestorKits = (function (ns) {
         removed += 1;
       }
     });
+
+    return removed;
+  }
+
+  /**
+   * Removes abilities from a Character that match the provided name exactly.
+   * @param {string} characterId
+   * @param {string} abilityName
+   * @returns {number} Count removed
+   */
+  function removeAbilityByName(characterId, abilityName) {
+    var removed = 0;
+    if (!characterId || !abilityName || typeof findObjs !== 'function') {
+      return removed;
+    }
+
+    var matches = findObjs({
+      _type: 'ability',
+      _characterid: characterId,
+      name: abilityName
+    }) || [];
+
+    for (var i = 0; i < matches.length; i += 1) {
+      var ability = matches[i];
+      if (!ability || typeof ability.remove !== 'function') {
+        continue;
+      }
+      ability.remove();
+      removed += 1;
+    }
+
+    return removed;
+  }
+
+  /**
+   * Removes mirrored abilities for a specific kit definition from a Character.
+   * Attempts to match by prefix first, then falls back to explicit ability names.
+   * @param {string} characterId
+   * @param {object} def
+   * @param {object=} seenPatterns Optional cache so a prefix is only processed once per character.
+   * @returns {number}
+   */
+  function removeMirroredAbilitiesForDefinition(characterId, def, seenPatterns) {
+    var removed = 0;
+    if (!characterId || !def) {
+      return removed;
+    }
+
+    var prefix = def.stripPattern || def.abilityPrefix;
+    if (prefix) {
+      var label = prefix instanceof RegExp ? prefix.toString() : String(prefix);
+      if (!seenPatterns || !seenPatterns[label]) {
+        removed += removePrefixedAbilities(characterId, prefix);
+        if (seenPatterns) {
+          seenPatterns[label] = true;
+        }
+      }
+    }
+
+    var abilityList = def.abilities || [];
+    for (var i = 0; i < abilityList.length; i += 1) {
+      var abilityDef = abilityList[i];
+      if (!abilityDef) {
+        continue;
+      }
+
+      var cfg = typeof abilityDef === 'string' ? { name: abilityDef } : abilityDef;
+      var abilityName = deriveAbilityName(def, cfg);
+      if (abilityName) {
+        removed += removeAbilityByName(characterId, abilityName);
+      }
+
+      if (cfg.alternateNames && cfg.alternateNames.length) {
+        for (var a = 0; a < cfg.alternateNames.length; a += 1) {
+          removed += removeAbilityByName(characterId, cfg.alternateNames[a]);
+        }
+      }
+    }
 
     return removed;
   }
@@ -387,7 +465,7 @@ var AncestorKits = (function (ns) {
       return false;
     }
 
-    var removed = removePrefixedAbilities(targetChar.id, def.stripPattern || def.abilityPrefix);
+    var removed = removeMirroredAbilitiesForDefinition(targetChar.id, def);
     var installed = 0;
 
     def.abilities.forEach(function (abilityDef) {
@@ -483,7 +561,7 @@ var AncestorKits = (function (ns) {
       return 0;
     }
 
-    var removed = removePrefixedAbilities(targetChar.id, def.stripPattern || def.abilityPrefix);
+    var removed = removeMirroredAbilitiesForDefinition(targetChar.id, def);
     if (def.onUninstall && typeof def.onUninstall === 'function') {
       try {
         def.onUninstall(targetChar);
@@ -528,24 +606,20 @@ var AncestorKits = (function (ns) {
       return result;
     }
 
-    var seen = {};
-    var patterns = [];
+    var defsList = [];
+    var hasRemovalStrategy = false;
     for (var i = 0; i < keys.length; i += 1) {
       var entry = defs[keys[i]] || {};
-      var pattern = entry.stripPattern || entry.abilityPrefix;
-      if (!pattern) {
-        continue;
+      defsList.push(entry);
+      if (!hasRemovalStrategy) {
+        if ((entry.stripPattern || entry.abilityPrefix) || (entry.abilities && entry.abilities.length)) {
+          hasRemovalStrategy = true;
+        }
       }
-      var label = pattern instanceof RegExp ? pattern.toString() : String(pattern);
-      if (seen[label]) {
-        continue;
-      }
-      seen[label] = true;
-      patterns.push(pattern);
     }
 
-    if (!patterns.length) {
-      result.summary = 'Registered kits do not define prefixes to clear.';
+    if (!defsList.length || !hasRemovalStrategy) {
+      result.summary = 'Registered kits do not define prefixes or ability names to clear.';
       if (!quiet) {
         gmSay('ℹ️ ' + result.summary);
       }
@@ -571,8 +645,9 @@ var AncestorKits = (function (ns) {
         continue;
       }
       var removedForChar = 0;
-      for (var p = 0; p < patterns.length; p += 1) {
-        removedForChar += removePrefixedAbilities(charId, patterns[p]);
+      var seenPatterns = {};
+      for (var d = 0; d < defsList.length; d += 1) {
+        removedForChar += removeMirroredAbilitiesForDefinition(charId, defsList[d], seenPatterns);
       }
       if (removedForChar > 0) {
         result.removed += removedForChar;
@@ -588,7 +663,7 @@ var AncestorKits = (function (ns) {
         gmSay('♻️ ' + result.summary);
       }
     } else {
-      result.summary = 'No mirrored abilities matched the registered kit prefixes.';
+      result.summary = 'No mirrored abilities matched the registered kit prefixes or names.';
       if (!quiet) {
         gmSay('ℹ️ ' + result.summary);
       }
