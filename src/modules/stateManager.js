@@ -154,6 +154,16 @@ var StateManager = (function () {
       EffectEngine.removeTokenAbilitiesForPlayer(existing);
     }
 
+    if (
+      existing &&
+      existing.boundCharacterId &&
+      typeof SpellbookHelper !== 'undefined' &&
+      SpellbookHelper &&
+      typeof SpellbookHelper.removeAlwaysPreparedForCharacter === 'function'
+    ) {
+      SpellbookHelper.removeAlwaysPreparedForCharacter(existing.boundCharacterId);
+    }
+
     var fresh = cloneDefaultPlayerState();
     state.HoardRun.players[playerid] = fresh;
     return state.HoardRun.players[playerid];
