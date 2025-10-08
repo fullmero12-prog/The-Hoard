@@ -633,11 +633,15 @@ var ShopManager = (function () {
     return shop.slots;
   }
 
-  function openFor(playerid) {
-    const shop = getPlayerShop(playerid);
-    if (!shop.slots || !shop.slots.length) {
+  /** Opens the shop UI, optionally forcing a fresh set of slots. */
+  function openFor(playerid, forceRefresh) {
+    let shop = getPlayerShop(playerid);
+    if (forceRefresh) {
+      generateShop(playerid);
+    } else if (!shop.slots || !shop.slots.length) {
       generateShop(playerid);
     }
+    shop = getPlayerShop(playerid);
     showShop(playerid, shop.slots);
     return shop.slots;
   }
@@ -1180,7 +1184,7 @@ var ShopManager = (function () {
         }
 
         targets.forEach(id => {
-          openFor(id);
+          openFor(id, true);
         });
         return;
       }
