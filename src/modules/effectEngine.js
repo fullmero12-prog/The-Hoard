@@ -67,6 +67,37 @@ var EffectEngine = (function () {
     return attr || null;
   }
 
+  function applyAdapterFallback(characterId, patch) {
+    if (!patch || !patch.op) {
+      return false;
+    }
+
+    if (patch.op === 'add_resource_counter') {
+      var baseName = 'hr_res_' + String(patch.name || 'resource').replace(/[^a-z0-9]/gi, '_').toLowerCase();
+      var maxValue = patch.max || 1;
+      var cadenceValue = patch.cadence || 'per_room';
+
+      var maxAttr = ensureAttribute(characterId, baseName + '_max');
+      if (maxAttr) {
+        maxAttr.set('current', maxValue);
+      }
+
+      var curAttr = ensureAttribute(characterId, baseName + '_cur');
+      if (curAttr) {
+        curAttr.set('current', maxValue);
+      }
+
+      var cadenceAttr = ensureAttribute(characterId, baseName + '_cadence');
+      if (cadenceAttr) {
+        cadenceAttr.set('current', cadenceValue);
+      }
+
+      return true;
+    }
+
+    return false;
+  }
+
   function applyAttrPatch(characterId, patch) {
     var attr = ensureAttribute(characterId, patch.name);
     if (!attr) {
@@ -362,7 +393,9 @@ var EffectEngine = (function () {
         if (typeof EffectAdapters !== 'undefined' && EffectAdapters && typeof EffectAdapters.apply === 'function') {
           EffectAdapters.apply(characterId, patch, effect);
         } else {
-          warn('Adapter patch skipped — EffectAdapters module unavailable.');
+          if (!applyAdapterFallback(characterId, patch)) {
+            warn('Adapter patch skipped — EffectAdapters module unavailable.');
+          }
         }
       }
     }
