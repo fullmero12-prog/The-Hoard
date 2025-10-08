@@ -208,6 +208,13 @@ var EffectEngine = (function () {
       if (patch.type === 'note') {
         applyNotePatch(character, effect, patch);
       }
+      if (patch.type === 'adapter') {
+        if (typeof EffectAdapters !== 'undefined' && EffectAdapters && typeof EffectAdapters.apply === 'function') {
+          EffectAdapters.apply(characterId, patch, effect);
+        } else {
+          warn('Adapter patch skipped — EffectAdapters module unavailable.');
+        }
+      }
     }
 
     info('Applied effect "' + (effect.name || effect.id) + '" to character ' + character.get('name') + '.');
