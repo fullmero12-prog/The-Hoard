@@ -465,6 +465,20 @@ var EffectRegistry = (function () {
       ],
       note: 'Phoenix Bead (Signature): 1/room instead of 0 HP, clear all conditions, set HP to PB + spell mod, and move your speed without provoking.'
     },
+    'relic_guardians_band_C': {
+      name: 'Guardian\'s Band',
+      displayName: 'Guardian\'s Band (Common)',
+      rarity: 'Common',
+      category: 'Defense',
+      adapters: [
+        { type: 'adapter', op: 'add_ac_misc', value: 1 }
+      ],
+      fields: [
+        { label: 'Passive', value: 'Gain a +1 bonus to AC while worn.' },
+        { label: 'Reminder', value: 'Stacks with shields, armor, and other bonuses unless noted.' }
+      ],
+      note: 'Guardian\'s Band (Common): Passive +1 bonus to AC.'
+    },
     'relic_counterglyph_C': {
       name: 'Counterglyph',
       displayName: 'Counterglyph (Common)',
