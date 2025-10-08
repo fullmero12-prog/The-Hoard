@@ -21,6 +21,38 @@ var DevTools = (function () {
   }
 
   /**
+   * Remove helper attributes created during Hoard Run sessions.
+   * These are namespaced as hr_* and can linger across resets.
+   * @return {number} Count of removed attributes.
+   */
+  function purgeHelperAttributes() {
+    if (typeof findObjs !== 'function') {
+      gmSay('⚠️ Roll20 object search unavailable; cannot prune helper attributes.');
+      return 0;
+    }
+
+    var removed = 0;
+    var attrs = findObjs({ _type: 'attribute' }) || [];
+    for (var i = 0; i < attrs.length; i += 1) {
+      var attr = attrs[i];
+      try {
+        var name = (attr && typeof attr.get === 'function') ? attr.get('name') : '';
+        if (!name) {
+          continue;
+        }
+        if (String(name).toLowerCase().indexOf('hr_') === 0) {
+          attr.remove();
+          removed += 1;
+        }
+      } catch (err) {
+        // Swallow errors so a bad attribute does not interrupt the purge.
+      }
+    }
+
+    return removed;
+  }
+
+  /**
    * Reset the entire Hoard Run state.
    * Clears all progress, currencies, boons, etc.
    */
@@ -36,12 +68,14 @@ var DevTools = (function () {
       AncestorKits.clearAllMirroredAbilities();
     }
     resetHandouts();
+    var removedAttrs = purgeHelperAttributes();
     delete state.HoardRun;
     state.HoardRun = { players: {}, version: 'dev' };
     if (typeof RunFlowManager !== 'undefined' && typeof RunFlowManager.resetRunState === 'function') {
       RunFlowManager.resetRunState();
     }
-    gmSay('⚙️ HoardRun state has been reset.');
+    var suffix = removedAttrs === 1 ? '' : 's';
+    gmSay('⚙️ HoardRun state has been reset. Removed ' + removedAttrs + ' hr_* attribute' + suffix + '.');
   }
 
   /**
