@@ -38,6 +38,64 @@ var SpellbookHelper = (function () {
     return !!(getAttrObj(charId, 'level') || getAttrObj(charId, 'class') || getAttrObj(charId, 'spellcasting_ability'));
   }
 
+  function ensureInlineRoll(expr) {
+    if (!expr) return '';
+    if (expr.indexOf('[[') !== -1) return expr;
+    return '[[ ' + expr + ' ]]';
+  }
+
+  function stripInlineRoll(expr) {
+    if (!expr) return '';
+    return expr.replace(/\[\[(.*?)\]\]/g, '$1').replace(/\s+/g, ' ').trim();
+  }
+
+  function normalizeDamage(entry, defaultLabel) {
+    if (!entry) return null;
+
+    var info = {
+      label: defaultLabel || 'Damage',
+      roll: '',
+      type: '',
+      notes: ''
+    };
+
+    if (typeof entry === 'string') {
+      info.roll = entry;
+      return info;
+    }
+
+    if (typeof entry === 'object') {
+      if (entry.label) info.label = entry.label;
+      if (entry.roll) info.roll = entry.roll;
+      else if (entry.value) info.roll = entry.value;
+      if (entry.type) info.type = entry.type;
+      if (entry.notes) info.notes = entry.notes;
+      return info;
+    }
+
+    return null;
+  }
+
+  function renderDamageRow(rows, entry, defaultLabel) {
+    var info = normalizeDamage(entry, defaultLabel);
+    if (!info) return;
+
+    var pieces = [];
+    if (info.roll) {
+      pieces.push(ensureInlineRoll(info.roll));
+    }
+    if (info.type) {
+      pieces.push(info.type);
+    }
+    if (info.notes) {
+      pieces.push(info.notes);
+    }
+
+    if (pieces.length) {
+      rows.push('{{' + info.label + '=' + pieces.join(' — ') + '}}');
+    }
+  }
+
   // --- Build a safe cast macro (works regardless of sheet) ---
   function buildCastCard(spell) {
     var rows = [];
@@ -46,6 +104,8 @@ var SpellbookHelper = (function () {
     if (spell.range) rows.push('{{Range=' + spell.range + '}}');
     if (spell.components) rows.push('{{Components=' + spell.components + '}}');
     if (spell.duration) rows.push('{{Duration=' + spell.duration + '}}');
+    renderDamageRow(rows, spell.damage, 'Damage');
+    renderDamageRow(rows, spell.damage2, 'Secondary Damage');
     if (spell.hit) rows.push('{{On Hit=' + spell.hit + '}}');
     if (spell.save) rows.push('{{Save=' + spell.save + '}}');
     if (spell.effect) rows.push('{{Effect=' + spell.effect + '}}');
@@ -72,9 +132,22 @@ var SpellbookHelper = (function () {
       setAttr(charId, base + 'spellduration', spell.duration || '');
       setAttr(charId, base + 'spellcomponents', spell.components || '');
       setAttr(charId, base + 'spellattack', spell.attack || '');
-      setAttr(charId, base + 'spelldamage', spell.damage || spell.hit || '');
-      setAttr(charId, base + 'spelldamage2', spell.damage2 || '');
-      setAttr(charId, base + 'spelldamagetype', spell.dmgtype || '');
+      var damageInfo = normalizeDamage(spell.damage, 'Damage');
+      var damageInfo2 = normalizeDamage(spell.damage2, 'Secondary Damage');
+
+      setAttr(charId, base + 'spelldamage', damageInfo ? stripInlineRoll(damageInfo.roll) : (spell.hit || ''));
+      setAttr(charId, base + 'spelldamage2', damageInfo2 ? stripInlineRoll(damageInfo2.roll) : '');
+
+      var dmgType = '';
+      if (damageInfo && damageInfo.type) {
+        dmgType = damageInfo.type;
+      } else if (spell.dmgtype) {
+        dmgType = spell.dmgtype;
+      } else if (damageInfo2 && damageInfo2.type) {
+        dmgType = damageInfo2.type;
+      }
+
+      setAttr(charId, base + 'spelldamagetype', dmgType);
       setAttr(charId, base + 'spellritual', '0');
 
       // Prepared + always prepared
