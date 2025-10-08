@@ -333,6 +333,14 @@ var DevTools = (function () {
     if (typeof AncestorKits !== 'undefined' && AncestorKits && typeof AncestorKits.clearAllMirroredAbilities === 'function') {
       AncestorKits.clearAllMirroredAbilities();
     }
+    var apCleanup = { abilitiesRemoved: 0, attributesRemoved: 0 };
+    if (
+      typeof SpellbookHelper !== 'undefined' &&
+      SpellbookHelper &&
+      typeof SpellbookHelper.clearAlwaysPreparedFromRunState === 'function'
+    ) {
+      apCleanup = SpellbookHelper.clearAlwaysPreparedFromRunState(state.HoardRun);
+    }
     resetHandouts();
     var removedAttrs = purgeHelperAttributes();
     delete state.HoardRun;
@@ -341,7 +349,23 @@ var DevTools = (function () {
       RunFlowManager.resetRunState();
     }
     var suffix = removedAttrs === 1 ? '' : 's';
-    gmSay('⚙️ HoardRun state has been reset. Removed ' + removedAttrs + ' hr_* attribute' + suffix + '.');
+    var abilitySuffix = apCleanup.abilitiesRemoved === 1 ? '' : 's';
+    var tagSuffix = apCleanup.attributesRemoved === 1 ? '' : 's';
+    gmSay(
+      '⚙️ HoardRun state has been reset. Removed ' +
+        removedAttrs +
+        ' hr_* attribute' +
+        suffix +
+        ', cleared ' +
+        apCleanup.abilitiesRemoved +
+        ' AP token action' +
+        abilitySuffix +
+        ' and ' +
+        apCleanup.attributesRemoved +
+        ' AP spell helper attribute' +
+        tagSuffix +
+        '.'
+    );
   }
 
   /**

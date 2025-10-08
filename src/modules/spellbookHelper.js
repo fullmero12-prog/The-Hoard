@@ -218,8 +218,91 @@ var SpellbookHelper = (function () {
     return patched;
   }
 
+  /**
+   * Removes Hoard Run Always Prepared helpers from a specific character.
+   * This clears the token action abilities and any hr_apspell_* markers
+   * so future runs can rebuild a clean set of spells.
+   * @param {string} charId
+   * @returns {{abilitiesRemoved:number, attributesRemoved:number}}
+   */
+  function removeAlwaysPreparedForCharacter(charId) {
+    var result = { abilitiesRemoved: 0, attributesRemoved: 0 };
+    if (!charId || typeof findObjs !== 'function') {
+      return result;
+    }
+
+    var abilities = findObjs({ _type: 'ability', _characterid: charId }) || [];
+    for (var i = 0; i < abilities.length; i += 1) {
+      var ability = abilities[i];
+      try {
+        var name = ability && typeof ability.get === 'function' ? ability.get('name') : '';
+        if (name && name.indexOf('[AP] ') === 0) {
+          ability.remove();
+          result.abilitiesRemoved += 1;
+        }
+      } catch (err) {
+        // Swallow errors so a stubborn ability does not block cleanup.
+      }
+    }
+
+    var attrs = findObjs({ _type: 'attribute', _characterid: charId }) || [];
+    for (var j = 0; j < attrs.length; j += 1) {
+      var attr = attrs[j];
+      try {
+        var attrName = attr && typeof attr.get === 'function' ? attr.get('name') : '';
+        if (attrName && attrName.indexOf('hr_apspell_') === 0) {
+          attr.remove();
+          result.attributesRemoved += 1;
+        }
+      } catch (attrErr) {
+        // Ignore sandbox hiccups when removing helper attributes.
+      }
+    }
+
+    return result;
+  }
+
+  /**
+   * Clears Always Prepared helpers for every bound character in a run state.
+   * Ensures each character is only processed once even if shared between players.
+   * @param {{players:Object<string, {boundCharacterId:string}>}} runState
+   * @returns {{abilitiesRemoved:number, attributesRemoved:number}}
+   */
+  function clearAlwaysPreparedFromRunState(runState) {
+    var totals = { abilitiesRemoved: 0, attributesRemoved: 0 };
+    if (!runState || !runState.players) {
+      return totals;
+    }
+
+    var seen = {};
+    for (var pid in runState.players) {
+      if (!runState.players.hasOwnProperty(pid)) {
+        continue;
+      }
+
+      var ps = runState.players[pid];
+      if (!ps || !ps.boundCharacterId) {
+        continue;
+      }
+
+      var charId = ps.boundCharacterId;
+      if (seen[charId]) {
+        continue;
+      }
+
+      seen[charId] = true;
+      var removed = removeAlwaysPreparedForCharacter(charId);
+      totals.abilitiesRemoved += removed.abilitiesRemoved;
+      totals.attributesRemoved += removed.attributesRemoved;
+    }
+
+    return totals;
+  }
+
   return {
     installAlwaysPrepared: installAlwaysPrepared,
-    patchAPSpell: patchAPSpell
+    patchAPSpell: patchAPSpell,
+    removeAlwaysPreparedForCharacter: removeAlwaysPreparedForCharacter,
+    clearAlwaysPreparedFromRunState: clearAlwaysPreparedFromRunState
   };
 })();
