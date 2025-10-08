@@ -52,6 +52,7 @@ var RunFlowManager = (function () {
   var DEFAULT_RUN_STATE = {
     started: false,
     bossPending: false,
+    bossUnlocked: false,
     currentHighestCleared: 0,
     sessionId: 0
   };
@@ -72,6 +73,8 @@ var RunFlowManager = (function () {
     if (!state.HoardRun.runFlow) {
       state.HoardRun.runFlow = clone(DEFAULT_RUN_STATE);
       info('Initialized run flow state.');
+    } else if (typeof state.HoardRun.runFlow.bossUnlocked === 'undefined') {
+      state.HoardRun.runFlow.bossUnlocked = false;
     }
   }
 
@@ -508,6 +511,7 @@ var RunFlowManager = (function () {
     var run = resetRunState();
     run.started = true;
     run.bossPending = false;
+    run.bossUnlocked = false;
     run.currentHighestCleared = 0;
 
     var roster = getActivePlayers();
@@ -670,6 +674,8 @@ var RunFlowManager = (function () {
     _advancing = true;
 
     var run;
+    var useBossType = false;
+    var bossJustUnlocked = false;
 
     try {
       run = getRun();
@@ -679,7 +685,7 @@ var RunFlowManager = (function () {
       }
 
       var targets = getProcessingList(playerid);
-      var useBossType = !!run.bossPending;
+      useBossType = !!run.bossPending;
       var anyReady = false;
       var anyCleared = false;
 
@@ -701,6 +707,12 @@ var RunFlowManager = (function () {
         if (outcome.status === 'cleared' && outcome.room && run.currentHighestCleared < outcome.room) {
           run.currentHighestCleared = outcome.room;
         }
+      }
+
+      if (!useBossType && !run.bossUnlocked && run.currentHighestCleared >= 5) {
+        run.bossUnlocked = true;
+        run.bossPending = true;
+        bossJustUnlocked = true;
       }
 
       if (useBossType) {
@@ -733,6 +745,7 @@ var RunFlowManager = (function () {
           run.bossPending = true;
         } else if (anyCleared) {
           run.bossPending = false;
+          run.bossUnlocked = false;
         }
       }
     } catch (e) {
@@ -741,10 +754,21 @@ var RunFlowManager = (function () {
       _advancing = false;
 
       if (run && run.started) {
-        var promptMessage = run.bossPending
-          ? '👑 Boss room still active. Click after the encounter to distribute boss rewards again.'
-          : 'Click after each encounter to distribute room rewards.';
-        var promptTitle = run.bossPending ? 'Advance Boss Room' : 'Advance Room Control';
+        var promptMessage;
+        var promptTitle;
+        if (bossJustUnlocked) {
+          promptTitle = 'Boss Unlocked';
+          promptMessage = '👑 Room 6 (Boss) is unlocked. Click when the party is ready to begin the final encounter.';
+        } else if (run.bossPending && useBossType) {
+          promptTitle = 'Advance Boss Room';
+          promptMessage = '👑 Boss room in progress. Click after the encounter to distribute boss rewards again.';
+        } else if (run.bossPending) {
+          promptTitle = 'Boss Ready';
+          promptMessage = '👑 Final chamber prepped. Click to begin the boss room when the party is ready.';
+        } else {
+          promptTitle = 'Advance Room Control';
+          promptMessage = 'Click after each encounter to distribute room rewards.';
+        }
         whisperAdvanceRoomPrompt(promptMessage, promptTitle);
       }
     }
@@ -759,6 +783,7 @@ var RunFlowManager = (function () {
 
     var run = getRun();
     run.bossPending = true;
+    run.bossUnlocked = true;
     whisperAdvanceRoomPrompt(
       '👑 Final chamber flagged. Use the button below after the boss encounter to deliver rewards for each player.',
       'Final Room Flagged'
