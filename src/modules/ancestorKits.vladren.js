@@ -177,14 +177,14 @@
     // Install Vladren's Always Prepared spell list and token actions when available.
     if (typeof SpellbookHelper !== 'undefined') {
       SpellbookHelper.installAlwaysPrepared(charId, [
-        { name: 'False Life', level: 1, school: 'Necromancy', range: 'Self', components: 'V,S,M', duration: '1 hour', effect: 'Gain temp HP as per spell.' },
-        { name: 'Ray of Sickness', level: 1, school: 'Necromancy', range: '60 ft', components: 'V,S', duration: 'Instant', hit: 'Ranged spell attack; poison on failed Con save.' },
+        { name: 'False Life', level: 1, school: 'Necromancy', range: 'Self', components: 'V,S,M', duration: '1 hour', effect: 'Gain [[ 1d4 + 4 + @{selected|hr_spellmod} ]] temp HP as per spell.' },
+        { name: 'Ray of Sickness', level: 1, school: 'Necromancy', range: '60 ft', components: 'V,S', duration: 'Instant', hit: 'Ranged spell attack; poison on failed Con save.', damage: { roll: '2d8 + @{selected|hr_spellmod}', type: 'poison', notes: 'On a failed Con save the target is poisoned until the end of your next turn.' } },
         { name: 'Ray of Enfeeblement', level: 2, school: 'Necromancy', range: '60 ft', components: 'V,S', duration: '1 minute (Concentration)', effect: 'Target deals half damage with Str attacks (save ends).' },
         { name: 'Mirror Image', level: 2, school: 'Illusion', range: 'Self', components: 'V,S', duration: '1 minute', effect: 'Creates illusory duplicates (no concentration).' },
-        { name: 'Vampiric Touch', level: 3, school: 'Necromancy', range: 'Self', components: 'V,S', duration: '1 minute (Concentration)', hit: 'Melee spell attack; necrotic; heal half the damage dealt each hit.' },
-        { name: 'Blight', level: 4, school: 'Necromancy', range: '30 ft', components: 'V,S', duration: 'Instant', effect: '8d8 necrotic; plant creatures have disadvantage and take max dmg.' },
-        { name: 'Enervation', level: 5, school: 'Necromancy', range: '60 ft', components: 'V,S', duration: '1 minute (Concentration)', effect: 'Ray drains 4d8 necrotic; repeat 4d8 each turn while maintained.' },
-        { name: 'Negative Energy Flood', level: 5, school: 'Necromancy', range: '60 ft', components: 'V,M', duration: 'Instant', effect: '5d12 necrotic; humanoid killed may rise as zombie under your control.' }
+        { name: 'Vampiric Touch', level: 3, school: 'Necromancy', range: 'Self', components: 'V,S', duration: '1 minute (Concentration)', hit: 'Melee spell attack; necrotic; heal half the damage dealt each hit.', damage: { roll: '3d6 + @{selected|hr_spellmod}', type: 'necrotic', notes: 'Heal for half the necrotic damage dealt.' } },
+        { name: 'Blight', level: 4, school: 'Necromancy', range: '30 ft', components: 'V,S', duration: 'Instant', damage: { roll: '8d8 + @{selected|hr_spellmod}', type: 'necrotic', notes: 'Plant creatures make the save at disadvantage and take maximum damage.' } },
+        { name: 'Enervation', level: 5, school: 'Necromancy', range: '60 ft', components: 'V,S', duration: '1 minute (Concentration)', damage: { roll: '4d8 + @{selected|hr_spellmod}', type: 'necrotic', notes: 'On a hit, you heal for half the necrotic damage.' }, damage2: { label: 'Sustain', roll: '4d8 + @{selected|hr_spellmod}', type: 'necrotic', notes: 'Each subsequent action while you maintain the beam.' }, effect: 'Ray drains 4d8 necrotic; repeat 4d8 each turn while maintained.' },
+        { name: 'Negative Energy Flood', level: 5, school: 'Necromancy', range: '60 ft', components: 'V,M', duration: 'Instant', damage: { roll: '5d12 + @{selected|hr_spellmod}', type: 'necrotic', notes: 'Humanoid reduced to 0 HP may rise as a zombie under your control.' } }
       ]);
     }
   }
