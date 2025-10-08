@@ -25,6 +25,13 @@ var DevTools = (function () {
    * Clears all progress, currencies, boons, etc.
    */
   function resetState() {
+    if (
+      typeof EffectEngine !== 'undefined' &&
+      EffectEngine &&
+      typeof EffectEngine.removeTokenAbilitiesFromRunState === 'function'
+    ) {
+      EffectEngine.removeTokenAbilitiesFromRunState();
+    }
     if (typeof AncestorKits !== 'undefined' && AncestorKits && typeof AncestorKits.clearAllMirroredAbilities === 'function') {
       AncestorKits.clearAllMirroredAbilities();
     }
