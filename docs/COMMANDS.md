@@ -19,7 +19,7 @@
 - `!givecurrency <player|"Player Name"|all|online> <scrip|fse|squares|reroll> <amount>` — (GM only) Grant Hoard Run currencies directly to players. Comma-separate targets to reach multiple players; use quotes or underscores for names with spaces.
 
 ## Developer Utilities (GM Only)
-- `!resetstate` — Wipe all Hoard Run data, purge mirrored kit abilities, and remove generated handouts.
+- `!resetstate` — Wipe all Hoard Run data, purge mirrored kit abilities, remove boon/relic macros, and remove generated handouts.
 - `!debugstate [playerName|playerId]` — Whisper the current Hoard Run state block (optionally filtered to a player).
 - `!testshop` — Generate a mock Bing, Bang & Bongo shop for the first online player.
 - `!testrelic` — Roll a random relic using DeckManager (falls back to static data if decks are missing).

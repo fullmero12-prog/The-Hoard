@@ -159,6 +159,163 @@ var EffectEngine = (function () {
     return existing || null;
   }
 
+  function shouldMacroizePatch(effect, patch) {
+    if (!patch || patch.type !== 'ability') {
+      return false;
+    }
+
+    if (patch.macro === true) {
+      return true;
+    }
+
+    if (effect && effect.meta && effect.meta.abilitiesAsMacros) {
+      return true;
+    }
+
+    return false;
+  }
+
+  function getBoundPlayers(characterId) {
+    var results = [];
+
+    if (!characterId) {
+      return results;
+    }
+
+    if (typeof StateManager !== 'undefined' && StateManager && typeof StateManager.findPlayersByCharacter === 'function') {
+      try {
+        var bound = StateManager.findPlayersByCharacter(characterId) || [];
+        for (var b = 0; b < bound.length; b += 1) {
+          var entry = bound[b];
+          if (!entry) {
+            continue;
+          }
+          var pid = entry.id || entry.playerId || entry.playerid || null;
+          if (pid) {
+            results.push({ id: pid, state: entry.state || null });
+          }
+        }
+      } catch (err) {}
+    }
+
+    if (!results.length && typeof state !== 'undefined' && state && state.HoardRun && state.HoardRun.players) {
+      var players = state.HoardRun.players;
+      for (var pid in players) {
+        if (!players.hasOwnProperty(pid)) {
+          continue;
+        }
+        try {
+          var ps = players[pid];
+          if (ps && ps.boundCharacterId === characterId) {
+            results.push({ id: pid, state: ps });
+          }
+        } catch (e) {}
+      }
+    }
+
+    return results;
+  }
+
+  function ensureMacroForPlayer(playerId, macroName, action) {
+    if (!playerId || !macroName) {
+      return;
+    }
+
+    if (typeof findObjs !== 'function' || typeof createObj !== 'function') {
+      return;
+    }
+
+    var criteria = {
+      _type: 'macro',
+      playerid: playerId,
+      name: macroName
+    };
+
+    var existing = null;
+    try {
+      var matches = findObjs(criteria) || [];
+      existing = matches[0] || null;
+    } catch (err) {}
+
+    var sanitizedAction = action || '';
+
+    if (!existing) {
+      try {
+        createObj('macro', {
+          name: macroName,
+          action: sanitizedAction,
+          playerid: playerId,
+          istokenaction: false,
+          visibleto: playerId
+        });
+      } catch (createErr) {}
+      return;
+    }
+
+    var updates = {
+      action: sanitizedAction,
+      istokenaction: false
+    };
+
+    try {
+      if (typeof existing.get === 'function') {
+        var currentVisible = existing.get('visibleto') || '';
+        if (currentVisible !== playerId) {
+          updates.visibleto = playerId;
+        }
+      }
+      if (typeof existing.set === 'function') {
+        existing.set(updates);
+      }
+    } catch (updateErr) {}
+  }
+
+  function ensureAbilityMacros(characterId, patch) {
+    var macroName = patch && (patch.name || patch.label);
+    if (!macroName) {
+      return;
+    }
+
+    var action = patch.action || '';
+    var owners = getBoundPlayers(characterId);
+    for (var i = 0; i < owners.length; i += 1) {
+      var owner = owners[i];
+      if (!owner || !owner.id) {
+        continue;
+      }
+      ensureMacroForPlayer(owner.id, macroName, action);
+    }
+  }
+
+  function removeMacroForPlayer(playerId, macroName) {
+    if (!playerId || !macroName) {
+      return 0;
+    }
+
+    if (typeof findObjs !== 'function') {
+      return 0;
+    }
+
+    var removed = 0;
+    try {
+      var matches = findObjs({ _type: 'macro', playerid: playerId, name: macroName }) || [];
+      for (var i = 0; i < matches.length; i += 1) {
+        var macro = matches[i];
+        if (!macro) {
+          continue;
+        }
+        try {
+          if (typeof macro.remove === 'function') {
+            macro.remove();
+            removed += 1;
+          }
+        } catch (removeErr) {}
+      }
+    } catch (err) {}
+
+    return removed;
+  }
+
   function appendGMNote(character, effectName, text) {
     if (!character || !text) {
       return;
@@ -183,7 +340,7 @@ var EffectEngine = (function () {
     character.set('gmnotes', encodeURIComponent(updated));
   }
 
-  function applyAbilityPatch(characterId, patch) {
+  function applyAbilityPatch(characterId, patch, effect) {
     var name = patch.name || patch.label;
     if (!name) {
       return;
@@ -198,7 +355,11 @@ var EffectEngine = (function () {
     })[0];
     var tokenAction;
 
-    if (explicitToken) {
+    var macroMode = shouldMacroizePatch(effect, patch);
+
+    if (macroMode) {
+      tokenAction = false;
+    } else if (explicitToken) {
       tokenAction = !!patch.token;
     } else if (ability && typeof ability.get === 'function') {
       tokenAction = !!ability.get('istokenaction');
@@ -207,6 +368,10 @@ var EffectEngine = (function () {
     }
 
     upsertAbility(characterId, name, action, tokenAction, ability);
+
+    if (macroMode) {
+      ensureAbilityMacros(characterId, patch);
+    }
   }
 
   function removeTokenAbilityByName(characterId, abilityName) {
@@ -252,13 +417,39 @@ var EffectEngine = (function () {
     return removed;
   }
 
-  function removeTokenAbilityPatch(characterId, patch) {
-    if (!patch || patch.type !== 'ability') {
+  function removeAbilityByName(characterId, abilityName) {
+    if (!characterId || !abilityName) {
+      return 0;
+    }
+    if (typeof findObjs !== 'function') {
       return 0;
     }
 
-    var hasTokenFlag = Object.prototype.hasOwnProperty.call(patch, 'token');
-    if (!hasTokenFlag || !patch.token) {
+    var removed = 0;
+    var matches = findObjs({
+      _type: 'ability',
+      _characterid: characterId,
+      name: abilityName
+    }) || [];
+
+    for (var i = 0; i < matches.length; i += 1) {
+      var ability = matches[i];
+      if (!ability) {
+        continue;
+      }
+      try {
+        if (typeof ability.remove === 'function') {
+          ability.remove();
+          removed += 1;
+        }
+      } catch (err) {}
+    }
+
+    return removed;
+  }
+
+  function removeTokenAbilityPatch(characterId, patch) {
+    if (!patch || patch.type !== 'ability') {
       return 0;
     }
 
@@ -267,19 +458,37 @@ var EffectEngine = (function () {
       return 0;
     }
 
-    return removeTokenAbilityByName(characterId, abilityName);
-  }
+    if (patch.macro === true) {
+      return removeAbilityByName(characterId, abilityName);
+    }
 
-  function removeTokenAbilitiesForEffect(characterId, effect) {
-    if (!characterId || !effect) {
+    var hasTokenFlag = Object.prototype.hasOwnProperty.call(patch, 'token');
+    if (!hasTokenFlag || !patch.token) {
       return 0;
     }
 
-    var removed = 0;
+    return removeTokenAbilityByName(characterId, abilityName);
+  }
+
+  function removeTokenAbilitiesForEffect(characterId, effect, playerId) {
+    if (!characterId || !effect) {
+      return { abilitiesRemoved: 0, macrosRemoved: 0 };
+    }
+
+    var removed = { abilitiesRemoved: 0, macrosRemoved: 0 };
     var patches = effect.patches || [];
 
     for (var i = 0; i < patches.length; i += 1) {
-      removed += removeTokenAbilityPatch(characterId, patches[i]);
+      var patch = patches[i];
+      if (!patch || patch.type !== 'ability') {
+        continue;
+      }
+
+      removed.abilitiesRemoved += removeTokenAbilityPatch(characterId, patch);
+
+      if (playerId && shouldMacroizePatch(effect, patch)) {
+        removed.macrosRemoved += removeMacroForPlayer(playerId, patch.name || patch.label || '');
+      }
     }
 
     return removed;
@@ -297,12 +506,12 @@ var EffectEngine = (function () {
     return EffectRegistry.get(effectId);
   }
 
-  function removeTokenAbilitiesForPlayer(playerState) {
+  function removeTokenAbilitiesForPlayer(playerState, playerId) {
     if (!playerState || !playerState.boundCharacterId) {
-      return 0;
+      return { abilitiesRemoved: 0, macrosRemoved: 0 };
     }
 
-    var removed = 0;
+    var removed = { abilitiesRemoved: 0, macrosRemoved: 0 };
     var pools = ['boons', 'relics'];
 
     for (var p = 0; p < pools.length; p += 1) {
@@ -324,7 +533,9 @@ var EffectEngine = (function () {
           continue;
         }
 
-        removed += removeTokenAbilitiesForEffect(playerState.boundCharacterId, effectDef);
+        var effectRemoval = removeTokenAbilitiesForEffect(playerState.boundCharacterId, effectDef, playerId);
+        removed.abilitiesRemoved += effectRemoval.abilitiesRemoved;
+        removed.macrosRemoved += effectRemoval.macrosRemoved;
       }
     }
 
@@ -333,15 +544,15 @@ var EffectEngine = (function () {
 
   function removeTokenAbilitiesFromRunState() {
     if (typeof state === 'undefined' || !state || !state.HoardRun || !state.HoardRun.players) {
-      return 0;
+      return { abilitiesRemoved: 0, macrosRemoved: 0 };
     }
 
     if (typeof EffectRegistry === 'undefined' || !EffectRegistry || typeof EffectRegistry.get !== 'function') {
       warn('EffectRegistry unavailable; cannot remove token abilities from run state.');
-      return 0;
+      return { abilitiesRemoved: 0, macrosRemoved: 0 };
     }
 
-    var removed = 0;
+    var removed = { abilitiesRemoved: 0, macrosRemoved: 0 };
     var players = state.HoardRun.players;
 
     for (var pid in players) {
@@ -349,11 +560,13 @@ var EffectEngine = (function () {
         continue;
       }
 
-      removed += removeTokenAbilitiesForPlayer(players[pid]);
+      var playerRemoval = removeTokenAbilitiesForPlayer(players[pid], pid);
+      removed.abilitiesRemoved += playerRemoval.abilitiesRemoved;
+      removed.macrosRemoved += playerRemoval.macrosRemoved;
     }
 
-    if (removed > 0) {
-      info('Removed ' + removed + ' token abilities from boon or relic effects.');
+    if (removed.abilitiesRemoved > 0 || removed.macrosRemoved > 0) {
+      info('Removed ' + removed.abilitiesRemoved + ' ability records and ' + removed.macrosRemoved + ' macros from boon or relic effects.');
     }
 
     return removed;
@@ -421,7 +634,7 @@ var EffectEngine = (function () {
         applyAttrPatch(characterId, patch);
       }
       if (patch.type === 'ability') {
-        applyAbilityPatch(characterId, patch);
+        applyAbilityPatch(characterId, patch, effect);
       }
       if (patch.type === 'note') {
         applyNotePatch(character, effect, patch);

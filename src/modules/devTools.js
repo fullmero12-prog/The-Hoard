@@ -323,12 +323,13 @@ var DevTools = (function () {
    * Clears all progress, currencies, boons, etc.
    */
   function resetState() {
+    var effectCleanup = { abilitiesRemoved: 0, macrosRemoved: 0 };
     if (
       typeof EffectEngine !== 'undefined' &&
       EffectEngine &&
       typeof EffectEngine.removeTokenAbilitiesFromRunState === 'function'
     ) {
-      EffectEngine.removeTokenAbilitiesFromRunState();
+      effectCleanup = EffectEngine.removeTokenAbilitiesFromRunState();
     }
     if (typeof AncestorKits !== 'undefined' && AncestorKits && typeof AncestorKits.clearAllMirroredAbilities === 'function') {
       AncestorKits.clearAllMirroredAbilities();
@@ -349,8 +350,10 @@ var DevTools = (function () {
       RunFlowManager.resetRunState();
     }
     var suffix = removedAttrs === 1 ? '' : 's';
-    var abilitySuffix = apCleanup.abilitiesRemoved === 1 ? '' : 's';
+    var apAbilitySuffix = apCleanup.abilitiesRemoved === 1 ? '' : 's';
     var tagSuffix = apCleanup.attributesRemoved === 1 ? '' : 's';
+    var effectAbilitySuffix = effectCleanup.abilitiesRemoved === 1 ? '' : 's';
+    var macroSuffix = effectCleanup.macrosRemoved === 1 ? '' : 's';
     gmSay(
       '⚙️ HoardRun state has been reset. Removed ' +
         removedAttrs +
@@ -359,7 +362,15 @@ var DevTools = (function () {
         ', cleared ' +
         apCleanup.abilitiesRemoved +
         ' AP token action' +
-        abilitySuffix +
+        apAbilitySuffix +
+        ', cleaned ' +
+        effectCleanup.abilitiesRemoved +
+        ' boon/relic ability record' +
+        effectAbilitySuffix +
+        ', removed ' +
+        effectCleanup.macrosRemoved +
+        ' boon/relic macro' +
+        macroSuffix +
         ' and ' +
         apCleanup.attributesRemoved +
         ' AP spell helper attribute' +

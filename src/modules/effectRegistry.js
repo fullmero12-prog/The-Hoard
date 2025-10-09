@@ -47,7 +47,8 @@ var EffectRegistry = (function () {
       type: 'ability',
       name: name,
       token: opts.hasOwnProperty('token') ? !!opts.token : true,
-      action: buildAbilityTemplate(header || name, fields)
+      action: buildAbilityTemplate(header || name, fields),
+      macro: opts.macro === true
     };
   }
 
@@ -108,12 +109,14 @@ var EffectRegistry = (function () {
       }
     }
 
+    var shouldCreateMacro = config.hasOwnProperty('macro') ? !!config.macro : true;
+
     if (config.fields && config.fields.length) {
       patches.push(createAbilityPatch(
         abilityName,
         displayName,
         config.fields,
-        { token: config.tokenAction !== false }
+        { token: config.tokenAction !== false, macro: shouldCreateMacro }
       ));
     }
 
@@ -121,6 +124,9 @@ var EffectRegistry = (function () {
       for (var e = 0; e < config.extraAbilities.length; e++) {
         var ability = config.extraAbilities[e];
         if (ability) {
+          if (!Object.prototype.hasOwnProperty.call(ability, 'macro')) {
+            ability.macro = shouldCreateMacro;
+          }
           patches.push(ability);
         }
       }
@@ -186,7 +192,7 @@ var EffectRegistry = (function () {
         { type: 'attr', name: 'hr_false_life_free_per_room', op: 'set', value: 1 },
         { type: 'attr', name: 'hr_false_life_pb_bonus', op: 'set', value: '@{hr_pb}' }, // store as marker (informational)
         { type: 'attr', name: 'hr_speed_bonus_when_thp', op: 'set', value: 10 },
-        { type: 'ability', name: '[Vladren] Thickened Vitae (Info)', token: true,
+        { type: 'ability', name: '[Vladren] Thickened Vitae (Info)', token: true, macro: true,
           action: '&{template:default} {{name=Thickened Vitae}} {{False Life=1/room without slot; add **+@{selected|hr_pb}** temp HP}} {{Pact Cap=Your Pact temp HP cap is [[ 5*@{selected|hr_pb} + @{selected|hr_spellmod} ]]}} {{Speed=While you have temp HP, gain **+10 ft** speed}}' },
         { type: 'note', text: 'False Life 1/room w/o slot; add +PB temp HP. +10 ft speed while you have temp HP.' }
       ]
@@ -201,9 +207,9 @@ var EffectRegistry = (function () {
         // Transfusion +1d8 necrotic; on a kill, refresh Transfusion
         { type: 'attr', name: 'hr_transfusion_bonus_die', op: 'set', value: '1d8' },
         { type: 'attr', name: 'hr_transfusion_refresh_on_kill', op: 'set', value: 1 },
-        { type: 'ability', name: '[Vladren] Transfusion (Bonus)', token: true,
+        { type: 'ability', name: '[Vladren] Transfusion (Bonus)', token: true, macro: true,
           action: '&{template:default} {{name=Transfusion (Bonus; 60 ft; Con save)}} {{Save DC=[[ @{selected|spell_save_dc} ]]}} {{Damage=[[ 2d8 + @{selected|hr_pb} + 1d8 ]] necrotic (half on success)}} {{Bloodied bonus=If target ≤ 1/2 HP, add [[ 1d8 ]] necrotic (stacks with this boon)}} {{Refresh=On a kill, refresh Transfusion; use it again this turn.}} {{Heal yourself=Equal to total necrotic dealt}}' },
-        { type: 'ability', name: '[Vladren] Crimson Drip (Info)', token: true,
+        { type: 'ability', name: '[Vladren] Crimson Drip (Info)', token: true, macro: true,
           action: '&{template:default} {{name=Crimson Drip}} {{Transfusion=Deals **+1d8 necrotic**; on a kill, Transfusion is refreshed and can be used again this turn}}' },
         { type: 'note', text: 'Transfusion +1d8 necrotic; refresh on kill (extra use this turn).' }
       ]
@@ -217,7 +223,7 @@ var EffectRegistry = (function () {
       patches: [
         // Action 1/turn: 15-ft radius surge; Con save → 4d6+PB necrotic (half on success)
         // You may lose up to PBd6 HP to add that much necrotic; heal half total dealt.
-        { type: 'ability', name: '[Vladren] Tides of Blood (Action)', token: true,
+        { type: 'ability', name: '[Vladren] Tides of Blood (Action)', token: true, macro: true,
           action: '&{template:default} {{name=Tides of Blood (Action, 1/turn)}} {{Area=15-ft radius centered on you}} {{Save=Con save (DC [[ 8 + @{selected|hr_pb} + @{selected|hr_spellmod} ]])}} {{Damage=[[ 4d6 + @{selected|hr_pb} ]] necrotic (half on success)}} {{Empower=You may lose up to **@{selected|hr_pb}d6 HP** to add that much necrotic}} {{Heal=You heal **half** the total necrotic dealt}}' },
         { type: 'note', text: 'Action (1/turn). 15-ft surge; Con save. 4d6+PB necrotic; may lose up to PBd6 HP to add; heal half total dealt.' }
       ]
@@ -232,7 +238,7 @@ var EffectRegistry = (function () {
         // Sanguine Pool gains +15 ft move on enter; recharges on 5–6 if THP >=10
         { type: 'attr', name: 'hr_pool_bonus_move_on_enter', op: 'set', value: 15 },
         { type: 'attr', name: 'hr_pool_recharge_5_6_if_thp10', op: 'set', value: 1 },
-        { type: 'ability', name: '[Vladren] Sanguine Pool (Reaction • 1/room)', token: true,
+        { type: 'ability', name: '[Vladren] Sanguine Pool (Reaction • 1/room)', token: true, macro: true,
           action: '&{template:default} {{name=Sanguine Pool (Reaction • 1/room)}} {{Effect=Until the start of your next turn you are blood mist: resistance to all damage; move through creatures; cannot cast leveled spells or make attacks; enemies cannot make OAs against you.}} {{On enter=When you enter the Pool, gain **+15 ft** movement.}} {{Recharge=At the start of your turn, recharge on a **5–6** while you have **≥10 temp HP**.}}' },
         { type: 'ability', name: '[Vladren] Sovereign Pool (Info)', token: false,
           action: '&{template:default} {{name=Sovereign Pool}} {{Move=When you enter, gain **+15 ft** movement}} {{Recharge=At start of your turn, **recharges on 5–6** while you have **≥10 temp HP**}}' },
@@ -250,7 +256,7 @@ var EffectRegistry = (function () {
         { type: 'attr', name: 'hr_pact_cap_multiplier', op: 'set', value: 2 },
         { type: 'attr', name: 'hr_resistance_all_active', op: 'set', value: 1 },
         { type: 'attr', name: 'hr_transfusion_per_turn', op: 'set', value: 2 },
-        { type: 'ability', name: '[Vladren] Crimson Apotheosis (1/room)', token: true,
+        { type: 'ability', name: '[Vladren] Crimson Apotheosis (1/room)', token: true, macro: true,
           action: '&{template:default} {{name=Crimson Apotheosis (1/room)}} {{Duration=2 rounds}} {{Pact=Temp HP cap becomes [[ 2*(5*@{selected|hr_pb} + @{selected|hr_spellmod}) ]]}} {{Defense=**Resistance to all damage**}} {{Transfusion=Use **twice each turn** (still one Bonus Action each)}}' },
         { type: 'note', text: 'Apotheosis (1/room): 2 rounds. THP cap ×2; resistance to all; Transfusion ×2/turn.' }
       ]
@@ -267,9 +273,9 @@ var EffectRegistry = (function () {
         { type: 'attr', name: 'hr_hemo_plague_bonus_damage', op: 'set', value: '2d6' },
         { type: 'attr', name: 'hr_necrotic_dc_bonus', op: 'set', value: 1 },
         { type: 'attr', name: 'hr_adv_vs_plagued', op: 'set', value: 1 },
-        { type: 'ability', name: '[Vladren] Hemoplague (1/room)', token: true,
+        { type: 'ability', name: '[Vladren] Hemoplague (1/room)', token: true, macro: true,
           action: '&{template:default} {{name=Hemoplague (1/room; 20-ft; 60 ft; Con save)}} {{Plagued=Target is <b>Plagued</b> until end of its next turn (takes <b>+@{selected|hr_pb}</b> damage from all sources) and is <b>vulnerable to necrotic</b> until the burst resolves.}} {{Burst=Then take [[ 6d6 + 2d6 ]] necrotic (success [[ 3d6 + 2d6 ]] necrotic).}} {{Dominance=While a creature is Plagued, you have advantage on attacks and +1 to spell save DC against it.}} {{Heal yourself=Equal to necrotic dealt; excess becomes Pact temp HP.}}' },
-        { type: 'ability', name: '[Vladren] Hemarch\u2019s Decree (Info)', token: true,
+        { type: 'ability', name: '[Vladren] Hemarch\u2019s Decree (Info)', token: true, macro: true,
           action: '&{template:default} {{name=Hemarch’s Decree}} {{Hemoplague=Targets are **vulnerable to necrotic** until the burst}} {{Burst=Burst deals **+2d6 necrotic**}} {{Targeting=You have **advantage** on attacks and **+1** to spell save DC vs **Plagued** creatures}}' },
         { type: 'note', text: 'Hemoplague: necrotic vuln; burst +2d6 necrotic; +1 DC & advantage vs Plagued.' }
       ]
