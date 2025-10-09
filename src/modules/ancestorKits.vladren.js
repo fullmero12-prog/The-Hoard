@@ -23,6 +23,7 @@
 
   var KIT_KEY = 'Vladren';
   var KIT_NAME = 'Vladren Moroi';
+  var KIT_FOCUS = 'Orb';
   var SOURCE_CHARACTER_NAME = 'Ancestor — Vladren Moroi';
   var HANDOUT_TITLE_PREFIX = KIT_NAME + ' — Kit (';
   var TEXT_WRAPPER_START = '<div style="font-family:inherit;font-size:13px;line-height:1.25;">'
@@ -185,7 +186,11 @@
         { name: 'Blight', level: 4, school: 'Necromancy', range: '30 ft', components: 'V,S', duration: 'Instant', effect: '8d8 necrotic; plant creatures have disadvantage and take max dmg.' },
         { name: 'Enervation', level: 5, school: 'Necromancy', range: '60 ft', components: 'V,S', duration: '1 minute (Concentration)', effect: 'Ray drains 4d8 necrotic; repeat 4d8 each turn while maintained.' },
         { name: 'Negative Energy Flood', level: 5, school: 'Necromancy', range: '60 ft', components: 'V,M', duration: 'Instant', effect: '5d12 necrotic; humanoid killed may rise as zombie under your control.' }
-      ]);
+      ], {
+        boundPlayerIds: ids,
+        ancestorName: KIT_NAME,
+        focusName: KIT_FOCUS
+      });
     }
   }
 

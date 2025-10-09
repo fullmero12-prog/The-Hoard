@@ -6,6 +6,7 @@
 //   • Creates token-action macros for those spells (reliable casting buttons).
 //   • If the sheet looks like D&D5e by Roll20, it tries to also create/update
 //     the underlying repeating spell entries (nice-to-have).
+//   • Tags each Always Prepared spell with bound player/focus info.
 //   • Exposes patch helpers so boons can modify a specific spell later.
 // ------------------------------------------------------------
 
@@ -38,9 +39,156 @@ var SpellbookHelper = (function () {
     return !!(getAttrObj(charId, 'level') || getAttrObj(charId, 'class') || getAttrObj(charId, 'spellcasting_ability'));
   }
 
+  function escapeHTML(str) {
+    return String(str || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  function unique(list) {
+    var seen = {};
+    var result = [];
+    if (!list || !list.length) {
+      return result;
+    }
+    for (var i = 0; i < list.length; i += 1) {
+      var entry = list[i];
+      if (!entry || seen[entry]) {
+        continue;
+      }
+      seen[entry] = true;
+      result.push(entry);
+    }
+    return result;
+  }
+
+  function playerDisplayName(playerId) {
+    if (!playerId) {
+      return 'Unknown Player';
+    }
+    if (typeof getObj === 'function') {
+      var player = getObj('player', playerId);
+      if (player && typeof player.get === 'function') {
+        var display = player.get('_displayname') || player.get('displayname') || player.get('name');
+        if (display) {
+          return display;
+        }
+      }
+    }
+    return 'Player ' + playerId;
+  }
+
+  function resolveAncestorLabel(name) {
+    if (!name) {
+      return '';
+    }
+    if (typeof AncestorRegistry !== 'undefined' && AncestorRegistry && typeof AncestorRegistry.get === 'function') {
+      var entry = AncestorRegistry.get(name);
+      if (entry && entry.displayName) {
+        return entry.displayName;
+      }
+    }
+    return name;
+  }
+
+  function readPlayerState(playerId) {
+    if (typeof state === 'undefined' || !state || !state.HoardRun || !state.HoardRun.players) {
+      return null;
+    }
+    if (state.HoardRun.players.hasOwnProperty(playerId)) {
+      return state.HoardRun.players[playerId];
+    }
+    return null;
+  }
+
+  function gatherBoundPlayerIds(charId, options) {
+    var ids = [];
+    var opts = options || {};
+    var targetId = charId ? String(charId) : '';
+
+    if (opts.boundPlayerIds && opts.boundPlayerIds.length) {
+      for (var i = 0; i < opts.boundPlayerIds.length; i += 1) {
+        var pid = String(opts.boundPlayerIds[i] || '');
+        if (!pid || pid === 'all') {
+          continue;
+        }
+        ids.push(pid);
+      }
+    } else if (typeof state !== 'undefined' && state && state.HoardRun && state.HoardRun.players) {
+      for (var key in state.HoardRun.players) {
+        if (!state.HoardRun.players.hasOwnProperty(key)) {
+          continue;
+        }
+        var ps = state.HoardRun.players[key];
+        if (!ps || !ps.boundCharacterId) {
+          continue;
+        }
+        if (targetId && String(ps.boundCharacterId) !== targetId) {
+          continue;
+        }
+        ids.push(key);
+      }
+    }
+
+    return unique(ids);
+  }
+
+  function buildBoundLines(charId, options) {
+    var lines = [];
+    var opts = options || {};
+    var ids = gatherBoundPlayerIds(charId, opts);
+
+    for (var i = 0; i < ids.length; i += 1) {
+      var playerId = ids[i];
+      var name = playerDisplayName(playerId);
+      var stateEntry = readPlayerState(playerId);
+      var ancestorName = '';
+      var focusName = '';
+
+      if (stateEntry && stateEntry.ancestor_id) {
+        ancestorName = stateEntry.ancestor_id;
+      } else if (opts.ancestorName) {
+        ancestorName = opts.ancestorName;
+      }
+
+      if (stateEntry && stateEntry.focus) {
+        focusName = stateEntry.focus;
+      } else if (opts.focusName) {
+        focusName = opts.focusName;
+      }
+
+      var meta = [];
+      if (ancestorName) {
+        meta.push(resolveAncestorLabel(ancestorName));
+      }
+      if (focusName) {
+        meta.push('Focus: ' + focusName);
+      }
+
+      var label = '<b>' + escapeHTML(name) + '</b>';
+      if (meta.length) {
+        var safeMeta = [];
+        for (var m = 0; m < meta.length; m += 1) {
+          safeMeta.push(escapeHTML(meta[m]));
+        }
+        label += ' (' + safeMeta.join('; ') + ')';
+      }
+
+      lines.push(label);
+    }
+
+    return lines;
+  }
+
   // --- Build a safe cast macro (works regardless of sheet) ---
-  function buildCastCard(spell) {
+  function buildCastCard(spell, boundLines) {
     var rows = [];
+    if (boundLines && boundLines.length) {
+      rows.push('{{Bound To=' + boundLines.join('<br>') + '}}');
+    }
     if (spell.school) rows.push('{{School=' + spell.school + '}}');
     if (spell.level !== undefined) rows.push('{{Level=' + (spell.level===0 ? 'Cantrip' : spell.level) + '}}');
     if (spell.range) rows.push('{{Range=' + spell.range + '}}');
@@ -97,13 +245,15 @@ var SpellbookHelper = (function () {
 
   // --- Public: install a list of Always Prepared spells ---
   // spells: [{ name, level, school, range, components, duration, hit/save/effect/notes... }]
-  function installAlwaysPrepared(charId, spells) {
+  // options: { boundPlayerIds: [], ancestorName: '', focusName: '' }
+  function installAlwaysPrepared(charId, spells, options) {
     if (!charId || !spells || !spells.length) return;
+    var boundLines = buildBoundLines(charId, options);
     for (var i=0;i<spells.length;i++){
       var s = spells[i];
 
       // 1) Always create a token-action cast macro so it Just Works™
-      upsertAbility(charId, '[AP] ' + s.name, buildCastCard(s), true);
+      upsertAbility(charId, '[AP] ' + s.name, buildCastCard(s, boundLines), true);
 
       // 2) Best-effort: add to OGL5e repeating spell list as prepared
       tryInstallOnOGL5e(charId, s);
