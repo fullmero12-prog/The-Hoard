@@ -151,7 +151,7 @@ var StateManager = (function () {
       EffectEngine &&
       typeof EffectEngine.removeTokenAbilitiesForPlayer === 'function'
     ) {
-      EffectEngine.removeTokenAbilitiesForPlayer(existing);
+      EffectEngine.removeTokenAbilitiesForPlayer(existing, playerid);
     }
 
     if (
@@ -167,6 +167,34 @@ var StateManager = (function () {
     var fresh = cloneDefaultPlayerState();
     state.HoardRun.players[playerid] = fresh;
     return state.HoardRun.players[playerid];
+  }
+
+  /**
+   * Returns a list of players currently bound to a given character.
+   * @param {string} characterId
+   * @return {Array<{id: string, state: object}>}
+   */
+  function findPlayersByCharacter(characterId) {
+    init();
+
+    var matches = [];
+    if (!characterId) {
+      return matches;
+    }
+
+    var players = state.HoardRun.players || {};
+    for (var pid in players) {
+      if (!players.hasOwnProperty(pid)) {
+        continue;
+      }
+
+      var ps = applyDefaultStateShape(players[pid]);
+      if (ps && ps.boundCharacterId === characterId) {
+        matches.push({ id: pid, state: ps });
+      }
+    }
+
+    return matches;
   }
 
   /** Sets the current cleared room number */
@@ -304,6 +332,7 @@ var StateManager = (function () {
     getPlayer: getPlayer,
     setPlayer: setPlayer,
     addCurrency: addCurrency,
+    findPlayersByCharacter: findPlayersByCharacter,
     resetPlayerRun: resetPlayerRun,
     setCurrentRoom: setCurrentRoom,
     incrementRoom: incrementRoom,
