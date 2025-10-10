@@ -214,6 +214,38 @@
     }
   }
 
+  function extractLedgerDelta(entry) {
+    if (!entry) {
+      return 0;
+    }
+
+    var raw = typeof entry.delta !== 'undefined' ? entry.delta : entry.amount;
+    var value = Number(raw);
+    return isNaN(value) ? 0 : value;
+  }
+
+  function sumLedgerDelta(entries) {
+    var total = 0;
+    if (!entries || !entries.length) {
+      return total;
+    }
+
+    for (var i = 0; i < entries.length; i++) {
+      total += extractLedgerDelta(entries[i]);
+    }
+
+    return total;
+  }
+
+  function updateAdditiveBucket(charId, attrName, entries) {
+    if (!attrName) {
+      return;
+    }
+
+    var total = sumLedgerDelta(entries);
+    setAttr(charId, attrName, total || 0);
+  }
+
   function escapeForRegex(str) {
     return String(str || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   }
@@ -522,6 +554,82 @@
       return true;
     }
 
+    if (patch.op === 'add_initiative_bonus') {
+      var initiativeValue = Number(pickFirst(patch.value, patch.bonus, patch.amount, patch.delta, 0));
+      if (isNaN(initiativeValue)) {
+        initiativeValue = 0;
+      }
+
+      var initiativeLedgerKey = getLedgerKey(patch, effect);
+      var initiativeLedger = readLedger(charId, 'hr_ledger_add_initiative_bonus');
+      var filteredInitiative = [];
+      var previousInitiative = 0;
+
+      for (var i = 0; i < initiativeLedger.length; i++) {
+        var initiativeEntry = initiativeLedger[i];
+        if (initiativeEntry && initiativeEntry.key === initiativeLedgerKey) {
+          previousInitiative += extractLedgerDelta(initiativeEntry);
+        } else if (initiativeEntry) {
+          filteredInitiative.push(initiativeEntry);
+        }
+      }
+
+      if (previousInitiative !== 0) {
+        addNumber(charId, 'initiative_bonus', -previousInitiative);
+      }
+
+      if (initiativeValue !== 0) {
+        addNumber(charId, 'initiative_bonus', initiativeValue);
+        filteredInitiative.push({
+          key: initiativeLedgerKey,
+          delta: initiativeValue,
+          label: resolveLabel(patch, effect, 'Initiative Bonus')
+        });
+      }
+
+      writeLedger(charId, 'hr_ledger_add_initiative_bonus', filteredInitiative);
+      updateAdditiveBucket(charId, 'hr_initiative_bonus_total', filteredInitiative);
+      return true;
+    }
+
+    if (patch.op === 'add_death_save_bonus') {
+      var deathSaveValue = Number(pickFirst(patch.value, patch.bonus, patch.amount, patch.delta, 0));
+      if (isNaN(deathSaveValue)) {
+        deathSaveValue = 0;
+      }
+
+      var deathLedgerKey = getLedgerKey(patch, effect);
+      var deathLedger = readLedger(charId, 'hr_ledger_add_death_save_bonus');
+      var filteredDeath = [];
+      var previousDeath = 0;
+
+      for (var j = 0; j < deathLedger.length; j++) {
+        var deathEntry = deathLedger[j];
+        if (deathEntry && deathEntry.key === deathLedgerKey) {
+          previousDeath += extractLedgerDelta(deathEntry);
+        } else if (deathEntry) {
+          filteredDeath.push(deathEntry);
+        }
+      }
+
+      if (previousDeath !== 0) {
+        addNumber(charId, 'death_save_bonus', -previousDeath);
+      }
+
+      if (deathSaveValue !== 0) {
+        addNumber(charId, 'death_save_bonus', deathSaveValue);
+        filteredDeath.push({
+          key: deathLedgerKey,
+          delta: deathSaveValue,
+          label: resolveLabel(patch, effect, 'Death Save Bonus')
+        });
+      }
+
+      writeLedger(charId, 'hr_ledger_add_death_save_bonus', filteredDeath);
+      updateAdditiveBucket(charId, 'hr_death_save_bonus_total', filteredDeath);
+      return true;
+    }
+
     if (patch.op === 'add_global_spell_attack') {
       var attackValue = Number(patch.value || 0);
       var attackString = (attackValue >= 0 ? '+' : '') + attackValue;
@@ -665,6 +773,54 @@
       if (speedAttr) {
         speedAttr.set('current', 0);
       }
+      return true;
+    }
+
+    if (patch.op === 'add_initiative_bonus') {
+      var removeInitiativeKey = getLedgerKey(patch, effect);
+      var removeInitiativeLedger = readLedger(charId, 'hr_ledger_add_initiative_bonus');
+      var remainingInitiative = [];
+      var initiativeDelta = 0;
+
+      for (var m = 0; m < removeInitiativeLedger.length; m++) {
+        var initEntry = removeInitiativeLedger[m];
+        if (initEntry && initEntry.key === removeInitiativeKey) {
+          initiativeDelta += extractLedgerDelta(initEntry);
+        } else if (initEntry) {
+          remainingInitiative.push(initEntry);
+        }
+      }
+
+      if (initiativeDelta !== 0) {
+        addNumber(charId, 'initiative_bonus', -initiativeDelta);
+      }
+
+      writeLedger(charId, 'hr_ledger_add_initiative_bonus', remainingInitiative);
+      updateAdditiveBucket(charId, 'hr_initiative_bonus_total', remainingInitiative);
+      return true;
+    }
+
+    if (patch.op === 'add_death_save_bonus') {
+      var removeDeathKey = getLedgerKey(patch, effect);
+      var removeDeathLedger = readLedger(charId, 'hr_ledger_add_death_save_bonus');
+      var remainingDeath = [];
+      var deathDelta = 0;
+
+      for (var n = 0; n < removeDeathLedger.length; n++) {
+        var deathEntry = removeDeathLedger[n];
+        if (deathEntry && deathEntry.key === removeDeathKey) {
+          deathDelta += extractLedgerDelta(deathEntry);
+        } else if (deathEntry) {
+          remainingDeath.push(deathEntry);
+        }
+      }
+
+      if (deathDelta !== 0) {
+        addNumber(charId, 'death_save_bonus', -deathDelta);
+      }
+
+      writeLedger(charId, 'hr_ledger_add_death_save_bonus', remainingDeath);
+      updateAdditiveBucket(charId, 'hr_death_save_bonus_total', remainingDeath);
       return true;
     }
 
