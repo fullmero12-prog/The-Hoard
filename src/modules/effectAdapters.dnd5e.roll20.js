@@ -142,6 +142,34 @@
     }
   }
 
+  function toActiveValue(value, fallback) {
+    if (typeof fallback === 'undefined') {
+      fallback = true;
+    }
+
+    if (typeof value === 'undefined' || value === null) {
+      return fallback ? 1 : 0;
+    }
+
+    var str = String(value).toLowerCase();
+    if (str === 'on' || str === 'true') {
+      return 1;
+    }
+    if (str === 'off' || str === 'false') {
+      return 0;
+    }
+    if (str === '' || str === '0') {
+      return 0;
+    }
+
+    var num = Number(value);
+    if (!isNaN(num)) {
+      return num ? 1 : 0;
+    }
+
+    return fallback ? 1 : 0;
+  }
+
   function pickFirst() {
     for (var i = 0; i < arguments.length; i++) {
       var value = arguments[i];
@@ -544,6 +572,88 @@
       return addGlobalDamageMath(charId, dmgKey, dmgLabel, rollValue, critValue, typeValue);
     }
 
+    if (patch.op === 'add_global_ac_mod_row') {
+      var acLabelRaw = pickFirst(patch.label, patch.name, patch.title, 'AC Boon');
+      var acLabel = String(acLabelRaw || 'AC Boon').replace(/\|\|/g, '/');
+      acLabel = acLabel.replace(/\s+/g, ' ').trim();
+      if (!acLabel) {
+        acLabel = 'AC Boon';
+      }
+
+      var acValue = pickFirst(patch.value, patch.math, patch.bonus, 1);
+      if (typeof acValue === 'number' && isNaN(acValue)) {
+        acValue = 1;
+      }
+      if (typeof acValue === 'undefined' || acValue === null || acValue === '') {
+        acValue = 1;
+      }
+      if (typeof acValue === 'string') {
+        acValue = acValue.replace(/\s+/g, ' ').trim();
+        if (!acValue) {
+          acValue = 1;
+        }
+      }
+
+      var acRowId = typeof generateRowID === 'function' ? generateRowID() : randRowId();
+      setAttr(charId, 'repeating_globalacmod_' + acRowId + '_global_ac_name', acLabel);
+      setAttr(charId, 'repeating_globalacmod_' + acRowId + '_global_ac_val', acValue);
+      var acActive = toActiveValue(patch.active, true);
+      setAttr(charId, 'repeating_globalacmod_' + acRowId + '_global_ac_active', acActive);
+      rememberRowId(charId, 'hr_rows_globalacmod', acRowId);
+      return true;
+    }
+
+    if (patch.op === 'toggle_global_ac_mod') {
+      var targetLabelRaw = pickFirst(patch.label, patch.name, patch.title, '');
+      var targetLabel = String(targetLabelRaw || '').replace(/\|\|/g, '/');
+      targetLabel = targetLabel.replace(/\s+/g, ' ').trim();
+      if (!targetLabel) {
+        return false;
+      }
+
+      var attrs = findObjs({
+        _type: 'attribute',
+        _characterid: charId
+      }) || [];
+
+      var toggled = false;
+      for (var idx = 0; idx < attrs.length; idx++) {
+        var attr = attrs[idx];
+        var name = attr.get('name') || '';
+        if (name.indexOf('repeating_globalacmod_') !== 0 || name.indexOf('_global_ac_name') === -1) {
+          continue;
+        }
+
+        var label = String(attr.get('current') || '').replace(/\s+/g, ' ').trim();
+        if (label !== targetLabel) {
+          continue;
+        }
+
+        var parts = name.split('_');
+        if (parts.length < 4) {
+          continue;
+        }
+
+        var rowId = parts[2];
+        var toggleActive = toActiveValue(patch.active, true);
+        setAttr(charId, 'repeating_globalacmod_' + rowId + '_global_ac_active', toggleActive);
+        toggled = true;
+      }
+
+      return toggled;
+    }
+
+    if (patch.op === 'remove_global_ac_mod_rows') {
+      var acIds = readRowIds(charId, 'hr_rows_globalacmod');
+      var removed = false;
+      for (var acIdx = 0; acIdx < acIds.length; acIdx++) {
+        removeRepeatingRow(charId, 'globalacmod', acIds[acIdx]);
+        removed = true;
+      }
+      clearRowIds(charId, 'hr_rows_globalacmod');
+      return removed;
+    }
+
     if (patch.op === 'add_ac_misc') {
       addNumber(charId, 'hr_adapter_ac_misc_total', patch.value || 0);
       return true;
@@ -750,6 +860,17 @@
       var dmgKey = getLedgerKey(patch, effect);
       removeGlobalDamageMath(charId, dmgKey);
       return true;
+    }
+
+    if (patch.op === 'add_global_ac_mod_row') {
+      var removeAcIds = readRowIds(charId, 'hr_rows_globalacmod');
+      var removedAc = false;
+      for (var acIndex = 0; acIndex < removeAcIds.length; acIndex++) {
+        removeRepeatingRow(charId, 'globalacmod', removeAcIds[acIndex]);
+        removedAc = true;
+      }
+      clearRowIds(charId, 'hr_rows_globalacmod');
+      return removedAc;
     }
 
     if (patch.op === 'add_ac_misc') {
