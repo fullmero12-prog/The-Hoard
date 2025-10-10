@@ -7,23 +7,62 @@
 // ------------------------------------------------------------
 
 on('ready', function () {
-  LogManager.register && LogManager.register();
-  SafetyGuards.register && SafetyGuards.register();
-  UIManager.register && UIManager.register();
+  if (typeof LogManager !== 'undefined' && LogManager.register) {
+    LogManager.register();
+  }
 
-  EffectAdapters.register && EffectAdapters.register();   // register concrete adapters first
-  EffectEngine.register && EffectEngine.register();       // then engine that uses them
-  SpellbookHelper.register && SpellbookHelper.register();
+  if (typeof SafetyGuards !== 'undefined' && SafetyGuards.register) {
+    SafetyGuards.register();
+  }
 
-  AncestorRegistry.register && AncestorRegistry.register();
-  BoonDataLoader.register && BoonDataLoader.register();
-  DeckManager.register && DeckManager.register();
+  if (typeof UIManager !== 'undefined' && UIManager.register) {
+    UIManager.register();
+  }
 
-  BoonManager.register && BoonManager.register();
-  ShopManager.register && ShopManager.register();
-  RoomManager.register && RoomManager.register();
-  RunFlowManager.register && RunFlowManager.register();
-  DevTools.register && DevTools.register();
+  // register concrete adapters first so the engine can immediately consume them
+  if (typeof EffectAdapters !== 'undefined' && EffectAdapters.register) {
+    EffectAdapters.register();
+  }
+
+  if (typeof EffectEngine !== 'undefined' && EffectEngine.register) {
+    EffectEngine.register();
+  }
+
+  if (typeof SpellbookHelper !== 'undefined' && SpellbookHelper.register) {
+    SpellbookHelper.register();
+  }
+
+  if (typeof AncestorRegistry !== 'undefined' && AncestorRegistry.register) {
+    AncestorRegistry.register();
+  }
+
+  if (typeof BoonDataLoader !== 'undefined' && BoonDataLoader.register) {
+    BoonDataLoader.register();
+  }
+
+  if (typeof DeckManager !== 'undefined' && DeckManager.register) {
+    DeckManager.register();
+  }
+
+  if (typeof BoonManager !== 'undefined' && BoonManager.register) {
+    BoonManager.register();
+  }
+
+  if (typeof ShopManager !== 'undefined' && ShopManager.register) {
+    ShopManager.register();
+  }
+
+  if (typeof RoomManager !== 'undefined' && RoomManager.register) {
+    RoomManager.register();
+  }
+
+  if (typeof RunFlowManager !== 'undefined' && RunFlowManager.register) {
+    RunFlowManager.register();
+  }
+
+  if (typeof DevTools !== 'undefined' && DevTools.register) {
+    DevTools.register();
+  }
 
   sendChat('Hoard Run','/w gm ✅ Hoard loaded. Use !startrun to begin.');
 });
