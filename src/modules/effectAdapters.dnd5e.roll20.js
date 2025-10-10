@@ -274,6 +274,80 @@
     setAttr(charId, attrName, total || 0);
   }
 
+  function normalizeLabel(label) {
+    if (typeof label === 'undefined' || label === null) {
+      return '';
+    }
+
+    return String(label).replace(/\s+/g, ' ').trim();
+  }
+
+  function buildAcMiscLabel(entries) {
+    var base = 'Hoard: AC Mods';
+    if (!entries || !entries.length) {
+      return base;
+    }
+
+    var seen = {};
+    var labels = [];
+
+    for (var i = 0; i < entries.length; i++) {
+      var entry = entries[i];
+      if (!entry || !entry.label) {
+        continue;
+      }
+
+      var normalized = normalizeLabel(entry.label);
+      if (!normalized) {
+        continue;
+      }
+
+      var dedupeKey = normalized.toLowerCase();
+      if (seen[dedupeKey]) {
+        continue;
+      }
+
+      seen[dedupeKey] = true;
+      labels.push(normalized);
+    }
+
+    if (!labels.length) {
+      return base;
+    }
+
+    var slice = labels.slice(0, 3);
+    var suffix = slice.join(', ');
+    if (labels.length > 3) {
+      suffix += ', +' + (labels.length - 3) + ' more';
+    }
+
+    return base + ' (' + suffix + ')';
+  }
+
+  function refreshGlobalAcMiscRow(charId, entries) {
+    var ledgerEntries = entries || readLedger(charId, 'hr_ledger_add_ac_misc');
+    var total = sumLedgerDelta(ledgerEntries);
+    var rowKey = String(getAttr(charId, 'hr_adapter_ac_misc_row') || '').trim();
+
+    if (!total) {
+      if (rowKey) {
+        removeRepeatingRow(charId, 'globalacmod', rowKey);
+        setAttr(charId, 'hr_adapter_ac_misc_row', '');
+      }
+      return;
+    }
+
+    var acRowId = rowKey || (typeof generateRowID === 'function' ? generateRowID() : randRowId());
+    setAttr(charId, 'hr_adapter_ac_misc_row', acRowId);
+
+    var acLabel = buildAcMiscLabel(ledgerEntries);
+    var valueText = total >= 0 ? ('+' + total) : String(total);
+
+    setAttr(charId, 'repeating_globalacmod_' + acRowId + '_global_ac_name', acLabel);
+    setAttr(charId, 'repeating_globalacmod_' + acRowId + '_global_ac_val', valueText);
+    setAttr(charId, 'repeating_globalacmod_' + acRowId + '_global_ac_active', 1);
+  }
+
   function escapeForRegex(str) {
     return String(str || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   }
@@ -655,7 +729,36 @@
     }
 
     if (patch.op === 'add_ac_misc') {
-      addNumber(charId, 'hr_adapter_ac_misc_total', patch.value || 0);
+      var acValue = Number(pickFirst(patch.value, patch.bonus, patch.amount, patch.delta, 0));
+      if (isNaN(acValue)) {
+        acValue = 0;
+      }
+
+      var acLedgerKey = getLedgerKey(patch, effect);
+      var acLedger = readLedger(charId, 'hr_ledger_add_ac_misc');
+      var filteredAc = [];
+
+      for (var acIdx = 0; acIdx < acLedger.length; acIdx++) {
+        var acEntry = acLedger[acIdx];
+        if (acEntry && acEntry.key === acLedgerKey) {
+          continue;
+        }
+        if (acEntry) {
+          filteredAc.push(acEntry);
+        }
+      }
+
+      if (acValue !== 0) {
+        filteredAc.push({
+          key: acLedgerKey,
+          delta: acValue,
+          label: resolveLabel(patch, effect, 'AC Bonus')
+        });
+      }
+
+      writeLedger(charId, 'hr_ledger_add_ac_misc', filteredAc);
+      updateAdditiveBucket(charId, 'hr_adapter_ac_misc_total', filteredAc);
+      refreshGlobalAcMiscRow(charId, filteredAc);
       return true;
     }
 
@@ -874,14 +977,23 @@
     }
 
     if (patch.op === 'add_ac_misc') {
-      var acAttr = findObjs({
-        _type: 'attribute',
-        _characterid: charId,
-        name: 'hr_adapter_ac_misc_total'
-      })[0];
-      if (acAttr) {
-        acAttr.set('current', 0);
+      var removeAcKey = getLedgerKey(patch, effect);
+      var existingAcLedger = readLedger(charId, 'hr_ledger_add_ac_misc');
+      var remainingAc = [];
+
+      for (var acRemoveIdx = 0; acRemoveIdx < existingAcLedger.length; acRemoveIdx++) {
+        var acRemoveEntry = existingAcLedger[acRemoveIdx];
+        if (acRemoveEntry && acRemoveEntry.key === removeAcKey) {
+          continue;
+        }
+        if (acRemoveEntry) {
+          remainingAc.push(acRemoveEntry);
+        }
       }
+
+      writeLedger(charId, 'hr_ledger_add_ac_misc', remainingAc);
+      updateAdditiveBucket(charId, 'hr_adapter_ac_misc_total', remainingAc);
+      refreshGlobalAcMiscRow(charId, remainingAc);
       return true;
     }
 
