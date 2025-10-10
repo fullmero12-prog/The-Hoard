@@ -331,16 +331,18 @@ var DevTools = (function () {
     ) {
       effectCleanup = EffectEngine.removeTokenAbilitiesFromRunState();
     }
-    if (typeof AncestorKits !== 'undefined' && AncestorKits && typeof AncestorKits.clearAllMirroredAbilities === 'function') {
-      AncestorKits.clearAllMirroredAbilities();
-    }
     var apCleanup = { abilitiesRemoved: 0, attributesRemoved: 0 };
     if (
       typeof SpellbookHelper !== 'undefined' &&
       SpellbookHelper &&
       typeof SpellbookHelper.clearAlwaysPreparedFromRunState === 'function'
     ) {
+      // Run this before AncestorKits clears bound character tracking so we still know
+      // which sheets need their Always Prepared token actions removed.
       apCleanup = SpellbookHelper.clearAlwaysPreparedFromRunState(state.HoardRun);
+    }
+    if (typeof AncestorKits !== 'undefined' && AncestorKits && typeof AncestorKits.clearAllMirroredAbilities === 'function') {
+      AncestorKits.clearAllMirroredAbilities();
     }
     resetHandouts();
     var removedAttrs = purgeHelperAttributes();
