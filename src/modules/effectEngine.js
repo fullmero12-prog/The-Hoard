@@ -10,6 +10,8 @@
 var EffectEngine = (function () {
   var root = (typeof globalThis !== 'undefined') ? globalThis : this;
   var logger = root.HRLog || null;
+  var attributeCache = {};
+  var abilityCache = {};
 
   function info(message) {
     if (logger && logger.info) {
@@ -50,23 +52,66 @@ var EffectEngine = (function () {
     });
   }
 
+  function normalizeId(id) {
+    return id ? String(id) : '';
+  }
+
+  function getAttributeCacheBucket(characterId) {
+    var cacheId = normalizeId(characterId);
+    if (!cacheId) {
+      return null;
+    }
+    if (!attributeCache[cacheId]) {
+      attributeCache[cacheId] = {};
+    }
+    return attributeCache[cacheId];
+  }
+
+  function getAbilityCacheBucket(characterId) {
+    var cacheId = normalizeId(characterId);
+    if (!cacheId) {
+      return null;
+    }
+    if (!abilityCache[cacheId]) {
+      abilityCache[cacheId] = {};
+    }
+    return abilityCache[cacheId];
+  }
+
   function ensureAttribute(characterId, name) {
     if (!characterId || !name) {
       return null;
     }
 
-    var attr = findObjs({
-      _type: 'attribute',
-      _characterid: characterId,
-      name: name
-    })[0];
+    var bucket = getAttributeCacheBucket(characterId);
+    if (bucket && Object.prototype.hasOwnProperty.call(bucket, name)) {
+      var cachedAttr = bucket[name];
+      if (cachedAttr && typeof cachedAttr.get === 'function') {
+        return cachedAttr;
+      }
+    }
 
-    if (!attr) {
+    var attr = null;
+
+    if (typeof findObjs === 'function') {
+      var matches = findObjs({
+        _type: 'attribute',
+        _characterid: characterId,
+        name: name
+      }) || [];
+      attr = matches[0] || null;
+    }
+
+    if (!attr && typeof createObj === 'function') {
       attr = createObj('attribute', {
         _characterid: characterId,
         name: name,
         current: ''
       });
+    }
+
+    if (bucket && attr) {
+      bucket[name] = attr;
     }
 
     return attr || null;
@@ -126,16 +171,67 @@ var EffectEngine = (function () {
     attr.set('current', value);
   }
 
+  function getCachedAbility(characterId, name) {
+    if (!characterId || !name) {
+      return null;
+    }
+
+    var bucket = getAbilityCacheBucket(characterId);
+    if (!bucket) {
+      return null;
+    }
+
+    if (Object.prototype.hasOwnProperty.call(bucket, name)) {
+      var cached = bucket[name];
+      if (cached && typeof cached.get === 'function') {
+        return cached;
+      }
+    }
+
+    return null;
+  }
+
+  function storeAbilityInCache(characterId, name, ability) {
+    if (!characterId || !name || !ability) {
+      return;
+    }
+
+    var bucket = getAbilityCacheBucket(characterId);
+    if (!bucket) {
+      return;
+    }
+
+    bucket[name] = ability;
+  }
+
+  function invalidateCachedAbility(characterId, name) {
+    if (!characterId || !name) {
+      return;
+    }
+
+    var bucket = getAbilityCacheBucket(characterId);
+    if (!bucket || !Object.prototype.hasOwnProperty.call(bucket, name)) {
+      return;
+    }
+
+    delete bucket[name];
+  }
+
   function upsertAbility(characterId, name, action, isTokenAction, ability) {
     if (!characterId || !name) {
       return null;
     }
 
-    var existing = ability || findObjs({
-      _type: 'ability',
-      _characterid: characterId,
-      name: name
-    })[0];
+    var existing = ability || getCachedAbility(characterId, name);
+
+    if (!existing && typeof findObjs === 'function') {
+      var matches = findObjs({
+        _type: 'ability',
+        _characterid: characterId,
+        name: name
+      }) || [];
+      existing = matches[0] || null;
+    }
 
     var payload = {
       action: action || ''
@@ -146,14 +242,20 @@ var EffectEngine = (function () {
     }
 
     if (!existing) {
-      existing = createObj('ability', {
-        _characterid: characterId,
-        name: name,
-        action: payload.action,
-        istokenaction: payload.hasOwnProperty('istokenaction') ? payload.istokenaction : !!isTokenAction
-      });
+      if (typeof createObj === 'function') {
+        existing = createObj('ability', {
+          _characterid: characterId,
+          name: name,
+          action: payload.action,
+          istokenaction: payload.hasOwnProperty('istokenaction') ? payload.istokenaction : !!isTokenAction
+        });
+      }
     } else {
       existing.set(payload);
+    }
+
+    if (existing) {
+      storeAbilityInCache(characterId, name, existing);
     }
 
     return existing || null;
@@ -348,11 +450,19 @@ var EffectEngine = (function () {
 
     var action = patch.action || '';
     var explicitToken = patch.hasOwnProperty('token');
-    var ability = findObjs({
-      _type: 'ability',
-      _characterid: characterId,
-      name: name
-    })[0];
+    var ability = getCachedAbility(characterId, name);
+
+    if (!ability && typeof findObjs === 'function') {
+      var matches = findObjs({
+        _type: 'ability',
+        _characterid: characterId,
+        name: name
+      }) || [];
+      ability = matches[0] || null;
+      if (ability) {
+        storeAbilityInCache(characterId, name, ability);
+      }
+    }
     var tokenAction;
 
     var macroMode = shouldMacroizePatch(effect, patch);
@@ -367,7 +477,11 @@ var EffectEngine = (function () {
       tokenAction = false;
     }
 
-    upsertAbility(characterId, name, action, tokenAction, ability);
+    var updated = upsertAbility(characterId, name, action, tokenAction, ability);
+
+    if (updated) {
+      storeAbilityInCache(characterId, name, updated);
+    }
 
     if (macroMode) {
       ensureAbilityMacros(characterId, patch);
@@ -410,6 +524,7 @@ var EffectEngine = (function () {
         if (typeof ability.remove === 'function') {
           ability.remove();
           removed += 1;
+          invalidateCachedAbility(characterId, abilityName);
         }
       } catch (removeErr) {}
     }
@@ -441,6 +556,7 @@ var EffectEngine = (function () {
         if (typeof ability.remove === 'function') {
           ability.remove();
           removed += 1;
+          invalidateCachedAbility(characterId, abilityName);
         }
       } catch (err) {}
     }

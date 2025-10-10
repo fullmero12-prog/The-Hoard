@@ -11,6 +11,65 @@ var EffectAdapters = (function () {
   var root = (typeof globalThis !== 'undefined') ? globalThis : this;
   var logger = root.HRLog || null;
   var adapters = [];
+  var adapterCache = {};
+
+  function normalizeId(id) {
+    return id ? String(id) : '';
+  }
+
+  function getCharacterId(character) {
+    if (!character) {
+      return '';
+    }
+
+    if (character.id) {
+      return normalizeId(character.id);
+    }
+
+    if (typeof character.get === 'function') {
+      try {
+        var fetched = character.get('_id');
+        if (fetched) {
+          return normalizeId(fetched);
+        }
+      } catch (err) {}
+    }
+
+    return '';
+  }
+
+  function resetAdapterCache() {
+    adapterCache = {};
+  }
+
+  function rememberAdapter(characterId, adapter) {
+    var cacheId = normalizeId(characterId);
+    if (!cacheId || !adapter) {
+      return;
+    }
+
+    adapterCache[cacheId] = adapter;
+  }
+
+  function getCachedAdapter(characterId) {
+    var cacheId = normalizeId(characterId);
+    if (!cacheId) {
+      return null;
+    }
+
+    var cached = adapterCache[cacheId];
+    if (!cached) {
+      return null;
+    }
+
+    for (var i = 0; i < adapters.length; i++) {
+      if (adapters[i] === cached) {
+        return cached;
+      }
+    }
+
+    return null;
+  }
 
   function info(message) {
     if (logger && typeof logger.info === 'function') {
@@ -53,10 +112,17 @@ var EffectAdapters = (function () {
       return null;
     }
 
+    var cacheId = getCharacterId(character);
+    var cached = getCachedAdapter(cacheId);
+    if (cached) {
+      return cached;
+    }
+
     for (var i = 0; i < adapters.length; i++) {
       var adapter = adapters[i];
       try {
         if (!adapter.detect || adapter.detect(character)) {
+          rememberAdapter(cacheId, adapter);
           return adapter;
         }
       } catch (err) {
@@ -74,6 +140,7 @@ var EffectAdapters = (function () {
     }
 
     adapters.push(adapter);
+    resetAdapterCache();
     info('Registered adapter "' + (adapter.name || 'unnamed') + '".');
   }
 
@@ -118,6 +185,7 @@ var EffectAdapters = (function () {
   }
 
   function registerModule() {
+    resetAdapterCache();
     info('EffectAdapters ready. Registered ' + adapters.length + ' adapters.');
   }
 
