@@ -270,30 +270,66 @@ var SpellbookHelper = (function () {
    */
   function clearAlwaysPreparedFromRunState(runState) {
     var totals = { abilitiesRemoved: 0, attributesRemoved: 0 };
-    if (!runState || !runState.players) {
-      return totals;
+    var seen = {};
+
+    if (runState && runState.players) {
+      for (var pid in runState.players) {
+        if (!runState.players.hasOwnProperty(pid)) {
+          continue;
+        }
+
+        var ps = runState.players[pid];
+        var charId = null;
+
+        if (ps && ps.boundCharacterId) {
+          charId = ps.boundCharacterId;
+        } else if (ps && ps.bound_character_id) {
+          // Legacy saves used snake_case; support it so resets stay thorough.
+          charId = ps.bound_character_id;
+        }
+
+        if (!charId || seen[charId]) {
+          continue;
+        }
+
+        seen[charId] = true;
+        var removed = removeAlwaysPreparedForCharacter(charId);
+        totals.abilitiesRemoved += removed.abilitiesRemoved;
+        totals.attributesRemoved += removed.attributesRemoved;
+      }
     }
 
-    var seen = {};
-    for (var pid in runState.players) {
-      if (!runState.players.hasOwnProperty(pid)) {
-        continue;
-      }
+    // Safety net: if a character still has AP token actions but no player entry,
+    // sweep the campaign for orphaned abilities. This covers cases where
+    // `state.HoardRun` was partially wiped or legacy data used different shapes.
+    if (typeof findObjs === 'function') {
+      var abilities = findObjs({ _type: 'ability' }) || [];
+      for (var i = 0; i < abilities.length; i += 1) {
+        var ability = abilities[i];
+        var abilityName = '';
+        var abilityCharId = null;
 
-      var ps = runState.players[pid];
-      if (!ps || !ps.boundCharacterId) {
-        continue;
-      }
+        try {
+          abilityName = ability && typeof ability.get === 'function' ? ability.get('name') : '';
+          abilityCharId = ability && typeof ability.get === 'function' ? ability.get('_characterid') : null;
+        } catch (abilityErr) {
+          abilityName = '';
+          abilityCharId = null;
+        }
 
-      var charId = ps.boundCharacterId;
-      if (seen[charId]) {
-        continue;
-      }
+        if (!abilityName || abilityName.indexOf('[AP] ') !== 0) {
+          continue;
+        }
 
-      seen[charId] = true;
-      var removed = removeAlwaysPreparedForCharacter(charId);
-      totals.abilitiesRemoved += removed.abilitiesRemoved;
-      totals.attributesRemoved += removed.attributesRemoved;
+        if (!abilityCharId || seen[abilityCharId]) {
+          continue;
+        }
+
+        seen[abilityCharId] = true;
+        var orphanRemoval = removeAlwaysPreparedForCharacter(abilityCharId);
+        totals.abilitiesRemoved += orphanRemoval.abilitiesRemoved;
+        totals.attributesRemoved += orphanRemoval.attributesRemoved;
+      }
     }
 
     return totals;
