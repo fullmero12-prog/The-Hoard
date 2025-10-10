@@ -126,7 +126,70 @@ var EffectEngine = (function () {
     attr.set('current', value);
   }
 
-  function upsertAbility(characterId, name, action, isTokenAction, ability) {
+  /**
+   * Normalizes Roll20 ability macro bar flags into booleans.
+   * @param {*} value
+   * @returns {boolean}
+   */
+  function normalizeMacroBarValue(value) {
+    if (value === 'show' || value === true || value === 'true' || value === '1') {
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * Reads whether an ability already shows in the macro bar.
+   * @param {object} ability
+   * @returns {boolean}
+   */
+  function readAbilityMacroBarFlag(ability) {
+    if (!ability || typeof ability.get !== 'function') {
+      return false;
+    }
+
+    var flag;
+
+    try {
+      flag = ability.get('showmacrobar');
+      if (typeof flag !== 'undefined' && flag !== null) {
+        return normalizeMacroBarValue(flag);
+      }
+    } catch (err1) {}
+
+    try {
+      flag = ability.get('inbar');
+      if (typeof flag !== 'undefined' && flag !== null) {
+        return normalizeMacroBarValue(flag);
+      }
+    } catch (err2) {}
+
+    try {
+      flag = ability.get('macro');
+      if (typeof flag !== 'undefined' && flag !== null) {
+        return normalizeMacroBarValue(flag);
+      }
+    } catch (err3) {}
+
+    return false;
+  }
+
+  /**
+   * Applies macro bar fields to the ability payload when requested.
+   * @param {object} payload
+   * @param {boolean} showInMacroBar
+   */
+  function applyMacroBarPayload(payload, showInMacroBar) {
+    if (!payload || showInMacroBar !== true) {
+      return;
+    }
+
+    payload.showmacrobar = 'show';
+    payload.inbar = true;
+    payload.macro = 'show';
+  }
+
+  function upsertAbility(characterId, name, action, isTokenAction, ability, showInMacroBar) {
     if (!characterId || !name) {
       return null;
     }
@@ -145,12 +208,17 @@ var EffectEngine = (function () {
       payload.istokenaction = !!isTokenAction;
     }
 
+    applyMacroBarPayload(payload, showInMacroBar === true);
+
     if (!existing) {
       existing = createObj('ability', {
         _characterid: characterId,
         name: name,
         action: payload.action,
-        istokenaction: payload.hasOwnProperty('istokenaction') ? payload.istokenaction : !!isTokenAction
+        istokenaction: payload.hasOwnProperty('istokenaction') ? payload.istokenaction : !!isTokenAction,
+        showmacrobar: payload.showmacrobar,
+        inbar: payload.inbar,
+        macro: payload.macro
       });
     } else {
       existing.set(payload);
@@ -367,7 +435,19 @@ var EffectEngine = (function () {
       tokenAction = false;
     }
 
-    upsertAbility(characterId, name, action, tokenAction, ability);
+    var showInMacroBar = null;
+
+    if (patch && patch.hasOwnProperty('macroBar')) {
+      showInMacroBar = !!patch.macroBar;
+    } else if (patch && patch.hasOwnProperty('showMacroBar')) {
+      showInMacroBar = !!patch.showMacroBar;
+    } else if (macroMode) {
+      showInMacroBar = true;
+    } else if (ability) {
+      showInMacroBar = readAbilityMacroBarFlag(ability);
+    }
+
+    upsertAbility(characterId, name, action, tokenAction, ability, showInMacroBar === true);
 
     if (macroMode) {
       ensureAbilityMacros(characterId, patch);
