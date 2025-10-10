@@ -341,10 +341,10 @@
     setAttr(charId, 'hr_adapter_ac_misc_row', acRowId);
 
     var acLabel = buildAcMiscLabel(ledgerEntries);
-    var valueText = total >= 0 ? ('+' + total) : String(total);
+    var valueText = String(total);
 
     setAttr(charId, 'repeating_globalacmod_' + acRowId + '_global_ac_name', acLabel);
-    setAttr(charId, 'repeating_globalacmod_' + acRowId + '_global_ac_val', valueText);
+    setAttr(charId, 'repeating_globalacmod_' + acRowId + '_global_ac_mod', valueText);
     setAttr(charId, 'repeating_globalacmod_' + acRowId + '_global_ac_active', 1);
   }
 
@@ -670,7 +670,7 @@
 
       var acRowId = typeof generateRowID === 'function' ? generateRowID() : randRowId();
       setAttr(charId, 'repeating_globalacmod_' + acRowId + '_global_ac_name', acLabel);
-      setAttr(charId, 'repeating_globalacmod_' + acRowId + '_global_ac_val', acValue);
+      setAttr(charId, 'repeating_globalacmod_' + acRowId + '_global_ac_mod', acValue);
       var acActive = toActiveValue(patch.active, true);
       setAttr(charId, 'repeating_globalacmod_' + acRowId + '_global_ac_active', acActive);
       rememberRowId(charId, 'hr_rows_globalacmod', acRowId);
