@@ -202,6 +202,269 @@ var DevTools = (function () {
     }
   }
 
+  // ------------------------------------------------------------
+  // Relic helpers
+  // ------------------------------------------------------------
+
+  function deepClone(value) {
+    if (value === null || typeof value === 'undefined') {
+      return value;
+    }
+    return JSON.parse(JSON.stringify(value));
+  }
+
+  function normalizeEffectId(value) {
+    if (value === null || typeof value === 'undefined') {
+      return null;
+    }
+    if (typeof value === 'string') {
+      var trimmed = value.trim();
+      return trimmed ? trimmed : null;
+    }
+    return String(value);
+  }
+
+  function normalizeRelicLookup(value) {
+    return String(value || '')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  function getRelicCatalog() {
+    if (typeof RelicData !== 'undefined' && RelicData && typeof RelicData.getAll === 'function') {
+      return RelicData.getAll();
+    }
+
+    if (state && state.HoardRun && state.HoardRun.relics) {
+      return deepClone(state.HoardRun.relics);
+    }
+
+    return [];
+  }
+
+  function findRelicByName(name) {
+    var search = normalizeRelicLookup(name);
+    if (!search) {
+      return { relic: null, suggestions: [] };
+    }
+
+    var catalog = getRelicCatalog();
+    var exact = null;
+    var partial = [];
+    var searchCompressed = search.replace(/\s+/g, '');
+
+    for (var i = 0; i < catalog.length; i += 1) {
+      var entry = catalog[i];
+      if (!entry || !entry.name) {
+        continue;
+      }
+
+      var key = normalizeRelicLookup(entry.name);
+      var compressed = key.replace(/\s+/g, '');
+      if (key === search || compressed === searchCompressed) {
+        exact = entry;
+        break;
+      }
+
+      if (key.indexOf(search) !== -1 || compressed.indexOf(searchCompressed) !== -1 || search.indexOf(key) !== -1) {
+        partial.push(entry);
+      }
+    }
+
+    if (exact) {
+      return { relic: deepClone(exact), suggestions: [] };
+    }
+
+    if (partial.length === 1) {
+      return { relic: deepClone(partial[0]), suggestions: [] };
+    }
+
+    var hints = [];
+    for (var p = 0; p < partial.length && hints.length < 5; p += 1) {
+      hints.push(partial[p].name);
+    }
+
+    return { relic: null, suggestions: hints };
+  }
+
+  function buildRelicRecord(entry) {
+    if (!entry) {
+      return null;
+    }
+
+    var payload = deepClone(entry);
+    var effectId = payload.effectId || payload.effect_id || payload.id || null;
+    effectId = normalizeEffectId(effectId);
+
+    var record = {
+      id: payload.id || effectId || payload.name,
+      name: payload.name || 'Relic',
+      data: payload,
+      rarity: payload.rarity || null
+    };
+
+    if (effectId) {
+      record.effectId = effectId;
+    }
+
+    return record;
+  }
+
+  function applyRelicEffect(record, playerState, playerid) {
+    var result = { applied: false, reason: 'unknown' };
+
+    if (!record || !playerState) {
+      result.reason = 'missing_state';
+      return result;
+    }
+
+    var effectId = normalizeEffectId(record.effectId);
+    if (!effectId) {
+      result.reason = 'no_effect';
+      return result;
+    }
+
+    var characterId = playerState.boundCharacterId;
+    if (!characterId) {
+      result.reason = 'no_character';
+      return result;
+    }
+
+    if (
+      typeof EffectRegistry === 'undefined' ||
+      !EffectRegistry ||
+      typeof EffectRegistry.get !== 'function'
+    ) {
+      result.reason = 'missing_registry';
+      return result;
+    }
+
+    if (
+      typeof EffectEngine === 'undefined' ||
+      !EffectEngine ||
+      typeof EffectEngine.apply !== 'function'
+    ) {
+      result.reason = 'missing_engine';
+      return result;
+    }
+
+    var effectDef = EffectRegistry.get(effectId);
+    if (!effectDef) {
+      result.reason = 'missing_effect';
+      return result;
+    }
+
+    EffectEngine.apply(characterId, effectDef);
+    result.applied = true;
+    result.reason = null;
+    return result;
+  }
+
+  function describeRelicIssue(code) {
+    var map = {
+      no_effect: 'effectId missing on relic',
+      no_character: 'no bound character',
+      missing_registry: 'EffectRegistry unavailable',
+      missing_engine: 'EffectEngine unavailable',
+      missing_effect: 'effect definition not found',
+      missing_state: 'player state unavailable'
+    };
+
+    return Object.prototype.hasOwnProperty.call(map, code) ? map[code] : 'unknown issue';
+  }
+
+  function grantRelicToAll(argString) {
+    var raw = (argString || '').trim();
+    if (!raw) {
+      gmSay('Usage: !giverelic <Relic Name>');
+      return;
+    }
+
+    if ((raw.charAt(0) === '"' && raw.charAt(raw.length - 1) === '"') || (raw.charAt(0) === '\'' && raw.charAt(raw.length - 1) === '\'')) {
+      raw = raw.slice(1, -1);
+    }
+
+    if (typeof StateManager === 'undefined' || !StateManager || typeof StateManager.getPlayer !== 'function') {
+      gmSay('StateManager unavailable; cannot grant relics.');
+      return;
+    }
+
+    var lookup = findRelicByName(raw);
+    if (!lookup.relic) {
+      if (lookup.suggestions && lookup.suggestions.length) {
+        gmSay('Relic "' + raw + '" not found. Suggestions: ' + lookup.suggestions.join(', ') + '.');
+      } else {
+        gmSay('Relic "' + raw + '" not found.');
+      }
+      return;
+    }
+
+    var targets = resolvePlayerTargets('all');
+    if (!targets.length) {
+      gmSay('No Hoard Run players found. Have players start a run first.');
+      return;
+    }
+
+    var templateRecord = buildRelicRecord(lookup.relic);
+    if (!templateRecord) {
+      gmSay('Could not build a relic record for "' + raw + '".');
+      return;
+    }
+
+    var granted = [];
+    var issues = [];
+    for (var i = 0; i < targets.length; i += 1) {
+      var pid = targets[i];
+      var playerState = StateManager.getPlayer(pid);
+      if (!playerState) {
+        issues.push({ player: pid, reason: 'missing_state' });
+        continue;
+      }
+
+      if (!playerState.relics || !Array.isArray(playerState.relics)) {
+        playerState.relics = [];
+      }
+
+      var record = deepClone(templateRecord);
+      playerState.relics.push(record);
+
+      var player = typeof getObj === 'function' ? getObj('player', pid) : null;
+      var displayName = null;
+      try {
+        displayName = player ? player.get('_displayname') : null;
+      } catch (err) {
+        displayName = null;
+      }
+      var label = displayName || pid;
+      granted.push(label);
+
+      var rarityNote = record.rarity ? ' (' + record.rarity + ')' : '';
+      whisperPlayer(pid, 'Relic Granted', record.name + rarityNote);
+
+      var effectResult = applyRelicEffect(record, playerState, pid);
+      if (!effectResult.applied && effectResult.reason) {
+        issues.push({ player: label, reason: effectResult.reason });
+      }
+    }
+
+    if (granted.length) {
+      gmSay('Granted relic "' + templateRecord.name + '" to ' + granted.join(', ') + '.');
+    }
+
+    if (issues.length) {
+      var parts = [];
+      for (var j = 0; j < issues.length; j += 1) {
+        var entry = issues[j];
+        var name = entry.player || 'Unknown Player';
+        var reasonText = describeRelicIssue(entry.reason);
+        parts.push(name + ' (' + reasonText + ')');
+      }
+      gmSay('⚠️ Relic effects not applied for: ' + parts.join('; '));
+    }
+  }
+
   /**
    * Core implementation for !givecurrency.
    * Parses arguments, resolves targets, updates StateManager, and whispers results.
@@ -736,6 +999,13 @@ var DevTools = (function () {
         }
         grantCurrency(argString);
         break;
+      case '!giverelic':
+        if (typeof isGM === 'function' && !isGM(msg.playerid)) {
+          gmSay('⚠️ Only the GM can grant relics.');
+          return;
+        }
+        grantRelicToAll(argString);
+        break;
     }
   }
 
@@ -747,7 +1017,7 @@ var DevTools = (function () {
       return;
     }
     on('chat:message', handleInput);
-    gmSay('🧰 DevTools loaded. Commands: !resetstate, !debugstate, !testshop, !testrelic, !resethandouts, !givecurrency');
+    gmSay('🧰 DevTools loaded. Commands: !resetstate, !debugstate, !testshop, !testrelic, !resethandouts, !givecurrency, !giverelic');
     isRegistered = true;
   }
 
