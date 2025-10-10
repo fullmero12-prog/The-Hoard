@@ -467,12 +467,16 @@ var AncestorKits = (function (ns) {
 
     var removed = removeMirroredAbilitiesForDefinition(targetChar.id, def);
     var installed = 0;
+    var fallbackTokenAction = (typeof def.defaultTokenAction === 'boolean')
+      ? def.defaultTokenAction
+      : true;
 
     def.abilities.forEach(function (abilityDef) {
       var cfg = typeof abilityDef === 'string' ? { name: abilityDef } : (abilityDef || {});
       var sourceName = cfg.source || cfg.name;
       var action = cfg.action || '';
       var tokenAction = (typeof cfg.tokenAction === 'boolean') ? cfg.tokenAction : null;
+      var defaultTokenAction = (typeof cfg.defaultTokenAction === 'boolean') ? cfg.defaultTokenAction : null;
 
       if (!action) {
         if (!source) { return; } // should not occur due to needsSource gate
@@ -486,7 +490,10 @@ var AncestorKits = (function (ns) {
       }
 
       var targetName = deriveAbilityName(def, cfg);
-      upsertAbility(targetChar.id, targetName, action, tokenAction === null ? !!cfg.defaultTokenAction : tokenAction);
+      if (tokenAction === null) {
+        tokenAction = (defaultTokenAction !== null) ? defaultTokenAction : fallbackTokenAction;
+      }
+      upsertAbility(targetChar.id, targetName, action, !!tokenAction);
       installed += 1;
     });
 
@@ -707,7 +714,10 @@ var AncestorKits = (function (ns) {
       abilities: def.abilities || [],
       buttonLabel: def.buttonLabel || ancestorName || key,
       onInstall: def.onInstall || null,
-      onUninstall: def.onUninstall || null
+      onUninstall: def.onUninstall || null,
+      defaultTokenAction: def.hasOwnProperty('defaultTokenAction')
+        ? !!def.defaultTokenAction
+        : true
     };
 
     if (def.includePrefix === false) {
