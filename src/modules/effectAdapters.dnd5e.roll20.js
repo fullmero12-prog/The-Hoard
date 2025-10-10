@@ -142,6 +142,313 @@
     }
   }
 
+  function pickFirst() {
+    for (var i = 0; i < arguments.length; i++) {
+      var value = arguments[i];
+      if (value === null || typeof value === 'undefined') {
+        continue;
+      }
+      if (typeof value === 'string' && value.trim() === '') {
+        continue;
+      }
+      return value;
+    }
+    return '';
+  }
+
+  function toSegmentBase(value) {
+    if (typeof value === 'number') {
+      if (value === 0) {
+        return '0';
+      }
+      return (value >= 0 ? '+' : '') + value;
+    }
+    if (typeof value === 'string') {
+      return value.replace(/\s+/g, ' ').trim();
+    }
+    return '';
+  }
+
+  function formatSegment(base, label) {
+    var segment = toSegmentBase(base);
+    if (!segment) {
+      return '';
+    }
+
+    var tag = typeof label === 'undefined' || label === null ? '' : String(label);
+    tag = tag.replace(/\s+/g, ' ').trim();
+    if (tag) {
+      segment += ' [' + tag + ']';
+    }
+    return segment;
+  }
+
+  function readLedger(charId, name) {
+    var raw = String(getAttr(charId, name) || '').trim();
+    if (!raw) {
+      return [];
+    }
+
+    try {
+      var parsed = JSON.parse(raw);
+      if (parsed && parsed.length) {
+        return parsed;
+      }
+    } catch (err) {
+      // Ignore parse errors; treat as empty ledger.
+    }
+
+    return [];
+  }
+
+  function writeLedger(charId, name, entries) {
+    if (!entries || !entries.length) {
+      setAttr(charId, name, '');
+      return;
+    }
+
+    try {
+      setAttr(charId, name, JSON.stringify(entries));
+    } catch (err) {
+      setAttr(charId, name, '');
+    }
+  }
+
+  function escapeForRegex(str) {
+    return String(str || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  }
+
+  function appendSegmentToAttr(charId, attrName, segment) {
+    var addition = String(segment || '').trim();
+    if (!addition) {
+      return String(getAttr(charId, attrName) || '').trim();
+    }
+
+    var current = String(getAttr(charId, attrName) || '').trim();
+    var combined = current ? (current + ' ' + addition) : addition;
+    combined = combined.replace(/\s+/g, ' ').trim();
+    setAttr(charId, attrName, combined);
+    return combined;
+  }
+
+  function removeSegmentFromAttr(charId, attrName, segment) {
+    var target = String(segment || '').trim();
+    if (!target) {
+      return String(getAttr(charId, attrName) || '').trim();
+    }
+
+    var current = String(getAttr(charId, attrName) || '');
+    if (!current) {
+      return '';
+    }
+
+    var pattern = new RegExp('(?:^|\\s)' + escapeForRegex(target) + '(?=\\s|$)', 'g');
+    var updated = current.replace(pattern, function (match) {
+      return match.indexOf(' ') === 0 ? ' ' : '';
+    });
+    updated = updated.replace(/\s+/g, ' ').trim();
+    setAttr(charId, attrName, updated);
+    return updated;
+  }
+
+  function syncFlagToAttr(charId, attrName, flagName) {
+    if (!flagName) {
+      return;
+    }
+    var current = String(getAttr(charId, attrName) || '').trim();
+    setAttr(charId, flagName, current ? 'on' : '0');
+  }
+
+  function resolveLabel(patch, effect, fallback) {
+    if (patch && patch.label) {
+      return String(patch.label);
+    }
+    if (patch && patch.name) {
+      return String(patch.name);
+    }
+    if (effect && effect.name) {
+      return String(effect.name);
+    }
+    if (effect && effect.id) {
+      return String(effect.id);
+    }
+    if (patch && patch.op) {
+      return String(patch.op);
+    }
+    return fallback || 'Effect';
+  }
+
+  function getLedgerKey(patch, effect) {
+    if (patch && patch.ledgerKey) {
+      return String(patch.ledgerKey);
+    }
+    if (patch && patch.id) {
+      return String(patch.id);
+    }
+    if (patch && patch.key) {
+      return String(patch.key);
+    }
+    if (effect && effect.id) {
+      var suffix = '';
+      if (patch && patch.label) {
+        suffix = '::' + patch.label;
+      } else if (patch && patch.name) {
+        suffix = '::' + patch.name;
+      } else if (patch && patch.op) {
+        suffix = '::' + patch.op;
+      }
+      return String(effect.id) + suffix;
+    }
+    if (patch && patch.label) {
+      return String(patch.label);
+    }
+    if (patch && patch.name) {
+      return String(patch.name);
+    }
+    if (patch && patch.op) {
+      return String(patch.op);
+    }
+    return 'effect';
+  }
+
+  function addGlobalStringMath(charId, attrName, flagName, ledgerName, ledgerKey, baseValue, label) {
+    var segment = formatSegment(baseValue, label);
+    if (!segment) {
+      return false;
+    }
+
+    appendSegmentToAttr(charId, attrName, segment);
+    syncFlagToAttr(charId, attrName, flagName);
+
+    var ledger = readLedger(charId, ledgerName);
+    var remaining = [];
+    for (var i = 0; i < ledger.length; i++) {
+      var entry = ledger[i];
+      if (entry && entry.key !== ledgerKey) {
+        remaining.push(entry);
+      }
+    }
+    remaining.push({ key: ledgerKey, segment: segment });
+    writeLedger(charId, ledgerName, remaining);
+    return true;
+  }
+
+  function removeGlobalStringMath(charId, attrName, flagName, ledgerName, ledgerKey) {
+    var ledger = readLedger(charId, ledgerName);
+    var remaining = [];
+    var removed = [];
+    for (var i = 0; i < ledger.length; i++) {
+      var entry = ledger[i];
+      if (entry && entry.key === ledgerKey) {
+        removed.push(entry.segment);
+      } else if (entry) {
+        remaining.push(entry);
+      }
+    }
+
+    for (var r = 0; r < removed.length; r++) {
+      removeSegmentFromAttr(charId, attrName, removed[r]);
+    }
+
+    writeLedger(charId, ledgerName, remaining);
+    if (!remaining.length) {
+      var value = String(getAttr(charId, attrName) || '').trim();
+      if (!value) {
+        setAttr(charId, attrName, '');
+      }
+    }
+    syncFlagToAttr(charId, attrName, flagName);
+  }
+
+  function addGlobalDamageMath(charId, ledgerKey, label, rollValue, critValue, typeValue) {
+    var rollSegment = formatSegment(rollValue, label);
+    var critSegment = formatSegment(critValue, label);
+    var typeSegment = formatSegment(typeValue, label);
+
+    if (!rollSegment && !critSegment && !typeSegment) {
+      return false;
+    }
+
+    if (rollSegment) {
+      appendSegmentToAttr(charId, 'global_damage_mod', rollSegment);
+    }
+    if (critSegment) {
+      appendSegmentToAttr(charId, 'global_damage_mod_crit', critSegment);
+    }
+    if (typeSegment) {
+      appendSegmentToAttr(charId, 'global_damage_mod_type', typeSegment);
+    }
+
+    syncFlagToAttr(charId, 'global_damage_mod', 'global_damage_mod_flag');
+    syncFlagToAttr(charId, 'global_damage_mod_crit', 'global_damage_mod_crit_flag');
+    syncFlagToAttr(charId, 'global_damage_mod_type', 'global_damage_mod_type_flag');
+
+    var ledger = readLedger(charId, 'hr_ledger_global_damage_mod');
+    var remaining = [];
+    for (var i = 0; i < ledger.length; i++) {
+      var entry = ledger[i];
+      if (entry && entry.key !== ledgerKey) {
+        remaining.push(entry);
+      }
+    }
+    remaining.push({
+      key: ledgerKey,
+      roll: rollSegment,
+      crit: critSegment,
+      type: typeSegment
+    });
+    writeLedger(charId, 'hr_ledger_global_damage_mod', remaining);
+    return true;
+  }
+
+  function removeGlobalDamageMath(charId, ledgerKey) {
+    var ledger = readLedger(charId, 'hr_ledger_global_damage_mod');
+    var remaining = [];
+    var removed = [];
+    for (var i = 0; i < ledger.length; i++) {
+      var entry = ledger[i];
+      if (entry && entry.key === ledgerKey) {
+        removed.push(entry);
+      } else if (entry) {
+        remaining.push(entry);
+      }
+    }
+
+    for (var r = 0; r < removed.length; r++) {
+      var item = removed[r];
+      if (item.roll) {
+        removeSegmentFromAttr(charId, 'global_damage_mod', item.roll);
+      }
+      if (item.crit) {
+        removeSegmentFromAttr(charId, 'global_damage_mod_crit', item.crit);
+      }
+      if (item.type) {
+        removeSegmentFromAttr(charId, 'global_damage_mod_type', item.type);
+      }
+    }
+
+    writeLedger(charId, 'hr_ledger_global_damage_mod', remaining);
+
+    var rollValue = String(getAttr(charId, 'global_damage_mod') || '').trim();
+    if (!rollValue) {
+      setAttr(charId, 'global_damage_mod', '');
+    }
+
+    var critValue = String(getAttr(charId, 'global_damage_mod_crit') || '').trim();
+    if (!critValue) {
+      setAttr(charId, 'global_damage_mod_crit', '');
+    }
+
+    var typeValue = String(getAttr(charId, 'global_damage_mod_type') || '').trim();
+    if (!typeValue) {
+      setAttr(charId, 'global_damage_mod_type', '');
+    }
+
+    syncFlagToAttr(charId, 'global_damage_mod', 'global_damage_mod_flag');
+    syncFlagToAttr(charId, 'global_damage_mod_crit', 'global_damage_mod_crit_flag');
+    syncFlagToAttr(charId, 'global_damage_mod_type', 'global_damage_mod_type_flag');
+  }
+
   function ensureGlobalRow(charId, section, fields, rememberKey) {
     try {
       var rowId = randRowId();
@@ -161,9 +468,48 @@
     }
   }
 
-  function applyPatch(charId, patch) {
+  function applyPatch(charId, patch, effect) {
     if (!patch || patch.type !== 'adapter' || !patch.op) {
       return false;
+    }
+
+    if (patch.op === 'add_global_skill_mod') {
+      var skillMath = pickFirst(patch.math, patch.value, patch.bonus, patch.roll);
+      var skillLabel = resolveLabel(patch, effect, 'Skill Mod');
+      var skillKey = getLedgerKey(patch, effect);
+      return addGlobalStringMath(
+        charId,
+        'global_skill_mod',
+        'global_skill_mod_flag',
+        'hr_ledger_global_skill_mod',
+        skillKey,
+        skillMath,
+        skillLabel
+      );
+    }
+
+    if (patch.op === 'add_global_save_mod') {
+      var saveMath = pickFirst(patch.math, patch.value, patch.bonus, patch.roll);
+      var saveLabel = resolveLabel(patch, effect, 'Save Mod');
+      var saveKey = getLedgerKey(patch, effect);
+      return addGlobalStringMath(
+        charId,
+        'global_save_mod',
+        'global_save_mod_flag',
+        'hr_ledger_global_save_mod',
+        saveKey,
+        saveMath,
+        saveLabel
+      );
+    }
+
+    if (patch.op === 'add_global_damage_mod') {
+      var dmgLabel = resolveLabel(patch, effect, 'Damage Mod');
+      var dmgKey = getLedgerKey(patch, effect);
+      var rollValue = pickFirst(patch.math, patch.roll, patch.value, patch.bonus);
+      var critValue = pickFirst(patch.crit, patch.critMath, patch.critBonus);
+      var typeValue = pickFirst(patch.damageType, patch.type, patch.element, patch.damageTag);
+      return addGlobalDamageMath(charId, dmgKey, dmgLabel, rollValue, critValue, typeValue);
     }
 
     if (patch.op === 'add_ac_misc') {
@@ -275,9 +621,27 @@
     return false;
   }
 
-  function removePatch(charId, patch) {
+  function removePatch(charId, patch, effect) {
     if (!patch || patch.type !== 'adapter' || !patch.op) {
       return false;
+    }
+
+    if (patch.op === 'add_global_skill_mod') {
+      var skillKey = getLedgerKey(patch, effect);
+      removeGlobalStringMath(charId, 'global_skill_mod', 'global_skill_mod_flag', 'hr_ledger_global_skill_mod', skillKey);
+      return true;
+    }
+
+    if (patch.op === 'add_global_save_mod') {
+      var saveKey = getLedgerKey(patch, effect);
+      removeGlobalStringMath(charId, 'global_save_mod', 'global_save_mod_flag', 'hr_ledger_global_save_mod', saveKey);
+      return true;
+    }
+
+    if (patch.op === 'add_global_damage_mod') {
+      var dmgKey = getLedgerKey(patch, effect);
+      removeGlobalDamageMath(charId, dmgKey);
+      return true;
     }
 
     if (patch.op === 'add_ac_misc') {
@@ -402,11 +766,11 @@
       })[0];
       return !!(pb || sca);
     },
-    apply: function (charId, patch) {
-      return applyPatch(charId, patch);
+    apply: function (charId, patch, effect) {
+      return applyPatch(charId, patch, effect);
     },
-    remove: function (charId, patch) {
-      return removePatch(charId, patch);
+    remove: function (charId, patch, effect) {
+      return removePatch(charId, patch, effect);
     }
   });
 })();
