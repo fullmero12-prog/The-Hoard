@@ -16,12 +16,23 @@ var SpellbookHelper = (function () {
   function getChar(charId)             { return getObj('character', charId); }
   function getAttrObj(charId, name)    { return findObjs({ _type:'attribute', _characterid: charId, name: name })[0] || null; }
   function setAttr(charId, name, val)  {
+    if (typeof AttributeManager !== 'undefined' && AttributeManager && typeof AttributeManager.setAttributes === 'function') {
+      var res = AttributeManager.setAttributes(charId, [{ name: name, current: val }]);
+      if (res && res[0] && res[0].attribute) {
+        return res[0].attribute;
+      }
+    }
+
     var a = getAttrObj(charId, name);
     if (!a) a = createObj('attribute', { _characterid: charId, name: name, current: val });
+    else if (typeof a.setWithWorker === 'function') a.setWithWorker({ current: val });
     else a.set('current', val);
     return a;
   }
   function newRowId() {
+    if (typeof AttributeManager !== 'undefined' && AttributeManager && typeof AttributeManager.generateRowId === 'function') {
+      return AttributeManager.generateRowId();
+    }
     // Roll20 UPPERCASE A–Z, 0–9 random id works fine for repeating rows
     var s='ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789', r='';
     for (var i=0;i<19;i++){ r+=s[Math.floor(Math.random()*s.length)]; }
@@ -120,23 +131,9 @@ var SpellbookHelper = (function () {
       if (!hasOGL5eSignals(charId)) return false;
 
       var lvl    = spell.level || 0;
-      var secKey = (lvl === 0) ? 'repeating_spell-cantrip' : ('repeating_spell' + lvl);
-      var row    = newRowId();
-      var base   = secKey + '_' + row + '_';
-
-      // Minimum viable fields for the sheet to render it
-      setAttr(charId, base + 'spellname', spell.name);
-      setAttr(charId, base + 'spelllevel', lvl);
-      setAttr(charId, base + 'spellschool', spell.school || '');
-      setAttr(charId, base + 'spellrange', spell.range || '');
-      setAttr(charId, base + 'spellduration', spell.duration || '');
-      setAttr(charId, base + 'spellcomponents', spell.components || '');
-      setAttr(charId, base + 'spellattack', spell.attack || '');
+      var section = (lvl === 0) ? 'spell-cantrip' : ('spell' + lvl);
       var damageInfo = normalizeDamage(spell.damage, 'Damage');
       var damageInfo2 = normalizeDamage(spell.damage2, 'Secondary Damage');
-
-      setAttr(charId, base + 'spelldamage', damageInfo ? stripInlineRoll(damageInfo.roll) : (spell.hit || ''));
-      setAttr(charId, base + 'spelldamage2', damageInfo2 ? stripInlineRoll(damageInfo2.roll) : '');
 
       var dmgType = '';
       if (damageInfo && damageInfo.type) {
@@ -147,15 +144,38 @@ var SpellbookHelper = (function () {
         dmgType = damageInfo2.type;
       }
 
-      setAttr(charId, base + 'spelldamagetype', dmgType);
-      setAttr(charId, base + 'spellritual', '0');
+      var fields = {
+        spellname: spell.name,
+        spelllevel: lvl,
+        spellschool: spell.school || '',
+        spellrange: spell.range || '',
+        spellduration: spell.duration || '',
+        spellcomponents: spell.components || '',
+        spellattack: spell.attack || '',
+        spelldamage: damageInfo ? stripInlineRoll(damageInfo.roll) : (spell.hit || ''),
+        spelldamage2: damageInfo2 ? stripInlineRoll(damageInfo2.roll) : '',
+        spelldamagetype: dmgType,
+        spellritual: '0',
+        spellprepared: 'on',
+        spellalwaysprepared: 'on',
+        spelldescription: (spell.effect || spell.notes || '')
+      };
 
-      // Prepared + always prepared
-      setAttr(charId, base + 'spellprepared', 'on');
-      setAttr(charId, base + 'spellalwaysprepared', 'on');
+      var created = null;
+      if (typeof AttributeManager !== 'undefined' && AttributeManager && typeof AttributeManager.createRepeatingRow === 'function') {
+        created = AttributeManager.createRepeatingRow(charId, section, fields);
+      }
 
-      // Description (sheet uses this for the card)
-      setAttr(charId, base + 'spelldescription', (spell.effect || spell.notes || ''));
+      var row = created && created.rowId ? created.rowId : newRowId();
+      var base = 'repeating_' + section + '_' + row + '_';
+
+      if (!created || !created.attributes || !created.attributes.length) {
+        for (var key in fields) {
+          if (fields.hasOwnProperty(key)) {
+            setAttr(charId, base + key, fields[key]);
+          }
+        }
+      }
 
       // We store a back-link so we can find it later by spell name
       // (helps us patch it when a boon modifies it)

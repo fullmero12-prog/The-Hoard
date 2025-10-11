@@ -13,6 +13,10 @@
   }
 
   function randRowId() {
+    if (typeof AttributeManager !== 'undefined' && AttributeManager && typeof AttributeManager.generateRowId === 'function') {
+      return AttributeManager.generateRowId();
+    }
+
     var charset = 'abcdefghijklmnopqrstuvwxyz0123456789';
     var output = '-';
     for (var i = 0; i < 19; i++) {
@@ -23,6 +27,13 @@
   }
 
   function setAttr(charId, name, value) {
+    if (typeof AttributeManager !== 'undefined' && AttributeManager && typeof AttributeManager.setAttributes === 'function') {
+      var res = AttributeManager.setAttributes(charId, [{ name: name, current: value }]);
+      if (res && res[0] && res[0].attribute) {
+        return res[0].attribute;
+      }
+    }
+
     var attr = findObjs({
       _type: 'attribute',
       _characterid: charId,
@@ -35,6 +46,8 @@
         name: name,
         current: value
       });
+    } else if (typeof attr.setWithWorker === 'function') {
+      attr.setWithWorker({ current: value });
     } else {
       attr.set('current', value);
     }
@@ -337,7 +350,10 @@
       return;
     }
 
-    var acRowId = rowKey || (typeof generateRowID === 'function' ? generateRowID() : randRowId());
+    var acRowId = rowKey || (
+      (typeof AttributeManager !== 'undefined' && AttributeManager && typeof AttributeManager.generateRowId === 'function') ? AttributeManager.generateRowId() :
+      (typeof generateRowID === 'function' ? generateRowID() : randRowId())
+    );
     setAttr(charId, 'hr_adapter_ac_misc_row', acRowId);
 
     var acLabel = buildAcMiscLabel(ledgerEntries);
@@ -585,11 +601,18 @@
 
   function ensureGlobalRow(charId, section, fields, rememberKey) {
     try {
-      var rowId = randRowId();
-      for (var field in fields) {
-        if (fields.hasOwnProperty(field)) {
-          var attrName = 'repeating_' + section + '_' + rowId + '_' + field;
-          setAttr(charId, attrName, fields[field]);
+      var created = null;
+      if (typeof AttributeManager !== 'undefined' && AttributeManager && typeof AttributeManager.createRepeatingRow === 'function') {
+        created = AttributeManager.createRepeatingRow(charId, section, fields);
+      }
+
+      var rowId = created && created.rowId ? created.rowId : randRowId();
+      if (!created || !created.attributes || !created.attributes.length) {
+        for (var field in fields) {
+          if (fields.hasOwnProperty(field)) {
+            var attrName = 'repeating_' + section + '_' + rowId + '_' + field;
+            setAttr(charId, attrName, fields[field]);
+          }
         }
       }
       if (rememberKey) {
@@ -668,7 +691,8 @@
         }
       }
 
-      var acRowId = typeof generateRowID === 'function' ? generateRowID() : randRowId();
+      var acRowId = (typeof AttributeManager !== 'undefined' && AttributeManager && typeof AttributeManager.generateRowId === 'function') ? AttributeManager.generateRowId() :
+        (typeof generateRowID === 'function' ? generateRowID() : randRowId());
       setAttr(charId, 'repeating_globalacmod_' + acRowId + '_global_ac_name', acLabel);
       setAttr(charId, 'repeating_globalacmod_' + acRowId + '_global_ac_mod', acValue);
       var acActive = toActiveValue(patch.active, true);
