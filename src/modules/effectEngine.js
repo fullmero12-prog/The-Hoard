@@ -240,6 +240,11 @@ var EffectEngine = (function () {
       return true;
     }
 
+    if (patch.token === true && !patch.hasOwnProperty('macro')) {
+      // Boons and relics default token-action abilities should still create macros unless explicitly disabled.
+      return true;
+    }
+
     return false;
   }
 
