@@ -19,6 +19,10 @@ on('ready', function () {
     UIManager.register();
   }
 
+  if (typeof AttributeManager !== 'undefined' && AttributeManager.register) {
+    AttributeManager.register();
+  }
+
   // register concrete adapters first so the engine can immediately consume them
   if (typeof EffectAdapters !== 'undefined' && EffectAdapters.register) {
     EffectAdapters.register();
