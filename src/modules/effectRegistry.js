@@ -487,7 +487,13 @@ var EffectRegistry = (function () {
       rarity: 'Common',
       category: 'Defense',
       adapters: [
-        { type: 'adapter', op: 'add_ac_misc', value: 1 }
+        {
+          type: 'adapter',
+          op: 'add_global_ac_mod_row',
+          label: 'Guardian\'s Band',
+          value: 1,
+          active: true
+        }
       ],
       fields: [
         { label: 'Passive', value: 'Gain a +1 bonus to AC while worn.' },
