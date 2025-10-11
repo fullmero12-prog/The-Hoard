@@ -74,7 +74,7 @@ var AttributeManager = (function () {
   function createAttribute(charId, name) {
     try {
       return createObj('attribute', {
-        _characterid: charId,
+        characterid: charId,
         name: name,
         current: ''
       });
