@@ -131,7 +131,7 @@ var SpellbookHelper = (function () {
       if (!hasOGL5eSignals(charId)) return false;
 
       var lvl    = spell.level || 0;
-      var section = (lvl === 0) ? 'spell-cantrip' : ('spell' + lvl);
+      var section = (lvl === 0) ? 'spell-cantrip' : ('spell-' + lvl);
       var damageInfo = normalizeDamage(spell.damage, 'Damage');
       var damageInfo2 = normalizeDamage(spell.damage2, 'Secondary Damage');
 
@@ -144,22 +144,80 @@ var SpellbookHelper = (function () {
         dmgType = damageInfo2.type;
       }
 
+      var dmgType2 = '';
+      if (damageInfo2 && damageInfo2.type) {
+        dmgType2 = damageInfo2.type;
+      }
+
+      var components = spell.components || '';
+      var materialText = '';
+      var ritual = false;
+      if (components) {
+        var materialMatch = components.match(/\(([^)]+)\)/);
+        if (materialMatch && materialMatch[1]) {
+          materialText = materialMatch[1];
+        }
+        if (spell.ritual === true || /ritual/i.test(components)) {
+          ritual = true;
+        }
+      } else if (spell.ritual === true) {
+        ritual = true;
+      }
+
+      var normalizedComponents = components.toUpperCase().replace(/\([^)]*\)/g, '');
+      var hasV = normalizedComponents.indexOf('V') !== -1;
+      var hasS = normalizedComponents.indexOf('S') !== -1;
+      var hasM = normalizedComponents.indexOf('M') !== -1;
+
+      var concentration = false;
+      if (typeof spell.concentration === 'boolean') {
+        concentration = spell.concentration;
+      } else if (spell.duration && /concentration/i.test(spell.duration)) {
+        concentration = true;
+      }
+
+      var saveSuccess = '';
+      if (spell.saveSuccess) {
+        saveSuccess = spell.saveSuccess;
+      }
+
+      var healingInfo = normalizeDamage(spell.healing, 'Healing');
+
+      var descriptionPieces = [];
+      if (spell.effect) descriptionPieces.push(spell.effect);
+      if (spell.notes && spell.notes !== spell.effect) descriptionPieces.push(spell.notes);
+      var description = descriptionPieces.join('\n\n');
+
       var fields = {
         spellname: spell.name,
-        spelllevel: lvl,
+        spelllevel: String(lvl),
         spellschool: spell.school || '',
+        spellcastingtime: spell.castingTime || spell.castTime || spell.time || '',
         spellrange: spell.range || '',
+        spelltarget: spell.target || '',
         spellduration: spell.duration || '',
-        spellcomponents: spell.components || '',
+        spellritual: ritual ? 'on' : '0',
+        spellconcentration: concentration ? 'on' : '0',
+        spellcomp_v: hasV ? 'on' : '0',
+        spellcomp_s: hasS ? 'on' : '0',
+        spellcomp_m: hasM ? 'on' : '0',
+        spellcomp_materials: materialText,
         spellattack: spell.attack || '',
+        spelloutput: spell.output || 'SPELLCARD',
         spelldamage: damageInfo ? stripInlineRoll(damageInfo.roll) : (spell.hit || ''),
         spelldamage2: damageInfo2 ? stripInlineRoll(damageInfo2.roll) : '',
         spelldamagetype: dmgType,
-        spellritual: '0',
-        spellprepared: 'on',
-        spellalwaysprepared: 'on',
-        spelldescription: (spell.effect || spell.notes || '')
+        spelldamagetype2: dmgType2,
+        spellhealing: healingInfo ? stripInlineRoll(healingInfo.roll) : (spell.healing || ''),
+        spellsave: spell.save || '',
+        spellsavesuccess: saveSuccess,
+        spellprepared: lvl === 0 ? '' : 'on',
+        spellalwaysprepared: lvl === 0 ? '' : 'on',
+        spelldescription: description || (spell.notes || spell.effect || '')
       };
+
+      if (spell.spellclass) fields.spellclass = spell.spellclass;
+      if (spell.source) fields.spellsource = spell.source;
 
       var created = null;
       if (typeof AttributeManager !== 'undefined' && AttributeManager && typeof AttributeManager.createRepeatingRow === 'function') {
