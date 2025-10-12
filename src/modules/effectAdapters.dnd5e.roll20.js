@@ -677,28 +677,34 @@
         acLabel = 'AC Boon';
       }
 
-      var acValue = pickFirst(patch.value, patch.math, patch.bonus, 1);
-      if (typeof acValue === 'number' && isNaN(acValue)) {
-        acValue = 1;
+      var acValueRaw = pickFirst(patch.value, patch.math, patch.bonus, 1);
+      if (typeof acValueRaw === 'number' && isNaN(acValueRaw)) {
+        acValueRaw = 1;
       }
-      if (typeof acValue === 'undefined' || acValue === null || acValue === '') {
-        acValue = 1;
+      if (typeof acValueRaw === 'undefined' || acValueRaw === null || acValueRaw === '') {
+        acValueRaw = 1;
       }
-      if (typeof acValue === 'string') {
-        acValue = acValue.replace(/\s+/g, ' ').trim();
-        if (!acValue) {
-          acValue = 1;
+
+      var acValueNumber = Number(acValueRaw);
+      var acValueText = '';
+      if (!isNaN(acValueNumber)) {
+        acValueText = (acValueNumber >= 0 ? '+' : '') + acValueNumber;
+      } else {
+        acValueText = String(acValueRaw).replace(/\s+/g, ' ').trim();
+        if (!acValueText) {
+          acValueText = '+1';
         }
       }
 
-      var acRowId = (typeof AttributeManager !== 'undefined' && AttributeManager && typeof AttributeManager.generateRowId === 'function') ? AttributeManager.generateRowId() :
-        (typeof generateRowID === 'function' ? generateRowID() : randRowId());
-      setAttr(charId, 'repeating_globalacmod_' + acRowId + '_global_ac_name', acLabel);
-      setAttr(charId, 'repeating_globalacmod_' + acRowId + '_global_ac_mod', acValue);
       var acActive = toActiveValue(patch.active, true);
-      setAttr(charId, 'repeating_globalacmod_' + acRowId + '_global_ac_active', acActive);
-      rememberRowId(charId, 'hr_rows_globalacmod', acRowId);
-      return true;
+      var acRow = ensureGlobalRow(charId, 'globalacmod', {
+        'global_ac_name': acLabel,
+        'global_ac_mod': acValueText,
+        'global_ac_type': 'bonus',
+        'global_ac_active': acActive
+      }, 'hr_rows_globalacmod');
+
+      return acRow.ok;
     }
 
     if (patch.op === 'toggle_global_ac_mod') {
