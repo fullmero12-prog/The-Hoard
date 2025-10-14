@@ -71,21 +71,8 @@
   }
 
   function addNumber(charId, name, delta) {
-    var attr = findObjs({
-      _type: 'attribute',
-      characterid: charId,
-      name: name
-    })[0];
-
-    if (!attr) {
-      attr = createObj('attribute', {
-        characterid: charId,
-        name: name,
-        current: 0
-      });
-    }
-
-    var current = parseFloat(attr.get('current'));
+    var currentRaw = getAttr(charId, name);
+    var current = parseFloat(currentRaw);
     if (isNaN(current)) {
       current = 0;
     }
@@ -95,7 +82,12 @@
       change = 0;
     }
 
-    attr.set('current', current + change);
+    if (currentRaw === '') {
+      setAttr(charId, name, 0);
+      current = 0;
+    }
+
+    setAttr(charId, name, current + change);
   }
 
   function rememberRowId(charId, key, rowId) {
