@@ -344,6 +344,7 @@
 
     if (!total) {
       if (rowKey) {
+        removeRepeatingRow(charId, 'acmod', rowKey);
         removeRepeatingRow(charId, 'globalacmod', rowKey);
         setAttr(charId, 'hr_adapter_ac_misc_row', '');
       }
@@ -359,9 +360,10 @@
     var acLabel = buildAcMiscLabel(ledgerEntries);
     var valueText = String(total);
 
-    setAttr(charId, 'repeating_globalacmod_' + acRowId + '_global_ac_name', acLabel);
-    setAttr(charId, 'repeating_globalacmod_' + acRowId + '_global_ac_mod', valueText);
-    setAttr(charId, 'repeating_globalacmod_' + acRowId + '_global_ac_active', 1);
+    removeRepeatingRow(charId, 'globalacmod', acRowId);
+    setAttr(charId, 'repeating_acmod_' + acRowId + '_global_ac_name', acLabel);
+    setAttr(charId, 'repeating_acmod_' + acRowId + '_global_ac_val', valueText);
+    setAttr(charId, 'repeating_acmod_' + acRowId + '_global_ac_active_flag', 1);
   }
 
   function escapeForRegex(str) {
@@ -697,11 +699,10 @@
       }
 
       var acActive = toActiveValue(patch.active, true);
-      var acRow = ensureGlobalRow(charId, 'globalacmod', {
+      var acRow = ensureGlobalRow(charId, 'acmod', {
         'global_ac_name': acLabel,
-        'global_ac_mod': acValueText,
-        'global_ac_type': 'bonus',
-        'global_ac_active': acActive
+        'global_ac_val': acValueText,
+        'global_ac_active_flag': acActive
       }, 'hr_rows_globalacmod');
 
       return acRow.ok;
@@ -724,7 +725,10 @@
       for (var idx = 0; idx < attrs.length; idx++) {
         var attr = attrs[idx];
         var name = attr.get('name') || '';
-        if (name.indexOf('repeating_globalacmod_') !== 0 || name.indexOf('_global_ac_name') === -1) {
+        var isNewRow = name.indexOf('repeating_acmod_') === 0 && name.indexOf('_global_ac_name') !== -1;
+        var isLegacyRow = name.indexOf('repeating_globalacmod_') === 0 && name.indexOf('_global_ac_name') !== -1;
+
+        if (!isNewRow && !isLegacyRow) {
           continue;
         }
 
@@ -740,7 +744,13 @@
 
         var rowId = parts[2];
         var toggleActive = toActiveValue(patch.active, true);
-        setAttr(charId, 'repeating_globalacmod_' + rowId + '_global_ac_active', toggleActive);
+
+        if (isNewRow) {
+          setAttr(charId, 'repeating_acmod_' + rowId + '_global_ac_active_flag', toggleActive);
+        } else {
+          setAttr(charId, 'repeating_globalacmod_' + rowId + '_global_ac_active', toggleActive);
+        }
+
         toggled = true;
       }
 
@@ -751,6 +761,7 @@
       var acIds = readRowIds(charId, 'hr_rows_globalacmod');
       var removed = false;
       for (var acIdx = 0; acIdx < acIds.length; acIdx++) {
+        removeRepeatingRow(charId, 'acmod', acIds[acIdx]);
         removeRepeatingRow(charId, 'globalacmod', acIds[acIdx]);
         removed = true;
       }
@@ -999,6 +1010,7 @@
       var removeAcIds = readRowIds(charId, 'hr_rows_globalacmod');
       var removedAc = false;
       for (var acIndex = 0; acIndex < removeAcIds.length; acIndex++) {
+        removeRepeatingRow(charId, 'acmod', removeAcIds[acIndex]);
         removeRepeatingRow(charId, 'globalacmod', removeAcIds[acIndex]);
         removedAc = true;
       }
