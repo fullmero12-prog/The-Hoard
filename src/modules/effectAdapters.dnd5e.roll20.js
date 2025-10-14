@@ -36,13 +36,13 @@
 
     var attr = findObjs({
       _type: 'attribute',
-      _characterid: charId,
+      characterid: charId,
       name: name
     })[0];
 
     if (!attr) {
       attr = createObj('attribute', {
-        _characterid: charId,
+        characterid: charId,
         name: name,
         current: value
       });
@@ -58,7 +58,7 @@
   function getAttr(charId, name) {
     var attr = findObjs({
       _type: 'attribute',
-      _characterid: charId,
+      characterid: charId,
       name: name
     })[0];
 
@@ -73,13 +73,13 @@
   function addNumber(charId, name, delta) {
     var attr = findObjs({
       _type: 'attribute',
-      _characterid: charId,
+      characterid: charId,
       name: name
     })[0];
 
     if (!attr) {
       attr = createObj('attribute', {
-        _characterid: charId,
+        characterid: charId,
         name: name,
         current: 0
       });
@@ -165,7 +165,7 @@
     var prefix = 'repeating_' + section + '_' + rowId + '_';
     var attrs = findObjs({
       _type: 'attribute',
-      _characterid: charId
+      characterid: charId
     }) || [];
 
     for (var i = 0; i < attrs.length; i++) {
@@ -745,7 +745,7 @@
 
       var attrs = findObjs({
         _type: 'attribute',
-        _characterid: charId
+        characterid: charId
       }) || [];
 
       var toggled = false;
@@ -927,7 +927,7 @@
 
       var legacyAttack = findObjs({
         _type: 'attribute',
-        _characterid: charId,
+        characterid: charId,
         name: 'global_spell_attack_bonus'
       })[0];
 
@@ -957,7 +957,7 @@
 
       var legacySave = findObjs({
         _type: 'attribute',
-        _characterid: charId,
+        characterid: charId,
         name: 'global_spell_dc_bonus'
       })[0];
 
@@ -982,13 +982,13 @@
     if (patch.op === 'on_kill_refresh') {
       var list = findObjs({
         _type: 'attribute',
-        _characterid: charId,
+        characterid: charId,
         name: 'hr_on_kill_hooks'
       })[0];
 
       if (!list) {
         list = createObj('attribute', {
-          _characterid: charId,
+          characterid: charId,
           name: 'hr_on_kill_hooks',
           current: ''
         });
@@ -1069,7 +1069,7 @@
     if (patch.op === 'add_speed_bonus') {
       var speedAttr = findObjs({
         _type: 'attribute',
-        _characterid: charId,
+        characterid: charId,
         name: 'hr_speed_bonus_total'
       })[0];
       if (speedAttr) {
@@ -1135,7 +1135,7 @@
 
       var attackTotal = findObjs({
         _type: 'attribute',
-        _characterid: charId,
+        characterid: charId,
         name: 'hr_spell_attack_bonus_total'
       })[0];
       if (attackTotal) {
@@ -1153,7 +1153,7 @@
 
       var saveTotal = findObjs({
         _type: 'attribute',
-        _characterid: charId,
+        characterid: charId,
         name: 'hr_spell_dc_bonus_total'
       })[0];
       if (saveTotal) {
@@ -1168,7 +1168,7 @@
       for (var k = 0; k < suffixes.length; k++) {
         var attr = findObjs({
           _type: 'attribute',
-          _characterid: charId,
+          characterid: charId,
           name: baseName + suffixes[k]
         })[0];
         if (attr) {
@@ -1189,7 +1189,7 @@
     if (patch.op === 'add_aura') {
       var auraCfg = findObjs({
         _type: 'attribute',
-        _characterid: charId,
+        characterid: charId,
         name: 'hr_token_aura_cfg'
       })[0];
       if (auraCfg) {
@@ -1214,12 +1214,12 @@
       }
       var pb = findObjs({
         _type: 'attribute',
-        _characterid: charId,
+        characterid: charId,
         name: 'pb'
       })[0];
       var sca = findObjs({
         _type: 'attribute',
-        _characterid: charId,
+        characterid: charId,
         name: 'spellcasting_ability'
       })[0];
       return !!(pb || sca);
