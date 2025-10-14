@@ -117,6 +117,25 @@
     setAttr(charId, key, list.join('|'));
   }
 
+  function forgetRowId(charId, key, rowId) {
+    var existing = String(getAttr(charId, key) || '');
+    if (!existing) {
+      return;
+    }
+
+    var parts = existing.split('|');
+    var remaining = [];
+
+    for (var i = 0; i < parts.length; i++) {
+      var part = parts[i];
+      if (part && part !== rowId) {
+        remaining.push(part);
+      }
+    }
+
+    setAttr(charId, key, remaining.join('|'));
+  }
+
   function readRowIds(charId, key) {
     var raw = String(getAttr(charId, key) || '');
     var parts = raw ? raw.split('|') : [];
@@ -134,6 +153,9 @@
   function clearRowIds(charId, key) {
     setAttr(charId, key, '');
   }
+
+  var LEDGER_GLOBAL_SPELL_ATTACK = 'hr_ledger_add_global_spell_attack';
+  var ROW_TRACKER_SPELL_ATTACK = 'hr_rows_attackmod';
 
   function removeRepeatingRow(charId, section, rowId) {
     var prefix = 'repeating_' + section + '_' + rowId + '_';
@@ -512,6 +534,32 @@
     syncFlagToAttr(charId, attrName, flagName);
   }
 
+  function purgeGlobalSpellAttack(charId, ledgerKey) {
+    var ledger = readLedger(charId, LEDGER_GLOBAL_SPELL_ATTACK);
+    var remaining = [];
+
+    for (var i = 0; i < ledger.length; i++) {
+      var entry = ledger[i];
+      if (!entry) {
+        continue;
+      }
+
+      if (entry.key === ledgerKey) {
+        if (entry.rowId) {
+          removeRepeatingRow(charId, 'attackmod', entry.rowId);
+          forgetRowId(charId, ROW_TRACKER_SPELL_ATTACK, entry.rowId);
+        }
+        if (entry.attr && entry.segment) {
+          removeSegmentFromAttr(charId, entry.attr, entry.segment);
+        }
+      } else {
+        remaining.push(entry);
+      }
+    }
+
+    return remaining;
+  }
+
   function addGlobalDamageMath(charId, ledgerKey, label, rollValue, critValue, typeValue) {
     var rollSegment = formatSegment(rollValue, label);
     var critSegment = formatSegment(critValue, label);
@@ -885,16 +933,39 @@
     }
 
     if (patch.op === 'add_global_spell_attack') {
-      var attackValue = Number(patch.value || 0);
-      var attackString = (attackValue >= 0 ? '+' : '') + attackValue;
+      var attackLabel = resolveLabel(patch, effect, 'Spell Attack');
+      attackLabel = String(attackLabel || 'Spell Attack').replace(/\s+/g, ' ').trim();
+
+      var attackRaw = '';
+      if (typeof patch.value !== 'undefined' && patch.value !== null) {
+        attackRaw = String(patch.value);
+      }
+      attackRaw = attackRaw.replace(/\s+/g, ' ').trim();
+      if (!attackRaw) {
+        attackRaw = '+1';
+      }
+
+      var attackSegment = formatSegment(attackRaw, attackLabel);
+      if (!attackSegment) {
+        return false;
+      }
+
+      var attackLedgerKey = getLedgerKey(patch, effect);
+      var attackLedger = purgeGlobalSpellAttack(charId, attackLedgerKey);
 
       var attackRow = ensureGlobalRow(charId, 'attackmod', {
-        'global_attack_name': 'Hoard: Spell Attacks ' + attackString,
-        'global_attack_attack': attackString,
+        'global_attack_name': 'Hoard: ' + attackLabel,
+        'global_attack_attack': attackRaw,
         'global_attack_roll': 'on'
-      }, 'hr_rows_attackmod');
+      }, ROW_TRACKER_SPELL_ATTACK);
 
       if (attackRow.ok) {
+        attackLedger.push({
+          key: attackLedgerKey,
+          rowId: attackRow.rowId,
+          segment: attackSegment
+        });
+        writeLedger(charId, LEDGER_GLOBAL_SPELL_ATTACK, attackLedger);
         return true;
       }
 
@@ -905,12 +976,23 @@
       })[0];
 
       if (legacyAttack) {
-        var curAttack = String(legacyAttack.get('current') || '').trim();
-        legacyAttack.set('current', curAttack ? curAttack + ' ' + attackString : attackString);
+        appendSegmentToAttr(charId, 'global_spell_attack_bonus', attackSegment);
+        attackLedger.push({
+          key: attackLedgerKey,
+          attr: 'global_spell_attack_bonus',
+          segment: attackSegment
+        });
+        writeLedger(charId, LEDGER_GLOBAL_SPELL_ATTACK, attackLedger);
         return true;
       }
 
-      addNumber(charId, 'hr_spell_attack_bonus_total', attackValue);
+      appendSegmentToAttr(charId, 'hr_spell_attack_bonus_total', attackSegment);
+      attackLedger.push({
+        key: attackLedgerKey,
+        attr: 'hr_spell_attack_bonus_total',
+        segment: attackSegment
+      });
+      writeLedger(charId, LEDGER_GLOBAL_SPELL_ATTACK, attackLedger);
       return true;
     }
 
@@ -1100,20 +1182,9 @@
     }
 
     if (patch.op === 'add_global_spell_attack') {
-      var attackIds = readRowIds(charId, 'hr_rows_attackmod');
-      for (var i = 0; i < attackIds.length; i++) {
-        removeRepeatingRow(charId, 'attackmod', attackIds[i]);
-      }
-      clearRowIds(charId, 'hr_rows_attackmod');
-
-      var attackTotal = findObjs({
-        _type: 'attribute',
-        _characterid: charId,
-        name: 'hr_spell_attack_bonus_total'
-      })[0];
-      if (attackTotal) {
-        attackTotal.set('current', 0);
-      }
+      var removeAttackKey = getLedgerKey(patch, effect);
+      var remainingAttack = purgeGlobalSpellAttack(charId, removeAttackKey);
+      writeLedger(charId, LEDGER_GLOBAL_SPELL_ATTACK, remainingAttack);
       return true;
     }
 
