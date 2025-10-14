@@ -125,7 +125,7 @@
       return;
     }
 
-    var orderName = '_reporder_' + section;
+    var orderName = '_reporder_repeating_' + section;
     var current = String(getAttr(charId, orderName) || '');
     var parts = current ? current.split(',') : [];
     var exists = false;

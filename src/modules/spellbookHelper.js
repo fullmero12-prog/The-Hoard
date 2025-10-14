@@ -100,7 +100,7 @@ var SpellbookHelper = (function () {
       return false;
     }
 
-    var reporderName = '_reporder_' + section;
+    var reporderName = '_reporder_repeating_' + section;
     var attr = getAttrObj(charId, reporderName);
     if (!attr) {
       return false;
