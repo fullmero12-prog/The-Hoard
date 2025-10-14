@@ -121,6 +121,7 @@ var SpellbookHelper = (function () {
     if (spell.save) rows.push('{{Save=' + spell.save + '}}');
     if (spell.effect) rows.push('{{Effect=' + spell.effect + '}}');
     if (spell.notes) rows.push('{{Notes=' + spell.notes + '}}');
+    if (spell.atHigherLevels) rows.push('{{At Higher Levels=' + spell.atHigherLevels + '}}');
 
     return '&{template:default} {{name=' + spell.name + '}} ' + rows.join(' ');
   }
@@ -213,7 +214,8 @@ var SpellbookHelper = (function () {
         spellsavesuccess: saveSuccess,
         spellprepared: lvl === 0 ? '' : 'on',
         spellalwaysprepared: lvl === 0 ? '' : 'on',
-        spelldescription: description || (spell.notes || spell.effect || '')
+        spelldescription: description || (spell.notes || spell.effect || ''),
+        spellathigherlevels: spell.atHigherLevels || ''
       };
 
       if (spell.spellclass) fields.spellclass = spell.spellclass;
