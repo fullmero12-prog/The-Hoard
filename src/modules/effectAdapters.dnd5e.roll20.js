@@ -389,7 +389,7 @@
     removeRepeatingRow(charId, 'globalacmod', acRowId);
     setAttr(charId, 'repeating_acmod_' + acRowId + '_global_ac_name', acLabel);
     setAttr(charId, 'repeating_acmod_' + acRowId + '_global_ac_val', valueText);
-    setAttr(charId, 'repeating_acmod_' + acRowId + '_global_ac_active_flag', 1);
+    setAttr(charId, 'repeating_acmod_' + acRowId + '_global_ac_active', 1);
   }
 
   function escapeForRegex(str) {
@@ -729,7 +729,7 @@
       var acRow = ensureGlobalRow(charId, 'acmod', {
         'global_ac_name': acLabel,
         'global_ac_val': acValueText,
-        'global_ac_active_flag': acActive
+        'global_ac_active': acActive
       }, 'hr_rows_globalacmod');
 
       return acRow.ok;
@@ -773,9 +773,9 @@
         var toggleActive = toActiveValue(patch.active, true);
 
         if (isNewRow) {
-          setAttr(charId, 'repeating_acmod_' + rowId + '_global_ac_active_flag', toggleActive);
+          setAttr(charId, 'repeating_acmod_' + rowId + '_global_ac_active', toggleActive);
         } else {
-          setAttr(charId, 'repeating_globalacmod_' + rowId + '_global_ac_active', toggleActive);
+          setAttr(charId, 'repeating_globalacmod_' + rowId + '_global_ac_active_flag', toggleActive);
         }
 
         toggled = true;
