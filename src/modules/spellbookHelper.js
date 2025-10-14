@@ -215,6 +215,8 @@ var SpellbookHelper = (function () {
       if (spell.notes && spell.notes !== spell.effect) descriptionPieces.push(spell.notes);
       var description = descriptionPieces.join('\n\n');
 
+      var outputMode = spell.output ? String(spell.output).toUpperCase() : 'SPELLCARD';
+
       var fields = {
         spellname: spell.name,
         spelllevel: String(lvl),
@@ -230,7 +232,7 @@ var SpellbookHelper = (function () {
         spellcomp_m: hasM ? 'on' : '0',
         spellcomp_materials: materialText,
         spellattack: spell.attack || '',
-        spelloutput: spell.output || 'SPELLCARD',
+        spelloutput: outputMode,
         spelldamage: damageInfo ? stripInlineRoll(damageInfo.roll) : (spell.hit || ''),
         spelldamage2: damageInfo2 ? stripInlineRoll(damageInfo2.roll) : '',
         spelldamagetype: dmgType,

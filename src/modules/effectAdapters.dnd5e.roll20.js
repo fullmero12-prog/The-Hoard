@@ -355,6 +355,57 @@
     return base + ' (' + suffix + ')';
   }
 
+  function hasAnyGlobalAcRows(charId) {
+    if (!charId || typeof findObjs !== 'function') {
+      return false;
+    }
+
+    var attrs = findObjs({
+      _type: 'attribute',
+      _characterid: charId
+    }) || [];
+
+    for (var idx = 0; idx < attrs.length; idx++) {
+      var attr = attrs[idx];
+      var name = '';
+      try {
+        name = attr && typeof attr.get === 'function' ? attr.get('name') : '';
+      } catch (acErr) {
+        name = '';
+      }
+
+      if (!name) {
+        continue;
+      }
+
+      var isNewRow = name.indexOf('repeating_acmod_') === 0 && name.indexOf('_global_ac_') !== -1;
+      var isLegacyRow = name.indexOf('repeating_globalacmod_') === 0 && name.indexOf('_global_ac_') !== -1;
+      if (isNewRow || isLegacyRow) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  function ensureGlobalAcFlag(charId) {
+    if (!charId) {
+      return;
+    }
+    setAttr(charId, 'global_ac_mod_flag', '1');
+  }
+
+  function syncGlobalAcFlag(charId) {
+    if (!charId) {
+      return;
+    }
+    if (hasAnyGlobalAcRows(charId)) {
+      setAttr(charId, 'global_ac_mod_flag', '1');
+    } else {
+      setAttr(charId, 'global_ac_mod_flag', '0');
+    }
+  }
+
   function refreshGlobalAcMiscRow(charId, entries) {
     var ledgerEntries = entries || readLedger(charId, 'hr_ledger_add_ac_misc');
     var total = sumLedgerDelta(ledgerEntries);
@@ -366,6 +417,7 @@
         removeRepeatingRow(charId, 'globalacmod', rowKey);
         setAttr(charId, 'hr_adapter_ac_misc_row', '');
       }
+      syncGlobalAcFlag(charId);
       return;
     }
 
@@ -379,6 +431,7 @@
     var valueText = String(total);
 
     removeRepeatingRow(charId, 'globalacmod', acRowId);
+    ensureGlobalAcFlag(charId);
     setAttr(charId, 'repeating_acmod_' + acRowId + '_global_ac_name', acLabel);
     setAttr(charId, 'repeating_acmod_' + acRowId + '_global_ac_val', valueText);
     setAttr(charId, 'repeating_acmod_' + acRowId + '_global_ac_active', 1);
@@ -621,6 +674,9 @@
 
   function ensureGlobalRow(charId, section, fields, rememberKey) {
     try {
+      if (section === 'acmod') {
+        ensureGlobalAcFlag(charId);
+      }
       var created = null;
       if (typeof AttributeManager !== 'undefined' && AttributeManager && typeof AttributeManager.createRepeatingRow === 'function') {
         created = AttributeManager.createRepeatingRow(charId, section, fields);
@@ -785,6 +841,9 @@
         removed = true;
       }
       clearRowIds(charId, 'hr_rows_globalacmod');
+      if (removed) {
+        syncGlobalAcFlag(charId);
+      }
       return removed;
     }
 
