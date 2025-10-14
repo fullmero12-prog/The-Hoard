@@ -96,6 +96,7 @@ All logic is modularized under `/src/modules/` and `/src/data/`. The list below 
 
 ## ✅ Checklist for New Agents
 - [ ] Read this document before making changes.
+- [ ] Study `/docs/roll20-field-index.md` for Roll20 attribute references (required for effect adapters).
 - [ ] Keep code ES5-compatible.
 - [ ] Maintain separation of logic by module.
 - [ ] Use `UIManager` for all player-facing chat output.
