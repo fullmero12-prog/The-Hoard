@@ -175,7 +175,7 @@
     upsertAttr('hr_spellmod', spellModValue);
     upsertAttr('hr_false_life_pb_bonus', 0);
 
-    // Install Vladren's Always Prepared spell list and token actions when available.
+    // Install Vladren's Always Prepared spell list via repeating spell entries when available.
     if (typeof SpellbookHelper !== 'undefined') {
       SpellbookHelper.installAlwaysPrepared(charId, [
         {

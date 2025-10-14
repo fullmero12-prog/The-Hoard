@@ -601,7 +601,7 @@ var DevTools = (function () {
       typeof SpellbookHelper.clearAlwaysPreparedFromRunState === 'function'
     ) {
       // Run this before AncestorKits clears bound character tracking so we still know
-      // which sheets need their Always Prepared token actions removed.
+      // which sheets need their Always Prepared repeating spell markers cleared.
       apCleanup = SpellbookHelper.clearAlwaysPreparedFromRunState(state.HoardRun);
     }
     if (typeof AncestorKits !== 'undefined' && AncestorKits && typeof AncestorKits.clearAllMirroredAbilities === 'function') {
@@ -615,7 +615,6 @@ var DevTools = (function () {
       RunFlowManager.resetRunState();
     }
     var suffix = removedAttrs === 1 ? '' : 's';
-    var apAbilitySuffix = apCleanup.abilitiesRemoved === 1 ? '' : 's';
     var tagSuffix = apCleanup.attributesRemoved === 1 ? '' : 's';
     var effectAbilitySuffix = effectCleanup.abilitiesRemoved === 1 ? '' : 's';
     var macroSuffix = effectCleanup.macrosRemoved === 1 ? '' : 's';
@@ -624,10 +623,6 @@ var DevTools = (function () {
         removedAttrs +
         ' hr_* attribute' +
         suffix +
-        ', cleared ' +
-        apCleanup.abilitiesRemoved +
-        ' AP token action' +
-        apAbilitySuffix +
         ', cleaned ' +
         effectCleanup.abilitiesRemoved +
         ' boon/relic ability record' +
