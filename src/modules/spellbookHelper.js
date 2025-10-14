@@ -72,6 +72,86 @@ var SpellbookHelper = (function () {
     return null;
   }
 
+  function parseRepeatingPrefix(prefix) {
+    if (!prefix || prefix.indexOf('repeating_') !== 0) {
+      return null;
+    }
+
+    var body = prefix.slice('repeating_'.length);
+    var parts = body.split('_');
+    if (parts.length < 2) {
+      return null;
+    }
+
+    var section = parts[0];
+    var rowId = parts[1];
+    if (!section || !rowId) {
+      return null;
+    }
+
+    return {
+      section: section,
+      rowId: rowId
+    };
+  }
+
+  function removeRowFromReporder(charId, section, rowId) {
+    if (!charId || !section || !rowId) {
+      return false;
+    }
+
+    var reporderName = '_reporder_' + section;
+    var attr = getAttrObj(charId, reporderName);
+    if (!attr) {
+      return false;
+    }
+
+    var current = '';
+    try {
+      current = attr.get('current') || '';
+    } catch (repErr) {
+      current = '';
+    }
+
+    if (!current) {
+      return false;
+    }
+
+    var items = current.split(',');
+    var filtered = [];
+    var changed = false;
+    for (var i = 0; i < items.length; i += 1) {
+      var item = items[i];
+      if (!item) {
+        continue;
+      }
+      var trimmed = item.replace(/^\s+|\s+$/g, '');
+      if (!trimmed) {
+        continue;
+      }
+      if (trimmed === rowId) {
+        changed = true;
+        continue;
+      }
+      filtered.push(trimmed);
+    }
+
+    if (!changed) {
+      return false;
+    }
+
+    var updated = filtered.join(',');
+    try {
+      if (typeof attr.setWithWorker === 'function') {
+        attr.setWithWorker({ current: updated });
+      } else {
+        attr.set('current', updated);
+      }
+    } catch (setErr) {}
+
+    return true;
+  }
+
   // --- Try to install as a repeating spell on OGL/5e (best-effort) ---
   function tryInstallOnOGL5e(charId, spell) {
     try {
@@ -301,6 +381,7 @@ var SpellbookHelper = (function () {
 
     for (var p = 0; p < prefixes.length; p += 1) {
       var prefix = prefixes[p];
+      var parsed = parseRepeatingPrefix(prefix);
       var removedAny = false;
       var rowAttrs = findObjs({ _type: 'attribute', _characterid: charId }) || [];
       for (var r = 0; r < rowAttrs.length; r += 1) {
@@ -321,6 +402,10 @@ var SpellbookHelper = (function () {
       }
       if (removedAny) {
         outcome.spellsRemoved += 1;
+      }
+
+      if (parsed) {
+        removeRowFromReporder(charId, parsed.section, parsed.rowId);
       }
     }
 
