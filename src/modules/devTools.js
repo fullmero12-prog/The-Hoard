@@ -615,7 +615,12 @@ var DevTools = (function () {
       RunFlowManager.resetRunState();
     }
     var suffix = removedAttrs === 1 ? '' : 's';
-    var tagSuffix = apCleanup.attributesRemoved === 1 ? '' : 's';
+    var apSpellsRemoved = apCleanup && apCleanup.spellsRemoved ? apCleanup.spellsRemoved : 0;
+    var apSpellSuffix = apSpellsRemoved === 1 ? '' : 's';
+    var apHelperAttrsRemoved = apCleanup && apCleanup.attributesRemoved ? apCleanup.attributesRemoved : 0;
+    var tagSuffix = apHelperAttrsRemoved === 1 ? '' : 's';
+    var apSpellAttrsRemoved = apCleanup && apCleanup.spellAttributesRemoved ? apCleanup.spellAttributesRemoved : 0;
+    var apSpellAttrSuffix = apSpellAttrsRemoved === 1 ? '' : 's';
     var effectAbilitySuffix = effectCleanup.abilitiesRemoved === 1 ? '' : 's';
     var macroSuffix = effectCleanup.macrosRemoved === 1 ? '' : 's';
     gmSay(
@@ -631,8 +636,17 @@ var DevTools = (function () {
         effectCleanup.macrosRemoved +
         ' boon/relic macro' +
         macroSuffix +
+        ', deleted ' +
+        apSpellsRemoved +
+        ' Always Prepared spell' +
+        apSpellSuffix +
+        ' (' +
+        apSpellAttrsRemoved +
+        ' field' +
+        apSpellAttrSuffix +
+        ')' +
         ' and ' +
-        apCleanup.attributesRemoved +
+        apHelperAttrsRemoved +
         ' AP spell helper attribute' +
         tagSuffix +
         '.'

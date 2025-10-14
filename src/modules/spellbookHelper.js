@@ -251,32 +251,99 @@ var SpellbookHelper = (function () {
   }
 
   /**
+   * Deletes all Always Prepared spells installed by Hoard Run on a character.
+   * This removes the helper hr_apspell_* attributes and the repeating spell rows they reference.
+   * @param {string} charId
+   * @returns {{spellsRemoved:number, tagAttributesRemoved:number, spellAttributesRemoved:number}}
+   */
+  function deleteAlwaysPreparedSpells(charId) {
+    var outcome = { spellsRemoved: 0, tagAttributesRemoved: 0, spellAttributesRemoved: 0 };
+    if (!charId || typeof findObjs !== 'function') {
+      return outcome;
+    }
+
+    var attrs = findObjs({ _type: 'attribute', _characterid: charId }) || [];
+    var tagAttrs = [];
+    var prefixes = [];
+    var seenPrefixes = {};
+
+    for (var i = 0; i < attrs.length; i += 1) {
+      var attr = attrs[i];
+      var attrName = '';
+      try {
+        attrName = attr && typeof attr.get === 'function' ? attr.get('name') : '';
+      } catch (nameErr) {
+        attrName = '';
+      }
+
+      if (attrName && attrName.indexOf('hr_apspell_') === 0) {
+        tagAttrs.push(attr);
+        var prefix = '';
+        try {
+          prefix = attr.get('current') || '';
+        } catch (prefixErr) {
+          prefix = '';
+        }
+        if (prefix && !seenPrefixes[prefix]) {
+          prefixes.push(prefix);
+          seenPrefixes[prefix] = true;
+        }
+      }
+    }
+
+    for (var t = 0; t < tagAttrs.length; t += 1) {
+      var tag = tagAttrs[t];
+      try {
+        tag.remove();
+        outcome.tagAttributesRemoved += 1;
+      } catch (removeTagErr) {}
+    }
+
+    for (var p = 0; p < prefixes.length; p += 1) {
+      var prefix = prefixes[p];
+      var removedAny = false;
+      var rowAttrs = findObjs({ _type: 'attribute', _characterid: charId }) || [];
+      for (var r = 0; r < rowAttrs.length; r += 1) {
+        var rowAttr = rowAttrs[r];
+        var rowName = '';
+        try {
+          rowName = rowAttr && typeof rowAttr.get === 'function' ? rowAttr.get('name') : '';
+        } catch (rowNameErr) {
+          rowName = '';
+        }
+        if (rowName && rowName.indexOf(prefix) === 0) {
+          try {
+            rowAttr.remove();
+            outcome.spellAttributesRemoved += 1;
+            removedAny = true;
+          } catch (removeRowErr) {}
+        }
+      }
+      if (removedAny) {
+        outcome.spellsRemoved += 1;
+      }
+    }
+
+    return outcome;
+  }
+
+  /**
    * Removes Hoard Run Always Prepared helpers from a specific character.
    * This clears the hr_apspell_* markers so future runs rebuild clean spells.
    * The abilitiesRemoved property is retained for legacy callers and will stay 0.
    * @param {string} charId
-   * @returns {{abilitiesRemoved:number, attributesRemoved:number}}
+   * @returns {{abilitiesRemoved:number, attributesRemoved:number, spellsRemoved:number, spellAttributesRemoved:number}}
    */
   function removeAlwaysPreparedForCharacter(charId) {
-    var result = { abilitiesRemoved: 0, attributesRemoved: 0 };
+    var result = { abilitiesRemoved: 0, attributesRemoved: 0, spellsRemoved: 0, spellAttributesRemoved: 0 };
     if (!charId || typeof findObjs !== 'function') {
       return result;
     }
 
-    var attrs = findObjs({ _type: 'attribute', _characterid: charId }) || [];
-    for (var j = 0; j < attrs.length; j += 1) {
-      var attr = attrs[j];
-      try {
-        var attrName = attr && typeof attr.get === 'function' ? attr.get('name') : '';
-        if (attrName && attrName.indexOf('hr_apspell_') === 0) {
-          attr.remove();
-          result.attributesRemoved += 1;
-        }
-      } catch (attrErr) {
-        // Ignore sandbox hiccups when removing helper attributes.
-      }
-    }
-
+    var cleanup = deleteAlwaysPreparedSpells(charId);
+    result.attributesRemoved += cleanup.tagAttributesRemoved;
+    result.spellsRemoved += cleanup.spellsRemoved;
+    result.spellAttributesRemoved += cleanup.spellAttributesRemoved;
     return result;
   }
 
@@ -284,10 +351,10 @@ var SpellbookHelper = (function () {
    * Clears Always Prepared helpers for every bound character in a run state.
    * Ensures each character is only processed once even if shared between players.
    * @param {{players:Object<string, {boundCharacterId:string}>}} runState
-   * @returns {{abilitiesRemoved:number, attributesRemoved:number}}
+   * @returns {{abilitiesRemoved:number, attributesRemoved:number, spellsRemoved:number, spellAttributesRemoved:number}}
    */
   function clearAlwaysPreparedFromRunState(runState) {
-    var totals = { abilitiesRemoved: 0, attributesRemoved: 0 };
+    var totals = { abilitiesRemoved: 0, attributesRemoved: 0, spellsRemoved: 0, spellAttributesRemoved: 0 };
     var seen = {};
 
     if (runState && runState.players) {
@@ -314,6 +381,12 @@ var SpellbookHelper = (function () {
         var removed = removeAlwaysPreparedForCharacter(charId);
         totals.abilitiesRemoved += removed.abilitiesRemoved;
         totals.attributesRemoved += removed.attributesRemoved;
+        if (removed.spellsRemoved) {
+          totals.spellsRemoved += removed.spellsRemoved;
+        }
+        if (removed.spellAttributesRemoved) {
+          totals.spellAttributesRemoved += removed.spellAttributesRemoved;
+        }
       }
     }
 
@@ -323,6 +396,7 @@ var SpellbookHelper = (function () {
   return {
     installAlwaysPrepared: installAlwaysPrepared,
     patchAPSpell: patchAPSpell,
+    deleteAlwaysPreparedSpells: deleteAlwaysPreparedSpells,
     removeAlwaysPreparedForCharacter: removeAlwaysPreparedForCharacter,
     clearAlwaysPreparedFromRunState: clearAlwaysPreparedFromRunState
   };
