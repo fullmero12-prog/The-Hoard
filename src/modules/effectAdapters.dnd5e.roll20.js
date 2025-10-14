@@ -117,6 +117,32 @@
     setAttr(charId, key, list.join('|'));
   }
 
+  /**
+   * Ensure the Roll20 repeating order tracker includes the created row.
+   */
+  function ensureReporder(charId, section, rowId) {
+    if (!rowId) {
+      return;
+    }
+
+    var orderName = '_reporder_' + section;
+    var current = String(getAttr(charId, orderName) || '');
+    var parts = current ? current.split(',') : [];
+    var exists = false;
+
+    for (var i = 0; i < parts.length; i++) {
+      if (parts[i] === rowId) {
+        exists = true;
+        break;
+      }
+    }
+
+    if (!exists) {
+      parts.push(rowId);
+      setAttr(charId, orderName, parts.join(','));
+    }
+  }
+
   function readRowIds(charId, key) {
     var raw = String(getAttr(charId, key) || '');
     var parts = raw ? raw.split('|') : [];
@@ -617,6 +643,7 @@
           }
         }
       }
+      ensureReporder(charId, section, rowId);
       if (rememberKey) {
         rememberRowId(charId, rememberKey, rowId);
       }
