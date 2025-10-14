@@ -2,10 +2,8 @@
 // Spellbook Helper
 // ------------------------------------------------------------
 // What this does (in simple terms):
+//   • Focuses on the repeating spell sections for the D&D5e by Roll20 sheet.
 //   • Adds "Always Prepared" spells to a bound character when an Ancestor is chosen.
-//   • Creates token-action macros for those spells (reliable casting buttons).
-//   • If the sheet looks like D&D5e by Roll20, it tries to also create/update
-//     the underlying repeating spell entries (nice-to-have).
 //   • Exposes patch helpers so boons can modify a specific spell later.
 // ------------------------------------------------------------
 
@@ -13,7 +11,6 @@ var SpellbookHelper = (function () {
   'use strict';
 
   // --- Utilities ---
-  function getChar(charId)             { return getObj('character', charId); }
   function getAttrObj(charId, name)    { return findObjs({ _type:'attribute', _characterid: charId, name: name })[0] || null; }
   function setAttr(charId, name, val)  {
     if (typeof AttributeManager !== 'undefined' && AttributeManager && typeof AttributeManager.setAttributes === 'function') {
@@ -38,21 +35,9 @@ var SpellbookHelper = (function () {
     for (var i=0;i<19;i++){ r+=s[Math.floor(Math.random()*s.length)]; }
     return r;
   }
-  function upsertAbility(charId, name, action, token) {
-    var a = findObjs({ _type:'ability', _characterid: charId, name: name })[0];
-    if (!a) a = createObj('ability', { _characterid: charId, name: name, action: action, istokenaction: !!token });
-    else a.set({ action: action, istokenaction: !!token });
-    return a;
-  }
   function hasOGL5eSignals(charId) {
     // lightweight sniff: OGL/5e by Roll20 tends to have these attrs around
     return !!(getAttrObj(charId, 'level') || getAttrObj(charId, 'class') || getAttrObj(charId, 'spellcasting_ability'));
-  }
-
-  function ensureInlineRoll(expr) {
-    if (!expr) return '';
-    if (expr.indexOf('[[') !== -1) return expr;
-    return '[[ ' + expr + ' ]]';
   }
 
   function stripInlineRoll(expr) {
@@ -85,44 +70,6 @@ var SpellbookHelper = (function () {
     }
 
     return null;
-  }
-
-  function renderDamageRow(rows, entry, defaultLabel) {
-    var info = normalizeDamage(entry, defaultLabel);
-    if (!info) return;
-
-    var pieces = [];
-    if (info.roll) {
-      pieces.push(ensureInlineRoll(info.roll));
-    }
-    if (info.type) {
-      pieces.push(info.type);
-    }
-    if (info.notes) {
-      pieces.push(info.notes);
-    }
-
-    if (pieces.length) {
-      rows.push('{{' + info.label + '=' + pieces.join(' — ') + '}}');
-    }
-  }
-
-  // --- Build a safe cast macro (works regardless of sheet) ---
-  function buildCastCard(spell) {
-    var rows = [];
-    if (spell.school) rows.push('{{School=' + spell.school + '}}');
-    if (spell.level !== undefined) rows.push('{{Level=' + (spell.level===0 ? 'Cantrip' : spell.level) + '}}');
-    if (spell.range) rows.push('{{Range=' + spell.range + '}}');
-    if (spell.components) rows.push('{{Components=' + spell.components + '}}');
-    if (spell.duration) rows.push('{{Duration=' + spell.duration + '}}');
-    renderDamageRow(rows, spell.damage, 'Damage');
-    renderDamageRow(rows, spell.damage2, 'Secondary Damage');
-    if (spell.hit) rows.push('{{On Hit=' + spell.hit + '}}');
-    if (spell.save) rows.push('{{Save=' + spell.save + '}}');
-    if (spell.effect) rows.push('{{Effect=' + spell.effect + '}}');
-    if (spell.notes) rows.push('{{Notes=' + spell.notes + '}}');
-
-    return '&{template:default} {{name=' + spell.name + '}} ' + rows.join(' ');
   }
 
   // --- Try to install as a repeating spell on OGL/5e (best-effort) ---
@@ -252,17 +199,13 @@ var SpellbookHelper = (function () {
     if (!charId || !spells || !spells.length) return;
     for (var i=0;i<spells.length;i++){
       var s = spells[i];
-
-      // 1) Always create a token-action cast macro so it Just Works™
-      upsertAbility(charId, '[AP] ' + s.name, buildCastCard(s), true);
-
-      // 2) Best-effort: add to OGL5e repeating spell list as prepared
       tryInstallOnOGL5e(charId, s);
     }
   }
 
   // --- Public: apply a modifier to a specific AP spell (by name) ---
   // modify: { fields: {spelldamage: '2d8+PB', spelldescription: '...' }, macroNotes: 'adds +PB temp HP' }
+  // macroNotes is appended to the repeating spell description when possible.
   function patchAPSpell(charId, spellName, modify) {
     if (!charId || !spellName || !modify) return false;
     var tagName = 'hr_apspell_' + spellName.toLowerCase().replace(/[^a-z0-9]+/g,'_');
@@ -283,14 +226,25 @@ var SpellbookHelper = (function () {
       }
     }
 
-    // Always update the token-action macro, so the casting button reflects changes
-    var a = findObjs({ _type:'ability', _characterid: charId, name: '[AP] ' + spellName })[0];
-    if (a) {
-      var note = modify.macroNotes ? (' {{Boon=' + modify.macroNotes + '}}') : '';
-      var current = a.get('action') || '';
-      // naive approach: append a Boon line (idempotent-ish in testing contexts)
-      a.set('action', current + note);
-      patched = true;
+    if (modify.macroNotes && base) {
+      var prefixAttr = base.get('current') || '';
+      if (prefixAttr) {
+        var descriptionAttr = getAttrObj(charId, prefixAttr + 'spelldescription');
+        var existing = '';
+        if (descriptionAttr) {
+          existing = descriptionAttr.get('current') || descriptionAttr.get('max') || '';
+        }
+        var noteText = existing;
+        if (noteText) {
+          if (noteText.indexOf(modify.macroNotes) === -1) {
+            noteText = noteText + '\n\n' + modify.macroNotes;
+          }
+        } else {
+          noteText = modify.macroNotes;
+        }
+        setAttr(charId, prefixAttr + 'spelldescription', noteText);
+        patched = true;
+      }
     }
 
     return patched;
@@ -298,8 +252,8 @@ var SpellbookHelper = (function () {
 
   /**
    * Removes Hoard Run Always Prepared helpers from a specific character.
-   * This clears the token action abilities and any hr_apspell_* markers
-   * so future runs can rebuild a clean set of spells.
+   * This clears the hr_apspell_* markers so future runs rebuild clean spells.
+   * The abilitiesRemoved property is retained for legacy callers and will stay 0.
    * @param {string} charId
    * @returns {{abilitiesRemoved:number, attributesRemoved:number}}
    */
@@ -307,20 +261,6 @@ var SpellbookHelper = (function () {
     var result = { abilitiesRemoved: 0, attributesRemoved: 0 };
     if (!charId || typeof findObjs !== 'function') {
       return result;
-    }
-
-    var abilities = findObjs({ _type: 'ability', _characterid: charId }) || [];
-    for (var i = 0; i < abilities.length; i += 1) {
-      var ability = abilities[i];
-      try {
-        var name = ability && typeof ability.get === 'function' ? ability.get('name') : '';
-        if (name && name.indexOf('[AP] ') === 0) {
-          ability.remove();
-          result.abilitiesRemoved += 1;
-        }
-      } catch (err) {
-        // Swallow errors so a stubborn ability does not block cleanup.
-      }
     }
 
     var attrs = findObjs({ _type: 'attribute', _characterid: charId }) || [];
@@ -374,39 +314,6 @@ var SpellbookHelper = (function () {
         var removed = removeAlwaysPreparedForCharacter(charId);
         totals.abilitiesRemoved += removed.abilitiesRemoved;
         totals.attributesRemoved += removed.attributesRemoved;
-      }
-    }
-
-    // Safety net: if a character still has AP token actions but no player entry,
-    // sweep the campaign for orphaned abilities. This covers cases where
-    // `state.HoardRun` was partially wiped or legacy data used different shapes.
-    if (typeof findObjs === 'function') {
-      var abilities = findObjs({ _type: 'ability' }) || [];
-      for (var i = 0; i < abilities.length; i += 1) {
-        var ability = abilities[i];
-        var abilityName = '';
-        var abilityCharId = null;
-
-        try {
-          abilityName = ability && typeof ability.get === 'function' ? ability.get('name') : '';
-          abilityCharId = ability && typeof ability.get === 'function' ? ability.get('_characterid') : null;
-        } catch (abilityErr) {
-          abilityName = '';
-          abilityCharId = null;
-        }
-
-        if (!abilityName || abilityName.indexOf('[AP] ') !== 0) {
-          continue;
-        }
-
-        if (!abilityCharId || seen[abilityCharId]) {
-          continue;
-        }
-
-        seen[abilityCharId] = true;
-        var orphanRemoval = removeAlwaysPreparedForCharacter(abilityCharId);
-        totals.abilitiesRemoved += orphanRemoval.abilitiesRemoved;
-        totals.attributesRemoved += orphanRemoval.attributesRemoved;
       }
     }
 

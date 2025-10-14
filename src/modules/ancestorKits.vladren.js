@@ -175,7 +175,7 @@
     upsertAttr('hr_spellmod', spellModValue);
     upsertAttr('hr_false_life_pb_bonus', 0);
 
-    // Install Vladren's Always Prepared spell list and token actions when available.
+    // Install Vladren's Always Prepared spell list via repeating spell entries when available.
     if (typeof SpellbookHelper !== 'undefined') {
       SpellbookHelper.installAlwaysPrepared(charId, [
         { name: 'False Life', level: 1, school: 'Necromancy', range: 'Self', components: 'V,S,M', duration: '1 hour', effect: 'Gain [[ 1d4 + 4 + @{selected|hr_spellmod} + @{selected|hr_false_life_pb_bonus} ]] temp HP as per spell.' },
