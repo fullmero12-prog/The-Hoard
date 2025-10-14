@@ -178,14 +178,108 @@
     // Install Vladren's Always Prepared spell list and token actions when available.
     if (typeof SpellbookHelper !== 'undefined') {
       SpellbookHelper.installAlwaysPrepared(charId, [
-        { name: 'False Life', level: 1, school: 'Necromancy', range: 'Self', components: 'V,S,M', duration: '1 hour', effect: 'Gain [[ 1d4 + 4 + @{selected|hr_spellmod} + @{selected|hr_false_life_pb_bonus} ]] temp HP as per spell.' },
-        { name: 'Ray of Sickness', level: 1, school: 'Necromancy', range: '60 ft', components: 'V,S', duration: 'Instant', hit: 'Ranged spell attack; poison on failed Con save.', damage: { roll: '2d8 + @{selected|hr_spellmod}', type: 'poison', notes: 'On a failed Con save the target is poisoned until the end of your next turn.' } },
-        { name: 'Ray of Enfeeblement', level: 2, school: 'Necromancy', range: '60 ft', components: 'V,S', duration: '1 minute (Concentration)', effect: 'Target deals half damage with Str attacks (save ends).' },
-        { name: 'Mirror Image', level: 2, school: 'Illusion', range: 'Self', components: 'V,S', duration: '1 minute', effect: 'Creates illusory duplicates (no concentration).' },
-        { name: 'Vampiric Touch', level: 3, school: 'Necromancy', range: 'Self', components: 'V,S', duration: '1 minute (Concentration)', hit: 'Melee spell attack; necrotic; heal half the damage dealt each hit.', damage: { roll: '3d6 + @{selected|hr_spellmod}', type: 'necrotic', notes: 'Heal for half the necrotic damage dealt.' } },
-        { name: 'Blight', level: 4, school: 'Necromancy', range: '30 ft', components: 'V,S', duration: 'Instant', damage: { roll: '8d8 + @{selected|hr_spellmod}', type: 'necrotic', notes: 'Plant creatures make the save at disadvantage and take maximum damage.' } },
-        { name: 'Enervation', level: 5, school: 'Necromancy', range: '60 ft', components: 'V,S', duration: '1 minute (Concentration)', damage: { roll: '4d8 + @{selected|hr_spellmod}', type: 'necrotic', notes: 'On a hit, you heal for half the necrotic damage.' }, damage2: { label: 'Sustain', roll: '4d8 + @{selected|hr_spellmod}', type: 'necrotic', notes: 'Each subsequent action while you maintain the beam.' }, effect: 'Ray drains 4d8 necrotic; repeat 4d8 each turn while maintained.' },
-        { name: 'Negative Energy Flood', level: 5, school: 'Necromancy', range: '60 ft', components: 'V,M', duration: 'Instant', damage: { roll: '5d12 + @{selected|hr_spellmod}', type: 'necrotic', notes: 'Humanoid reduced to 0 HP may rise as a zombie under your control.' } }
+        {
+          name: 'False Life',
+          level: 1,
+          school: 'Necromancy',
+          castingTime: '1 action',
+          range: 'Self',
+          components: 'V,S,M (a small amount of alcohol or distilled spirits)',
+          duration: '1 hour',
+          effect: 'Bolster yourself with necromantic vigor to gain [[ 1d4 + 4 + @{selected|hr_false_life_pb_bonus} ]] temporary hit points for the duration.',
+          notes: 'At Higher Levels: Gain 5 additional temporary hit points for each slot level above 1st. Spell Lists: Artificer, Sorcerer, Wizard.'
+        },
+        {
+          name: 'Ray of Sickness',
+          level: 1,
+          school: 'Necromancy',
+          castingTime: '1 action',
+          range: '60 feet',
+          components: 'V,S',
+          duration: 'Instantaneous',
+          hit: 'Make a ranged spell attack against a creature.',
+          damage: { roll: '2d8', type: 'poison' },
+          save: 'Constitution (on a failed save, the target is poisoned until the end of your next turn)',
+          effect: 'On a hit, the target takes poison damage and must make a Constitution saving throw or be poisoned until the end of your next turn.',
+          notes: 'Spell Lists: Sorcerer, Wizard.'
+        },
+        {
+          name: 'Ray of Enfeeblement',
+          level: 2,
+          school: 'Necromancy',
+          castingTime: '1 action',
+          range: '60 feet',
+          components: 'V,S',
+          duration: 'Concentration, up to 1 minute',
+          hit: 'Make a ranged spell attack against a creature.',
+          effect: 'On a hit, the target deals only half damage with weapon attacks that use Strength until the spell ends.',
+          save: 'Constitution (at the end of each of its turns, ending the spell on a success)',
+          notes: 'Spell Lists: Warlock, Wizard.'
+        },
+        {
+          name: 'Mirror Image',
+          level: 2,
+          school: 'Illusion',
+          castingTime: '1 action',
+          range: 'Self',
+          components: 'V,S',
+          duration: '1 minute',
+          effect: 'Three illusory duplicates appear in your space and mimic your movements. Use a d20 to divert attacks to the duplicates (6+/8+/11+ as images remain).',
+          notes: 'Each duplicate has AC 10 + your Dexterity modifier and is destroyed on a hit. Creatures that cannot see or perceive illusions as false are unaffected. Spell Lists: Bard (Optional), Sorcerer, Warlock, Wizard.'
+        },
+        {
+          name: 'Vampiric Touch',
+          level: 3,
+          school: 'Necromancy',
+          castingTime: '1 action',
+          range: 'Self',
+          components: 'V,S',
+          duration: 'Concentration, up to 1 minute',
+          hit: 'Make a melee spell attack against a creature within your reach.',
+          damage: { roll: '3d6', type: 'necrotic' },
+          effect: 'On a hit, you regain hit points equal to half the necrotic damage dealt. Until the spell ends, you can make the attack again on each of your turns as an action.',
+          notes: 'At Higher Levels: Damage increases by 1d6 for each slot level above 3rd. Spell Lists: Sorcerer (Optional), Warlock, Wizard.'
+        },
+        {
+          name: 'Blight',
+          level: 4,
+          school: 'Necromancy',
+          castingTime: '1 action',
+          range: '30 feet',
+          components: 'V,S',
+          duration: 'Instantaneous',
+          save: 'Constitution (half damage on a success)',
+          damage: { roll: '8d8', type: 'necrotic' },
+          effect: 'Necromantic energy washes over a creature, draining moisture and vitality. The spell has no effect on undead or constructs.',
+          notes: 'Plant creatures make the saving throw with disadvantage and take maximum damage. Nonmagical plants wither instantly. At Higher Levels: Damage increases by 1d8 for each slot level above 4th. Spell Lists: Druid, Sorcerer, Warlock, Wizard.'
+        },
+        {
+          name: 'Enervation',
+          level: 5,
+          school: 'Necromancy',
+          castingTime: '1 action',
+          range: '60 feet',
+          components: 'V,S',
+          duration: 'Concentration, up to 1 minute',
+          save: 'Dexterity (on a success, the target takes 2d8 necrotic damage and the spell ends)',
+          damage: { roll: '4d8', type: 'necrotic', notes: 'Initial damage on a failed save.' },
+          damage2: { label: 'Sustain', roll: '4d8', type: 'necrotic', notes: 'Use your action on later turns to deal this damage automatically while the target remains in range and visible.' },
+          effect: 'Whenever the spell deals damage, you regain hit points equal to half the necrotic damage dealt. The spell ends if you use your action for anything else, the target moves out of range, or it gains total cover.',
+          notes: 'At Higher Levels: Damage increases by 1d8 for each slot level above 5th. Spell Lists: Sorcerer, Warlock, Wizard.'
+        },
+        {
+          name: 'Negative Energy Flood',
+          level: 5,
+          school: 'Necromancy',
+          castingTime: '1 action',
+          range: '60 feet',
+          components: 'V,M (a broken bone and a square of black silk)',
+          duration: 'Instantaneous',
+          save: 'Constitution (half damage on a success; undead instead gain temporary hit points equal to half the damage rolled)',
+          damage: { roll: '5d12', type: 'necrotic' },
+          effect: 'Ribbons of negative energy assault the target. A creature killed by this damage rises as a zombie at the start of your next turn and pursues the nearest creature it can see.',
+          notes: 'Spell Lists: Warlock, Wizard.'
+        }
       ]);
     }
   }
