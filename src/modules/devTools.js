@@ -278,115 +278,6 @@ var DevTools = (function () {
     return { relic: null, suggestions: hints };
   }
 
-  function buildRelicRecord(entry) {
-    if (!entry) {
-      return null;
-    }
-
-    var payload = deepClone(entry);
-    var adapter = (typeof RelicData !== 'undefined' && RelicData && typeof RelicData.buildRelicPayload === 'function')
-      ? RelicData.buildRelicPayload(payload)
-      : null;
-
-    var record = {
-      id: payload.id || (adapter && adapter.id) || payload.name,
-      name: payload.name || (adapter && adapter.name) || 'Relic',
-      data: payload,
-      rarity: payload.rarity || null,
-      description: payload.text_in_run || payload.description || ''
-    };
-
-    if (adapter) {
-      record.relicId = adapter.id;
-      record.inventory = deepClone(adapter.inventory);
-      record.ability = deepClone(adapter.ability);
-      if (adapter.inventory && adapter.inventory.description) {
-        record.description = adapter.inventory.description;
-      }
-    }
-
-    return record;
-  }
-
-  function applyRelicEffect(record, playerState, playerid) {
-    var result = { applied: false, reason: 'relic_pipeline_pending' };
-
-    if (!record || !playerState) {
-      result.reason = 'missing_state';
-      return result;
-    }
-
-    var characterId = playerState.boundCharacterId;
-    if (!characterId) {
-      result.reason = 'no_character';
-      return result;
-    }
-
-    if (typeof RelicData === 'undefined' || !RelicData || typeof RelicData.buildRelicPayload !== 'function') {
-      result.reason = 'missing_payload';
-      return result;
-    }
-
-    var payload = null;
-    if (record.relicId) {
-      payload = RelicData.buildRelicPayload(record.relicId);
-    }
-    if (!payload && record.data) {
-      payload = RelicData.buildRelicPayload(record.data);
-    }
-    if (!payload && record.name) {
-      payload = RelicData.buildRelicPayload(record.name);
-    }
-
-    if (!payload) {
-      result.reason = 'missing_payload';
-      return result;
-    }
-
-    var helper = (typeof EffectAdaptersDnd5eRoll20 !== 'undefined') ? EffectAdaptersDnd5eRoll20 : null;
-    if (!helper) {
-      result.reason = 'adapter_unavailable';
-      return result;
-    }
-
-    var inventoryOk = false;
-    if (typeof helper.ensureRelicInventory === 'function') {
-      var inventoryResult = helper.ensureRelicInventory({
-        characterId: characterId,
-        relicId: payload.id,
-        relicName: payload.inventory && payload.inventory.name ? payload.inventory.name : payload.name,
-        description: payload.inventory && payload.inventory.description ? payload.inventory.description : '',
-        mods: payload.inventory ? payload.inventory.mods : [],
-        metaVersion: payload.inventory ? payload.inventory.metaVersion : payload.metaVersion
-      });
-      inventoryOk = inventoryResult && inventoryResult.ok;
-    }
-
-    var abilityOk = false;
-    if (typeof helper.ensureRelicAbility === 'function') {
-      var abilityResult = helper.ensureRelicAbility(characterId, {
-        relicName: payload.ability && payload.ability.relicName ? payload.ability.relicName : payload.name,
-        name: payload.ability ? payload.ability.name : payload.name,
-        description: payload.ability && payload.ability.description ? payload.ability.description : '',
-        metaVersion: payload.ability ? payload.ability.metaVersion : payload.metaVersion
-      });
-      abilityOk = abilityResult && abilityResult.ok;
-    }
-
-    if (inventoryOk || abilityOk) {
-      result.applied = true;
-      result.reason = null;
-    } else if (!inventoryOk && !abilityOk) {
-      result.reason = 'adapter_failed';
-    } else if (!inventoryOk) {
-      result.reason = 'inventory_failed';
-    } else {
-      result.reason = 'ability_failed';
-    }
-
-    return result;
-  }
-
   function describeRelicIssue(code) {
     var map = {
       missing_payload: 'adapter payload unavailable',
@@ -396,7 +287,18 @@ var DevTools = (function () {
       ability_failed: 'token action failed to create',
       no_character: 'no bound character',
       missing_state: 'player state unavailable',
-      relic_pipeline_pending: 'relic-item pipeline offline (apply manually)'
+      relic_pipeline_pending: 'relic-item pipeline offline (apply manually)',
+      missing_character: 'no bound character',
+      binder_failed: 'relic binder could not sync the sheet',
+      binder_unavailable: 'relic binder unavailable',
+      state_unavailable: 'state manager unavailable',
+      manager_unavailable: 'relic manager unavailable',
+      missing_relic: 'relic id missing',
+      missing_target: 'no target specified',
+      no_effect: 'no state or sheet change recorded',
+      not_found: 'relic not found',
+      already_owned: 'already owned',
+      unknown_issue: 'unknown issue'
     };
 
     return Object.prototype.hasOwnProperty.call(map, code) ? map[code] : 'unknown issue';
@@ -434,14 +336,14 @@ var DevTools = (function () {
       return;
     }
 
-    var templateRecord = buildRelicRecord(lookup.relic);
-    if (!templateRecord) {
-      gmSay('Could not build a relic record for "' + raw + '".');
-      return;
-    }
-
     var granted = [];
+    var alreadyOwned = [];
     var issues = [];
+    var warnings = [];
+    var relicName = lookup.relic && lookup.relic.name ? lookup.relic.name : raw;
+    var relicId = lookup.relic && (lookup.relic.id || lookup.relic.name) ? (lookup.relic.id || lookup.relic.name) : raw;
+    var relicRarity = lookup.relic && lookup.relic.rarity ? lookup.relic.rarity : null;
+
     for (var i = 0; i < targets.length; i += 1) {
       var pid = targets[i];
       var playerState = StateManager.getPlayer(pid);
@@ -449,13 +351,6 @@ var DevTools = (function () {
         issues.push({ player: pid, reason: 'missing_state' });
         continue;
       }
-
-      if (!playerState.relics || !Array.isArray(playerState.relics)) {
-        playerState.relics = [];
-      }
-
-      var record = deepClone(templateRecord);
-      playerState.relics.push(record);
 
       var player = typeof getObj === 'function' ? getObj('player', pid) : null;
       var displayName = null;
@@ -465,19 +360,64 @@ var DevTools = (function () {
         displayName = null;
       }
       var label = displayName || pid;
-      granted.push(label);
 
-      var rarityNote = record.rarity ? ' (' + record.rarity + ')' : '';
-      whisperPlayer(pid, 'Relic Granted', record.name + rarityNote);
+      var characterId = playerState.boundCharacterId || null;
+      var grantResult = null;
 
-      var effectResult = applyRelicEffect(record, playerState, pid);
-      if (!effectResult.applied && effectResult.reason) {
-        issues.push({ player: label, reason: effectResult.reason });
+      if (typeof RelicItemManager !== 'undefined' && RelicItemManager && typeof RelicItemManager.grantRelic === 'function') {
+        grantResult = RelicItemManager.grantRelic({
+          playerId: pid,
+          characterId: characterId,
+          relicId: relicId,
+          displayName: relicName
+        });
+      } else {
+        if (!playerState.relics || !Array.isArray(playerState.relics)) {
+          playerState.relics = [];
+        }
+        var normalizedId = relicId ? String(relicId) : null;
+        var exists = false;
+        if (normalizedId) {
+          for (var r = 0; r < playerState.relics.length; r += 1) {
+            if (playerState.relics[r] === normalizedId) {
+              exists = true;
+              break;
+            }
+          }
+        }
+        if (!exists && normalizedId) {
+          playerState.relics.push(normalizedId);
+          StateManager.setPlayer(pid, playerState);
+        }
+        grantResult = { ok: !!normalizedId, alreadyOwned: exists, warnings: ['manager_unavailable'], reason: normalizedId ? null : 'missing_relic' };
+      }
+
+      if (!grantResult || !grantResult.ok) {
+        issues.push({ player: label, reason: grantResult && grantResult.reason ? grantResult.reason : 'unknown_issue' });
+        continue;
+      }
+
+      if (grantResult.alreadyOwned) {
+        alreadyOwned.push(label);
+      } else {
+        granted.push(label);
+      }
+
+      var rarityNote = relicRarity ? ' (' + relicRarity + ')' : '';
+      whisperPlayer(pid, 'Relic Granted', relicName + rarityNote);
+
+      var resultWarnings = grantResult.warnings || [];
+      for (var w = 0; w < resultWarnings.length; w += 1) {
+        warnings.push({ player: label, reason: resultWarnings[w] });
       }
     }
 
     if (granted.length) {
-      gmSay('Granted relic "' + templateRecord.name + '" to ' + granted.join(', ') + '.');
+      gmSay('Granted relic "' + relicName + '" to ' + granted.join(', ') + '.');
+    }
+
+    if (alreadyOwned.length) {
+      gmSay('ℹ️ Already owned: ' + alreadyOwned.join(', ') + '.');
     }
 
     if (issues.length) {
@@ -488,7 +428,18 @@ var DevTools = (function () {
         var reasonText = describeRelicIssue(entry.reason);
         parts.push(name + ' (' + reasonText + ')');
       }
-      gmSay('⚠️ Relic effects not applied for: ' + parts.join('; '));
+      gmSay('⚠️ Relic grant issues: ' + parts.join('; ') + '.');
+    }
+
+    if (warnings.length) {
+      var warningParts = [];
+      for (var k = 0; k < warnings.length; k += 1) {
+        var warn = warnings[k];
+        var warnName = warn.player || 'Unknown Player';
+        var warnText = describeRelicIssue(warn.reason);
+        warningParts.push(warnName + ' (' + warnText + ')');
+      }
+      gmSay('⚠️ Relic grant warnings: ' + warningParts.join('; ') + '.');
     }
   }
 
@@ -660,6 +611,58 @@ var DevTools = (function () {
     if (typeof AncestorKits !== 'undefined' && AncestorKits && typeof AncestorKits.clearAllMirroredAbilities === 'function') {
       AncestorKits.clearAllMirroredAbilities();
     }
+    if (
+      state &&
+      state.HoardRun &&
+      state.HoardRun.players &&
+      typeof RelicItemManager !== 'undefined' &&
+      RelicItemManager &&
+      typeof RelicItemManager.removeAllForCharacter === 'function' &&
+      typeof RelicItemManager.removeRelic === 'function'
+    ) {
+      var charactersToClear = {};
+      var orphanRemovals = [];
+
+      for (var pid in state.HoardRun.players) {
+        if (!state.HoardRun.players.hasOwnProperty(pid)) {
+          continue;
+        }
+
+        var snapshot = state.HoardRun.players[pid];
+        if (!snapshot || !snapshot.relics || !snapshot.relics.length) {
+          continue;
+        }
+
+        var charId = snapshot.boundCharacterId || null;
+        if (charId) {
+          charactersToClear[charId] = true;
+        } else {
+          for (var r = 0; r < snapshot.relics.length; r += 1) {
+            var relicEntry = snapshot.relics[r];
+            if (!relicEntry) {
+              continue;
+            }
+            orphanRemovals.push({ playerId: pid, relicId: relicEntry });
+          }
+        }
+      }
+
+      for (var charKey in charactersToClear) {
+        if (charactersToClear.hasOwnProperty(charKey)) {
+          RelicItemManager.removeAllForCharacter(charKey);
+        }
+      }
+
+      for (var o = 0; o < orphanRemovals.length; o += 1) {
+        var removal = orphanRemovals[o];
+        RelicItemManager.removeRelic({
+          playerId: removal.playerId,
+          relicId: removal.relicId,
+          suppressCharacterWarning: true
+        });
+      }
+    }
+
     resetHandouts();
     var removedAttrs = purgeHelperAttributes();
     delete state.HoardRun;

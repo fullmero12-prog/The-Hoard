@@ -1221,45 +1221,74 @@ var ShopManager = (function () {
     }
 
     if (slot.type === "relic") {
-      playerState.relics.push(record);
-
-      var characterId = playerState && playerState.boundCharacterId;
+      var characterId = playerState ? playerState.boundCharacterId : null;
       var buyerName = getPlayerDisplayName(playerid);
-      var relicName = slot.cardName || 'Unknown Relic';
-      var helper = (typeof EffectAdaptersDnd5eRoll20 !== 'undefined') ? EffectAdaptersDnd5eRoll20 : null;
-      var relicDescription = extractRelicDescription(slot, card);
-      if (!characterId) {
-        whisperGM('Relic "' + relicName + '" bought by ' + buyerName + ' has no bound character. Effect not applied.');
-      } else if (!relicAdapter) {
-        whisperGM('Relic "' + relicName + '" bought by ' + buyerName + ' has no adapter payload. Effect not applied.');
-      } else if (!helper) {
-        whisperGM('Relic "' + relicName + '" for ' + buyerName + ' not applied — adapter helper unavailable.');
-      } else {
-        var inventoryResult = null;
-        if (typeof helper.ensureRelicInventory === 'function') {
-          inventoryResult = helper.ensureRelicInventory({
-            characterId: characterId,
-            relicId: relicAdapter.id,
-            relicName: relicAdapter.inventory && relicAdapter.inventory.name ? relicAdapter.inventory.name : relicName,
-            description: (relicAdapter.inventory && relicAdapter.inventory.description) || relicDescription,
-            mods: relicAdapter.inventory ? relicAdapter.inventory.mods : [],
-            metaVersion: relicAdapter.inventory ? relicAdapter.inventory.metaVersion : relicAdapter.metaVersion
-          });
-        }
-        if (!inventoryResult || !inventoryResult.ok) {
-          whisperGM('Relic "' + relicName + '" for ' + buyerName + ' could not sync to the character inventory.');
-        }
+      var relicName = slot.cardName || (relicAdapter && relicAdapter.name) || 'Unknown Relic';
+      var relicId = null;
 
-        if (typeof helper.ensureRelicAbility === 'function') {
-          var abilityResult = helper.ensureRelicAbility(characterId, {
-            relicName: (relicAdapter.ability && relicAdapter.ability.relicName) ? relicAdapter.ability.relicName : relicName,
-            name: relicAdapter.ability ? relicAdapter.ability.name : relicName,
-            description: (relicAdapter.ability && relicAdapter.ability.description) || relicDescription,
-            metaVersion: relicAdapter.ability ? relicAdapter.ability.metaVersion : relicAdapter.metaVersion
-          });
-          if (!abilityResult || !abilityResult.ok) {
-            whisperGM('Relic "' + relicName + '" for ' + buyerName + ' could not create a token action.');
+      if (relicAdapter && relicAdapter.id) {
+        relicId = relicAdapter.id;
+      } else if (slot.relicId) {
+        relicId = slot.relicId;
+      } else if (record && record.id) {
+        relicId = record.id;
+      } else if (slot.cardData && slot.cardData.id) {
+        relicId = slot.cardData.id;
+      } else if (slot.cardName) {
+        relicId = slot.cardName;
+      }
+
+      var grantResult = null;
+      if (typeof RelicItemManager !== 'undefined' && RelicItemManager && typeof RelicItemManager.grantRelic === 'function') {
+        grantResult = RelicItemManager.grantRelic({
+          playerId: playerid,
+          characterId: characterId,
+          relicId: relicId,
+          displayName: relicName
+        });
+      } else {
+        if (!playerState.relics || !Array.isArray(playerState.relics)) {
+          playerState.relics = [];
+        }
+        var normalizedId = relicId ? String(relicId) : null;
+        var exists = false;
+        if (normalizedId) {
+          for (var x = 0; x < playerState.relics.length; x += 1) {
+            if (playerState.relics[x] === normalizedId) {
+              exists = true;
+              break;
+            }
           }
+        }
+        if (!exists && normalizedId) {
+          playerState.relics.push(normalizedId);
+        }
+        grantResult = { ok: !!normalizedId, warnings: ['manager_unavailable'], reason: normalizedId ? null : 'missing_relic' };
+      }
+
+      if (!grantResult || !grantResult.ok) {
+        whisper(playerid, 'Relic purchase failed. Your Scrip has been refunded.');
+        playerState.scrip += slot.price;
+        return;
+      }
+
+      if (grantResult.alreadyOwned) {
+        whisperGM('Relic "' + relicName + '" bought by ' + buyerName + ' was already recorded for that player.');
+      }
+
+      var warningMessages = {
+        missing_character: 'has no bound character. Apply sheet changes manually.',
+        binder_failed: 'could not sync to the character sheet automatically.',
+        binder_unavailable: 'could not sync — RelicBinder unavailable.',
+        state_unavailable: 'could not update Hoard Run state.',
+        manager_unavailable: 'was granted without RelicItemManager; verify state manually.'
+      };
+
+      var warnings = grantResult.warnings || [];
+      for (var w = 0; w < warnings.length; w += 1) {
+        var code = warnings[w];
+        if (Object.prototype.hasOwnProperty.call(warningMessages, code)) {
+          whisperGM('Relic "' + relicName + '" for ' + buyerName + ' ' + warningMessages[code]);
         }
       }
     } else if (slot.type === "boon") {
