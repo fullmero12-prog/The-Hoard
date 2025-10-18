@@ -1440,6 +1440,27 @@
     return '&{template:default}{{name=' + safeTitle + '}}{{Effect=' + safeBody + '}}';
   }
 
+  /**
+   * Developer note – helper payloads:
+   *
+   * ensureBoonAbility(charId, payload)
+   *   • Requires charId.
+   *   • payload.boonName (preferred) or payload.name builds the button label.
+   *   • payload.description is optional; blank becomes "See Hoard handout...".
+   *   • payload.ancestor is optional and appended to the label when present.
+   *
+   * ensureRelicAbility(charId, payload)
+   *   • Requires charId.
+   *   • payload.relicName (preferred) or payload.name names the ability; defaults to "Hoard Relic".
+   *   • payload.description is optional and feeds the roll template body.
+   *
+   * ensureRelicInventory(opts)
+   *   • Requires opts.characterId and a relic identifier via opts.relicId (preferred) or opts.effectId/opts.id.
+   *   • opts.itemName/opts.relicName/opts.name supply the visible inventory label; defaults to the lowercase relic id.
+   *   • opts.description or opts.content populate the GM note column; missing text resolves to an empty string.
+   *   • opts.mods accepts either an array of modifier patches or a single patch object/string; it is normalised to an array.
+   *   • opts.metaVersion is optional (defaults to 1) for downstream migrations.
+   */
   function ensureBoonAbility(charId, payload) {
     if (!payload) {
       return { ok: false };
