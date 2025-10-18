@@ -21,6 +21,29 @@ var DevTools = (function () {
   }
 
   /**
+   * Escapes text for safe inclusion in Roll20 chat HTML snippets.
+   * @param {string} text
+   * @returns {string}
+   */
+  function htmlEscape(text) {
+    if (text === null || typeof text === 'undefined') {
+      return '';
+    }
+
+    var str = String(text);
+    if (typeof _ !== 'undefined' && _.escape) {
+      return _.escape(str);
+    }
+
+    return str
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  /**
    * Splits a command argument string into tokens while honoring quoted names.
    * @param {string} argString
    * @returns {string[]}
@@ -38,6 +61,81 @@ var DevTools = (function () {
     }
 
     return tokens;
+  }
+
+  /**
+   * Dumps repeating inventory rows (name, RowID, equipped flag, modifiers) for the selected token.
+   * @param {object} msg
+   */
+  function dumpInventoryModifiers(msg) {
+    if (!msg || !msg.selected || !msg.selected.length) {
+      gmSay('⚠️ Select a token linked to the character before running <b>!mods-dump</b>.');
+      return;
+    }
+
+    var sel = msg.selected[0];
+    var token = sel && typeof getObj === 'function' ? getObj('graphic', sel._id) : null;
+    if (!token) {
+      gmSay('⚠️ Select a token linked to the character before running <b>!mods-dump</b>.');
+      return;
+    }
+
+    var characterId = token.get('represents');
+    if (!characterId) {
+      gmSay('⚠️ The selected token is not linked to a character.');
+      return;
+    }
+
+    var attrs = typeof findObjs === 'function' ? findObjs({ _type: 'attribute', _characterid: characterId }) || [] : [];
+    var rows = {};
+    var order = [];
+
+    for (var i = 0; i < attrs.length; i += 1) {
+      var attr = attrs[i];
+      var name = attr.get('name');
+      var match = /^repeating_inventory_([-A-Za-z0-9]+)_(itemname|equipped|itemmodifiers)$/.exec(name);
+      if (!match) {
+        continue;
+      }
+
+      var rowId = match[1];
+      var field = match[2];
+      if (!rows[rowId]) {
+        rows[rowId] = { name: '', eq: '', mods: '' };
+        order.push(rowId);
+      }
+
+      var current = attr.get('current') || '';
+      if (field === 'itemname') {
+        rows[rowId].name = current;
+      } else if (field === 'equipped') {
+        rows[rowId].eq = current;
+      } else if (field === 'itemmodifiers') {
+        rows[rowId].mods = current;
+      }
+    }
+
+    if (!order.length) {
+      gmSay('ℹ️ No repeating inventory rows found on the linked character.');
+      return;
+    }
+
+    var lines = ['<b>Inventory rows</b>'];
+    for (var r = 0; r < order.length; r += 1) {
+      var id = order[r];
+      var row = rows[id];
+      var equipped = row.eq === '1' ? '[E] ' : '[ ] ';
+      lines.push(
+        equipped +
+          htmlEscape(row.name) +
+          ' — RowID:' +
+          id +
+          ' — MODS: ' +
+          htmlEscape(row.mods)
+      );
+    }
+
+    gmSay(lines.join('<br>'));
   }
 
   /**
@@ -1131,6 +1229,13 @@ var DevTools = (function () {
       case '!resethandouts':
         resetHandouts();
         break;
+      case '!mods-dump':
+        if (typeof isGM === 'function' && !isGM(msg.playerid)) {
+          gmSay('⚠️ Only the GM can inspect inventory modifiers.');
+          return;
+        }
+        dumpInventoryModifiers(msg);
+        break;
       case '!givecurrency':
         if (typeof isGM === 'function' && !isGM(msg.playerid)) {
           gmSay('⚠️ Only the GM can grant currencies.');
@@ -1156,7 +1261,7 @@ var DevTools = (function () {
       return;
     }
     on('chat:message', handleInput);
-    gmSay('🧰 DevTools loaded. Commands: !resetstate, !debugstate, !testshop, !testrelic, !resethandouts, !givecurrency, !giverelic');
+    gmSay('🧰 DevTools loaded. Commands: !resetstate, !debugstate, !testshop, !testrelic, !resethandouts, !mods-dump, !givecurrency, !giverelic');
     isRegistered = true;
   }
 
