@@ -8,9 +8,10 @@
 // ------------------------------------------------------------
 
 (function () {
-  if (typeof EffectAdapters === 'undefined' || !EffectAdapters || typeof EffectAdapters.registerAdapter !== 'function') {
-    return;
-  }
+  var root = (typeof globalThis !== 'undefined') ? globalThis : this;
+  var adapterRegistry = (typeof EffectAdapters !== 'undefined' && EffectAdapters && typeof EffectAdapters.registerAdapter === 'function')
+    ? EffectAdapters
+    : null;
 
   function randRowId() {
     if (typeof AttributeManager !== 'undefined' && AttributeManager && typeof AttributeManager.generateRowId === 'function') {
@@ -1389,7 +1390,170 @@
 
   installInventoryLockWatchdog();
 
-  EffectAdapters.registerAdapter({
+  function ensureAbility(charId, abilityName, action, isTokenAction) {
+    if (!charId || !abilityName) {
+      return null;
+    }
+
+    var ability = findObjs({
+      _type: 'ability',
+      _characterid: charId,
+      name: abilityName
+    })[0];
+
+    try {
+      if (!ability) {
+        ability = createObj('ability', {
+          _characterid: charId,
+          name: abilityName,
+          action: action || '',
+          istokenaction: !!isTokenAction
+        });
+      } else {
+        ability.set({
+          action: action || '',
+          istokenaction: !!isTokenAction
+        });
+      }
+    } catch (err) {
+      return null;
+    }
+
+    return ability || null;
+  }
+
+  function escapeTemplateSegment(text) {
+    if (!text) {
+      return '';
+    }
+    return String(text)
+      .replace(/[{}]/g, '')
+      .replace(/\|/g, '/');
+  }
+
+  function buildTemplateAction(title, description) {
+    var safeTitle = escapeTemplateSegment(title);
+    var safeBody = escapeTemplateSegment(description).replace(/\r?\n/g, ' ');
+    if (!safeBody) {
+      safeBody = 'See Hoard handout for details.';
+    }
+    return '&{template:default}{{name=' + safeTitle + '}}{{Effect=' + safeBody + '}}';
+  }
+
+  function ensureBoonAbility(charId, payload) {
+    if (!payload) {
+      return { ok: false };
+    }
+
+    var boonName = payload.boonName || payload.name || 'Hoard Boon';
+    var label = 'HR Boon: ' + boonName;
+    if (payload.ancestor) {
+      label += ' — ' + payload.ancestor;
+    }
+
+    var action = buildTemplateAction(label, payload.description || '');
+    var ability = ensureAbility(charId, label, action, true);
+    return ability ? { ok: true, abilityId: ability.id } : { ok: false };
+  }
+
+  function ensureRelicAbility(charId, payload) {
+    if (!payload) {
+      return { ok: false };
+    }
+
+    var relicName = payload.relicName || payload.name || 'Hoard Relic';
+    var label = 'HR Relic: ' + relicName;
+    var action = buildTemplateAction(label, payload.description || '');
+    var ability = ensureAbility(charId, label, action, true);
+    return ability ? { ok: true, abilityId: ability.id } : { ok: false };
+  }
+
+  function ensureRelicInventory(opts) {
+    if (!opts || !opts.characterId) {
+      return { ok: false };
+    }
+
+    var relicId = String(opts.relicId || opts.effectId || opts.id || '').toLowerCase();
+    if (!relicId) {
+      return { ok: false };
+    }
+
+    var patch = {
+      type: 'adapter',
+      op: 'sync_relic_inventory',
+      relicId: relicId,
+      itemName: opts.itemName || opts.relicName || opts.name || relicId,
+      content: opts.description || opts.content || '',
+      mods: Array.isArray(opts.mods) ? opts.mods : (opts.mods ? [opts.mods] : []),
+      metaVersion: opts.metaVersion || 1
+    };
+
+    var effect = { id: relicId, name: patch.itemName, note: patch.content };
+    var applied = syncRelicInventoryRow(opts.characterId, patch, effect);
+    return applied ? { ok: true } : { ok: false };
+  }
+
+  function appendBoonNote(charId, note) {
+    if (!charId || !note) {
+      return false;
+    }
+
+    var attr = findObjs({
+      _type: 'attribute',
+      characterid: charId,
+      name: 'hr_boon_notes'
+    })[0];
+
+    if (!attr) {
+      try {
+        attr = createObj('attribute', {
+          characterid: charId,
+          name: 'hr_boon_notes',
+          current: ''
+        });
+      } catch (err) {
+        return false;
+      }
+    }
+
+    var existing = attr.get('current') || '';
+    var updated = existing ? existing + '\n' + note : note;
+
+    if (typeof attr.setWithWorker === 'function') {
+      attr.setWithWorker({ current: updated });
+    } else {
+      attr.set('current', updated);
+    }
+
+    return true;
+  }
+
+  function needsAttributeAssistance(text) {
+    if (!text) {
+      return false;
+    }
+
+    var pattern = /(\+\s?\d|advantage|disadvantage|bonus|penalty|dc|attack|damage|ac|temp hp|speed|charges|save|saves|resistance|vulnerability)/i;
+    return pattern.test(String(text));
+  }
+
+  function applyAdapterPatches(charId, patches, effect) {
+    if (!patches || !patches.length) {
+      return { applied: 0 };
+    }
+
+    var applied = 0;
+    for (var i = 0; i < patches.length; i++) {
+      if (applyPatch(charId, patches[i], effect)) {
+        applied += 1;
+      }
+    }
+
+    return { applied: applied };
+  }
+
+  if (adapterRegistry) {
+    adapterRegistry.registerAdapter({
     name: 'dnd5e-roll20',
     detect: function (character) {
       var charId = character ? character.id : null;
@@ -1418,4 +1582,17 @@
       return purgeHoardRelicInventory(charId);
     }
   });
+  }
+
+  var helper = root.EffectAdaptersDnd5eRoll20 || {};
+  helper.ensureRelicInventory = ensureRelicInventory;
+  helper.ensureRelicAbility = ensureRelicAbility;
+  helper.ensureBoonAbility = ensureBoonAbility;
+  helper.appendBoonNote = appendBoonNote;
+  helper.needsAttributeAssistance = needsAttributeAssistance;
+  helper.applyAdapterPatch = function (charId, patch, effect) {
+    return applyPatch(charId, patch, effect);
+  };
+  helper.applyAdapterPatches = applyAdapterPatches;
+  root.EffectAdaptersDnd5eRoll20 = helper;
 })();

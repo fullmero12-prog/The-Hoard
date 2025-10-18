@@ -129,6 +129,60 @@ var ShopManager = (function () {
     return text.trim();
   }
 
+  function extractCardText(card) {
+    if (!card) {
+      return '';
+    }
+
+    if (card.text_in_run) {
+      return card.text_in_run;
+    }
+    if (card.description) {
+      return card.description;
+    }
+    if (typeof card.get === 'function') {
+      var noteText = normalizeGMNotes(card.get('notes'));
+      if (noteText) {
+        return noteText;
+      }
+
+      var gmnoteText = normalizeGMNotes(card.get('gmnotes'));
+      if (gmnoteText) {
+        return gmnoteText;
+      }
+    }
+
+    return '';
+  }
+
+  function extractRelicDescription(slot, card) {
+    if (slot && slot.cardData && slot.cardData.text_in_run) {
+      return slot.cardData.text_in_run;
+    }
+    if (slot && slot.cardData && slot.cardData.description) {
+      return slot.cardData.description;
+    }
+    if (slot && slot.description) {
+      return slot.description;
+    }
+
+    return extractCardText(card);
+  }
+
+  function extractBoonDescription(slot, card) {
+    if (slot && slot.cardData && slot.cardData.text_in_run) {
+      return slot.cardData.text_in_run;
+    }
+    if (slot && slot.cardData && slot.cardData.description) {
+      return slot.cardData.description;
+    }
+    if (slot && slot.description) {
+      return slot.description;
+    }
+
+    return extractCardText(card);
+  }
+
   function findEffectIdInObject(value) {
     if (!value || typeof value !== 'object') {
       return null;
@@ -1006,6 +1060,12 @@ var ShopManager = (function () {
       record.ancestor = slot.ancestorName;
     }
 
+    if (slot.type === "relic") {
+      record.description = extractRelicDescription(slot, card);
+    } else if (slot.type === "boon") {
+      record.description = extractBoonDescription(slot, card);
+    }
+
     var recordEffectId = slot.effectId || null;
     if (!recordEffectId && slot.cardData && slot.cardData.effectId) {
       recordEffectId = slot.cardData.effectId;
@@ -1025,16 +1085,70 @@ var ShopManager = (function () {
       var effectId = record && record.effectId;
       var buyerName = getPlayerDisplayName(playerid);
       var relicName = slot.cardName || 'Unknown Relic';
+      var helper = (typeof EffectAdaptersDnd5eRoll20 !== 'undefined') ? EffectAdaptersDnd5eRoll20 : null;
+      var relicDescription = extractRelicDescription(slot, card);
       if (!characterId) {
         whisperGM('Relic "' + relicName + '" bought by ' + buyerName + ' has no bound character. Effect not applied.');
       } else if (!effectId) {
         whisperGM('Relic "' + relicName + '" bought by ' + buyerName + ' has no effectId. Effect not applied.');
+      } else if (!helper) {
+        whisperGM('Relic "' + relicName + '" effect "' + effectId + '" not applied — helper unavailable.');
       } else {
-        // TODO: Reconnect relic purchases to the replacement effect pipeline once it replaces EffectEngine/EffectRegistry.
-        whisperGM('Relic "' + relicName + '" effect "' + effectId + '" not applied — effect pipeline migration pending.');
+        var inventoryResult = null;
+        if (typeof helper.ensureRelicInventory === 'function') {
+          inventoryResult = helper.ensureRelicInventory({
+            characterId: characterId,
+            relicId: effectId,
+            relicName: relicName,
+            description: relicDescription
+          });
+        }
+        if (!inventoryResult || !inventoryResult.ok) {
+          whisperGM('Relic "' + relicName + '" for ' + buyerName + ' could not sync to the character inventory.');
+        }
+
+        if (typeof helper.ensureRelicAbility === 'function') {
+          var abilityResult = helper.ensureRelicAbility(characterId, {
+            relicName: relicName,
+            description: relicDescription
+          });
+          if (!abilityResult || !abilityResult.ok) {
+            whisperGM('Relic "' + relicName + '" for ' + buyerName + ' could not create a token action.');
+          }
+        }
       }
     } else if (slot.type === "boon") {
       playerState.boons.push(record);
+
+      var boonCharId = playerState && playerState.boundCharacterId;
+      var boonHelper = (typeof EffectAdaptersDnd5eRoll20 !== 'undefined') ? EffectAdaptersDnd5eRoll20 : null;
+      var boonName = slot.cardName || 'Ancestor Boon';
+      var boonDescription = extractBoonDescription(slot, card);
+      var buyer = getPlayerDisplayName(playerid);
+
+      if (!boonCharId) {
+        whisperGM('Boon "' + boonName + '" bought by ' + buyer + ' has no bound character. Token action not created.');
+      } else if (!boonHelper) {
+        whisperGM('Boon "' + boonName + '" for ' + buyer + ' could not auto-apply — helper unavailable.');
+      } else {
+        if (typeof boonHelper.ensureBoonAbility === 'function') {
+          var boonAbility = boonHelper.ensureBoonAbility(boonCharId, {
+            boonName: boonName,
+            ancestor: slot.ancestorName,
+            description: boonDescription
+          });
+          if (!boonAbility || !boonAbility.ok) {
+            whisperGM('Boon "' + boonName + '" for ' + buyer + ' could not create a token action.');
+          }
+        }
+
+        if (boonDescription && typeof boonHelper.needsAttributeAssistance === 'function' && boonHelper.needsAttributeAssistance(boonDescription)) {
+          if (typeof boonHelper.appendBoonNote === 'function') {
+            boonHelper.appendBoonNote(boonCharId, boonName + ': ' + boonDescription);
+          }
+          whisperGM('Boon "' + boonName + '" for ' + buyer + ' may require manual attribute adjustments.');
+        }
+      }
     } else if (slot.type === "upgrade") {
       if (!playerState.upgrades) {
         playerState.upgrades = [];
