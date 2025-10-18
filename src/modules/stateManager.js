@@ -163,6 +163,16 @@ var StateManager = (function () {
       SpellbookHelper.removeAlwaysPreparedForCharacter(existing.boundCharacterId);
     }
 
+    if (
+      existing &&
+      existing.boundCharacterId &&
+      typeof EffectAdapters !== 'undefined' &&
+      EffectAdapters &&
+      typeof EffectAdapters.purgeHoardInventory === 'function'
+    ) {
+      EffectAdapters.purgeHoardInventory(existing.boundCharacterId);
+    }
+
     var fresh = cloneDefaultPlayerState();
     state.HoardRun.players[playerid] = fresh;
     return state.HoardRun.players[playerid];

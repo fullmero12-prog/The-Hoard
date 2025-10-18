@@ -117,6 +117,26 @@ var EffectAdapters = (function () {
     }
   }
 
+  function purgeHoardInventory(characterId) {
+    var character = findCharacter(characterId);
+    if (!character) {
+      return 0;
+    }
+
+    var adapter = pickAdapter(character);
+    if (!adapter || typeof adapter.purgeHoardInventory !== 'function') {
+      return 0;
+    }
+
+    try {
+      var removed = adapter.purgeHoardInventory(characterId);
+      return removed || 0;
+    } catch (err) {
+      error('Adapter "' + (adapter.name || 'unnamed') + '" purge error: ' + err);
+      return 0;
+    }
+  }
+
   function registerModule() {
     info('EffectAdapters ready. Registered ' + adapters.length + ' adapters.');
   }
@@ -125,6 +145,7 @@ var EffectAdapters = (function () {
     registerAdapter: registerAdapter,
     apply: apply,
     remove: remove,
+    purgeHoardInventory: purgeHoardInventory,
     register: registerModule
   };
 })();
