@@ -1029,15 +1029,9 @@ var ShopManager = (function () {
         whisperGM('Relic "' + relicName + '" bought by ' + buyerName + ' has no bound character. Effect not applied.');
       } else if (!effectId) {
         whisperGM('Relic "' + relicName + '" bought by ' + buyerName + ' has no effectId. Effect not applied.');
-      } else if (typeof EffectRegistry !== 'undefined' && EffectRegistry && typeof EffectRegistry.get === 'function') {
-        var effectDef = EffectRegistry.get(effectId);
-        if (effectDef && typeof EffectEngine !== 'undefined' && EffectEngine && typeof EffectEngine.apply === 'function') {
-          EffectEngine.apply(characterId, effectDef);
-        } else {
-          whisperGM('Relic "' + relicName + '" effect "' + effectId + '" missing definition or EffectEngine.');
-        }
       } else {
-        whisperGM('Relic effects could not be resolved because EffectRegistry is unavailable.');
+        // TODO: Reconnect relic purchases to the replacement effect pipeline once it replaces EffectEngine/EffectRegistry.
+        whisperGM('Relic "' + relicName + '" effect "' + effectId + '" not applied — effect pipeline migration pending.');
       }
     } else if (slot.type === "boon") {
       playerState.boons.push(record);

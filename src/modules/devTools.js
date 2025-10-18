@@ -313,7 +313,7 @@ var DevTools = (function () {
   }
 
   function applyRelicEffect(record, playerState, playerid) {
-    var result = { applied: false, reason: 'unknown' };
+    var result = { applied: false, reason: 'effect_pipeline_pending' };
 
     if (!record || !playerState) {
       result.reason = 'missing_state';
@@ -332,33 +332,7 @@ var DevTools = (function () {
       return result;
     }
 
-    if (
-      typeof EffectRegistry === 'undefined' ||
-      !EffectRegistry ||
-      typeof EffectRegistry.get !== 'function'
-    ) {
-      result.reason = 'missing_registry';
-      return result;
-    }
-
-    if (
-      typeof EffectEngine === 'undefined' ||
-      !EffectEngine ||
-      typeof EffectEngine.apply !== 'function'
-    ) {
-      result.reason = 'missing_engine';
-      return result;
-    }
-
-    var effectDef = EffectRegistry.get(effectId);
-    if (!effectDef) {
-      result.reason = 'missing_effect';
-      return result;
-    }
-
-    EffectEngine.apply(characterId, effectDef);
-    result.applied = true;
-    result.reason = null;
+    // TODO: Route relic hooks through the successor effect pipeline when it becomes available.
     return result;
   }
 
@@ -366,10 +340,11 @@ var DevTools = (function () {
     var map = {
       no_effect: 'effectId missing on relic',
       no_character: 'no bound character',
-      missing_registry: 'EffectRegistry unavailable',
-      missing_engine: 'EffectEngine unavailable',
-      missing_effect: 'effect definition not found',
-      missing_state: 'player state unavailable'
+      missing_state: 'player state unavailable',
+      missing_registry: 'legacy effect registry removed',
+      missing_engine: 'legacy effect engine removed',
+      missing_effect: 'legacy effect definition unavailable',
+      effect_pipeline_pending: 'effect pipeline migration pending'
     };
 
     return Object.prototype.hasOwnProperty.call(map, code) ? map[code] : 'unknown issue';
@@ -586,14 +561,6 @@ var DevTools = (function () {
    * Clears all progress, currencies, boons, etc.
    */
   function resetState() {
-    var effectCleanup = { abilitiesRemoved: 0, macrosRemoved: 0 };
-    if (
-      typeof EffectEngine !== 'undefined' &&
-      EffectEngine &&
-      typeof EffectEngine.removeTokenAbilitiesFromRunState === 'function'
-    ) {
-      effectCleanup = EffectEngine.removeTokenAbilitiesFromRunState();
-    }
     var apCleanup = { abilitiesRemoved: 0, attributesRemoved: 0 };
     if (
       typeof SpellbookHelper !== 'undefined' &&
@@ -621,21 +588,11 @@ var DevTools = (function () {
     var tagSuffix = apHelperAttrsRemoved === 1 ? '' : 's';
     var apSpellAttrsRemoved = apCleanup && apCleanup.spellAttributesRemoved ? apCleanup.spellAttributesRemoved : 0;
     var apSpellAttrSuffix = apSpellAttrsRemoved === 1 ? '' : 's';
-    var effectAbilitySuffix = effectCleanup.abilitiesRemoved === 1 ? '' : 's';
-    var macroSuffix = effectCleanup.macrosRemoved === 1 ? '' : 's';
     gmSay(
       '⚙️ HoardRun state has been reset. Removed ' +
         removedAttrs +
         ' hr_* attribute' +
         suffix +
-        ', cleaned ' +
-        effectCleanup.abilitiesRemoved +
-        ' boon/relic ability record' +
-        effectAbilitySuffix +
-        ', removed ' +
-        effectCleanup.macrosRemoved +
-        ' boon/relic macro' +
-        macroSuffix +
         ', deleted ' +
         apSpellsRemoved +
         ' Always Prepared spell' +
@@ -649,7 +606,7 @@ var DevTools = (function () {
         apHelperAttrsRemoved +
         ' AP spell helper attribute' +
         tagSuffix +
-        '.'
+        '. Legacy effect cleanup skipped (effect pipeline migration pending).'
     );
   }
 

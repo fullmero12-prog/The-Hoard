@@ -624,14 +624,7 @@ var BoonManager = (function () {
 
     ensureBoonHandout(playerid, picked, offer.ancestor);
 
-    var effectId = picked.effectId || picked.id || picked.name;
-    var characterId = ps && ps.boundCharacterId;
-    if (characterId && typeof EffectRegistry !== 'undefined' && EffectRegistry && typeof EffectRegistry.get === 'function' && typeof EffectEngine !== 'undefined' && EffectEngine && typeof EffectEngine.apply === 'function') {
-      var effectDef = EffectRegistry.get(effectId);
-      if (effectDef) {
-        EffectEngine.apply(characterId, effectDef);
-      }
-    }
+    // TODO: Invoke the replacement effect pipeline once boon effects migrate off EffectEngine/EffectRegistry.
 
     var playerName = getPlayerName(playerid);
     var message = '🌟 You gained <b>' + _.escape(picked.name) + '</b> (' + rarityLabel(rarity) + ')';
