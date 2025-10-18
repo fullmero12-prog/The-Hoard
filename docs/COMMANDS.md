@@ -24,6 +24,7 @@
 - `!testshop` — Generate a mock Bing, Bang & Bongo shop for the first online player.
 - `!testrelic` — Roll a random relic using DeckManager (falls back to static data if decks are missing).
 - `!resethandouts` — Delete Hoard Run-generated handouts (boons, relics, kits) so journals are clean before a reset.
+- `!mods-dump` — (GM only) Whisper a repeating-inventory breakdown for the selected character, including RowIDs, equipped flags, and modifier text.
 - `!giverelic <Relic Name>` — (GM only) Grant every tracked player the specified relic by its catalog name. The relic-item pipeline now syncs inventories and token actions on the Roll20 D&D 5e sheet, so use this to refresh old state after updates.
 - `!givevladren` — Installs the Vladren Moroi kit on the issuing GM for testing the ancestor token actions.
 - `!resetvladren` — Resets per-room charges for Vladren Moroi features on the issuing GM.
