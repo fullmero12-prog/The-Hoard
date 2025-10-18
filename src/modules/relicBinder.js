@@ -476,11 +476,30 @@ var RelicBinder = (function () {
       return result;
     }
 
+    var helper = getAdapterHelper();
     var relicName = sanitizeName(payload.name);
     var hoardName = 'Hoard: ' + relicName;
 
-    result.inventoryRemoved = removeRelicInventory(characterId, payload.id);
-    result.abilityRemoved = removeRelicAbility(characterId, relicName);
+    if (helper && typeof helper.removeRelicInventory === 'function') {
+      var helperInventoryRemoval = helper.removeRelicInventory(characterId, payload.id);
+      result.inventoryRemoved = helperInventoryRemoval && helperInventoryRemoval.ok;
+      if (!result.inventoryRemoved) {
+        result.inventoryRemoved = removeRelicInventory(characterId, payload.id);
+      }
+    } else {
+      result.inventoryRemoved = removeRelicInventory(characterId, payload.id);
+    }
+
+    if (helper && typeof helper.removeRelicAbility === 'function') {
+      var helperAbilityRemoval = helper.removeRelicAbility(characterId, relicName);
+      result.abilityRemoved = helperAbilityRemoval && helperAbilityRemoval.ok;
+      if (!result.abilityRemoved) {
+        result.abilityRemoved = removeRelicAbility(characterId, relicName);
+      }
+    } else {
+      result.abilityRemoved = removeRelicAbility(characterId, relicName);
+    }
+
     result.stateUpdates = removeRelicFromPlayers(characterId, payload.id);
 
     if (result.inventoryRemoved || result.abilityRemoved || result.stateUpdates.length) {
