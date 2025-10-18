@@ -147,14 +147,6 @@ var StateManager = (function () {
     var existing = state.HoardRun.players[playerid] || null;
     if (
       existing &&
-      typeof EffectEngine !== 'undefined' &&
-      EffectEngine &&
-      typeof EffectEngine.removeTokenAbilitiesForPlayer === 'function'
-    ) {
-      EffectEngine.removeTokenAbilitiesForPlayer(existing, playerid);
-    }
-    if (
-      existing &&
       existing.boundCharacterId &&
       typeof SpellbookHelper !== 'undefined' &&
       SpellbookHelper &&
@@ -163,15 +155,7 @@ var StateManager = (function () {
       SpellbookHelper.removeAlwaysPreparedForCharacter(existing.boundCharacterId);
     }
 
-    if (
-      existing &&
-      existing.boundCharacterId &&
-      typeof EffectAdapters !== 'undefined' &&
-      EffectAdapters &&
-      typeof EffectAdapters.purgeHoardInventory === 'function'
-    ) {
-      EffectAdapters.purgeHoardInventory(existing.boundCharacterId);
-    }
+    // TODO: Wire up the replacement effect pipeline to clean relic/boon artifacts during resets.
 
     var fresh = cloneDefaultPlayerState();
     state.HoardRun.players[playerid] = fresh;

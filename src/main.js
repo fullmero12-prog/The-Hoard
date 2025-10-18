@@ -23,15 +23,6 @@ on('ready', function () {
     AttributeManager.register();
   }
 
-  // register concrete adapters first so the engine can immediately consume them
-  if (typeof EffectAdapters !== 'undefined' && EffectAdapters.register) {
-    EffectAdapters.register();
-  }
-
-  if (typeof EffectEngine !== 'undefined' && EffectEngine.register) {
-    EffectEngine.register();
-  }
-
   if (typeof SpellbookHelper !== 'undefined' && SpellbookHelper.register) {
     SpellbookHelper.register();
   }
