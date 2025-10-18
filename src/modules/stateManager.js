@@ -45,6 +45,35 @@ var StateManager = (function () {
     return JSON.parse(JSON.stringify(DEFAULT_PLAYER_STATE));
   }
 
+  function normalizeRelicList(entries) {
+    var normalized = [];
+    var seen = {};
+
+    if (!entries || !Array.isArray(entries)) {
+      return normalized;
+    }
+
+    for (var i = 0; i < entries.length; i += 1) {
+      var entry = entries[i];
+      var id = null;
+
+      if (typeof entry === 'string' || typeof entry === 'number') {
+        id = String(entry);
+      } else if (entry && typeof entry === 'object' && entry.id) {
+        id = String(entry.id);
+      }
+
+      if (!id || seen[id]) {
+        continue;
+      }
+
+      seen[id] = true;
+      normalized.push(id);
+    }
+
+    return normalized;
+  }
+
   function applyDefaultStateShape(playerState) {
     var defaults = cloneDefaultPlayerState();
     var result = playerState || {};
@@ -55,6 +84,8 @@ var StateManager = (function () {
         result[key] = defaults[key];
       }
     }
+
+    result.relics = normalizeRelicList(result.relics);
 
     return result;
   }
@@ -118,6 +149,11 @@ var StateManager = (function () {
 
     state.HoardRun.players[playerid] = applyDefaultStateShape(merged);
     return state.HoardRun.players[playerid];
+  }
+
+  function getRelicIds(playerid) {
+    var p = getPlayer(playerid);
+    return normalizeRelicList(p.relics);
   }
 
   /** Ensures currency math always uses whole numbers */
@@ -333,6 +369,7 @@ var StateManager = (function () {
     applyCurrencyBundle: applyCurrencyBundle,
     advanceRoom: advanceRoom,
     getCurrencies: getCurrencies,
+    getRelicIds: getRelicIds,
     spendScrip: spendScrip,
     resetAll: resetAll,
     debugPrint: debugPrint

@@ -54,30 +54,38 @@ var RelicBinder = (function () {
     return null;
   }
 
-  function buildStateRecord(payload, hoardName) {
-    var record = {
-      id: payload.id,
-      relicId: payload.id,
-      name: payload.name || payload.id,
-      displayName: hoardName,
-      rarity: payload.rarity || null,
-      metaVersion: payload.metaVersion || 1
-    };
-
-    if (payload.inventory) {
-      record.inventory = deepClone(payload.inventory);
-    }
-    if (payload.ability) {
-      record.ability = deepClone(payload.ability);
-    }
-
-    return record;
-  }
-
   function ensurePlayerStateHasRelics(playerState) {
     if (!playerState.relics || !Array.isArray(playerState.relics)) {
       playerState.relics = [];
+      return;
     }
+
+    var normalized = [];
+    var seen = {};
+
+    for (var i = 0; i < playerState.relics.length; i += 1) {
+      var entry = playerState.relics[i];
+      var id = null;
+
+      if (typeof entry === 'string' || typeof entry === 'number') {
+        id = String(entry);
+      } else if (entry && typeof entry === 'object') {
+        if (entry.relicId) {
+          id = String(entry.relicId);
+        } else if (entry.id) {
+          id = String(entry.id);
+        }
+      }
+
+      if (!id || seen[id]) {
+        continue;
+      }
+
+      seen[id] = true;
+      normalized.push(id);
+    }
+
+    playerState.relics = normalized;
   }
 
   function attachRelicToPlayers(characterId, payload, hoardName) {
@@ -97,17 +105,17 @@ var RelicBinder = (function () {
       var playerState = StateManager.getPlayer(playerId);
       ensurePlayerStateHasRelics(playerState);
 
+      var normalizedId = String(payload.id);
       var exists = false;
       for (var r = 0; r < playerState.relics.length; r += 1) {
-        var existing = playerState.relics[r];
-        if (existing && existing.id === payload.id) {
+        if (playerState.relics[r] === normalizedId) {
           exists = true;
           break;
         }
       }
 
       if (!exists) {
-        playerState.relics.push(buildStateRecord(payload, hoardName));
+        playerState.relics.push(normalizedId);
         StateManager.setPlayer(playerId, playerState);
         updates.push(playerId);
       }
@@ -133,15 +141,15 @@ var RelicBinder = (function () {
       var playerState = StateManager.getPlayer(playerId);
       ensurePlayerStateHasRelics(playerState);
 
+      var normalizedId = String(relicId);
       var nextRelics = [];
       var removed = false;
       for (var r = 0; r < playerState.relics.length; r += 1) {
-        var record = playerState.relics[r];
-        if (record && record.id === relicId) {
+        if (playerState.relics[r] === normalizedId) {
           removed = true;
           continue;
         }
-        nextRelics.push(record);
+        nextRelics.push(playerState.relics[r]);
       }
 
       if (removed) {
