@@ -12,6 +12,8 @@
   var adapterRegistry = (typeof EffectAdapters !== 'undefined' && EffectAdapters && typeof EffectAdapters.registerAdapter === 'function')
     ? EffectAdapters
     : null;
+  var suppressedRowRemovals = {};
+  var relicMetaWatchdogInstalled = false;
 
   function randRowId() {
     if (typeof AttributeManager !== 'undefined' && AttributeManager && typeof AttributeManager.generateRowId === 'function') {
@@ -110,6 +112,27 @@
     setAttr(charId, key, list.join('|'));
   }
 
+  function buildRowGuardKey(charId, section, rowId) {
+    return [String(charId || ''), String(section || ''), String(rowId || '')].join('::');
+  }
+
+  function withSuppressedRowRemoval(charId, section, rowId, task) {
+    var key = buildRowGuardKey(charId, section, rowId);
+    suppressedRowRemovals[key] = true;
+    var result;
+    try {
+      result = task();
+    } finally {
+      delete suppressedRowRemovals[key];
+    }
+    return result;
+  }
+
+  function isRowRemovalSuppressed(charId, section, rowId) {
+    var key = buildRowGuardKey(charId, section, rowId);
+    return !!suppressedRowRemovals[key];
+  }
+
   /**
    * Ensure the Roll20 repeating order tracker includes the created row.
    */
@@ -155,45 +178,59 @@
   }
 
   function removeRepeatingRow(charId, section, rowId) {
-    var prefix = 'repeating_' + section + '_' + rowId + '_';
-    var attrs = findObjs({
-      _type: 'attribute',
-      characterid: charId
-    }) || [];
-
-    for (var i = 0; i < attrs.length; i++) {
-      var attr = attrs[i];
-      var name = attr.get('name') || '';
-      if (name.indexOf(prefix) === 0) {
-        try {
-          attr.remove();
-        } catch (err) {
-          // Ignore removal issues; sandbox may throw if already deleted.
-        }
-      }
+    if (!rowId || typeof findObjs !== 'function') {
+      return false;
     }
 
-    var orderAttr = findObjs({
-      _type: 'attribute',
-      characterid: charId,
-      name: '_reporder_repeating_' + section
-    })[0];
+    return withSuppressedRowRemoval(charId, section, rowId, function () {
+      var prefix = 'repeating_' + section + '_' + rowId + '_';
+      var attrs = findObjs({
+        _type: 'attribute',
+        characterid: charId
+      }) || [];
 
-    if (orderAttr) {
-      var currentOrder = String(orderAttr.get('current') || '');
-      if (currentOrder) {
-        var orderParts = currentOrder.split(',');
-        var filtered = [];
-
-        for (var j = 0; j < orderParts.length; j++) {
-          if (orderParts[j] && orderParts[j] !== rowId) {
-            filtered.push(orderParts[j]);
+      var removed = false;
+      for (var i = 0; i < attrs.length; i++) {
+        var attr = attrs[i];
+        var name = attr.get('name') || '';
+        if (name.indexOf(prefix) === 0) {
+          try {
+            attr.remove();
+            removed = true;
+          } catch (err) {
+            // Ignore removal issues; sandbox may throw if already deleted.
           }
         }
-
-        orderAttr.set('current', filtered.join(','));
       }
-    }
+
+      var orderAttr = findObjs({
+        _type: 'attribute',
+        characterid: charId,
+        name: '_reporder_repeating_' + section
+      })[0];
+
+      if (orderAttr) {
+        var currentOrder = String(orderAttr.get('current') || '');
+        if (currentOrder) {
+          var orderParts = currentOrder.split(',');
+          var filtered = [];
+
+          for (var j = 0; j < orderParts.length; j++) {
+            if (orderParts[j] && orderParts[j] !== rowId) {
+              filtered.push(orderParts[j]);
+            }
+          }
+
+          try {
+            orderAttr.set('current', filtered.join(','));
+          } catch (err) {
+            // Ignore failures updating order attribute.
+          }
+        }
+      }
+
+      return removed;
+    });
   }
 
   var inventoryWatchdogInstalled = false;
@@ -326,6 +363,53 @@
     }
   }
 
+  function readAttrCurrent(attr) {
+    if (!attr) {
+      return '';
+    }
+
+    try {
+      if (typeof attr.get === 'function') {
+        var direct = attr.get('current');
+        if (typeof direct !== 'undefined' && direct !== null && direct !== '') {
+          return direct;
+        }
+      }
+    } catch (err) {
+      // Ignore access issues; fall back to other snapshots.
+    }
+
+    try {
+      if (typeof attr.previous === 'function') {
+        var previous = attr.previous('current');
+        if (typeof previous !== 'undefined' && previous !== null && previous !== '') {
+          return previous;
+        }
+      }
+    } catch (err2) {
+      // Ignore previous lookup issues.
+    }
+
+    if (attr && attr._previous && typeof attr._previous.current !== 'undefined' && attr._previous.current !== null && attr._previous.current !== '') {
+      return attr._previous.current;
+    }
+
+    if (attr && attr.attributes && typeof attr.attributes.current !== 'undefined' && attr.attributes.current !== null && attr.attributes.current !== '') {
+      return attr.attributes.current;
+    }
+
+    return '';
+  }
+
+  function extractHoardMeta(attr) {
+    var raw = readAttrCurrent(attr);
+    if (!raw && attr && typeof attr.get === 'function') {
+      // Some Roll20 attribute stubs return an empty string post-removal but still expose the old value via get().
+      raw = attr.get('current');
+    }
+    return parseHoardMetaValue(raw);
+  }
+
   function findHoardRelicInventoryRow(charId, relicId) {
     var target = String(relicId || '').toLowerCase();
     if (!target) {
@@ -435,8 +519,7 @@
     if (!rowId) {
       return false;
     }
-    removeRepeatingRow(charId, 'inventory', rowId);
-    return true;
+    return removeRepeatingRow(charId, 'inventory', rowId);
   }
 
   function removeRelicInventory(charId, relicId) {
@@ -609,6 +692,111 @@
         handleInventoryEquipChange(attr);
       } catch (err) {
         // Silent guard; sandbox may throw if attribute vanished mid-change.
+      }
+    });
+  }
+
+  function removeRelicIdFromState(charId, relicId) {
+    if (
+      typeof StateManager === 'undefined' ||
+      !StateManager ||
+      typeof StateManager.findPlayersByCharacter !== 'function' ||
+      typeof StateManager.setPlayer !== 'function'
+    ) {
+      return;
+    }
+
+    var owners = StateManager.findPlayersByCharacter(charId) || [];
+    for (var i = 0; i < owners.length; i += 1) {
+      var owner = owners[i];
+      if (!owner || !owner.id) {
+        continue;
+      }
+
+      var state = owner.state || StateManager.getPlayer(owner.id);
+      if (!state || !state.relics || !state.relics.length) {
+        continue;
+      }
+
+      var nextRelics = [];
+      var changed = false;
+      var normalizedTarget = String(relicId).toLowerCase();
+      for (var r = 0; r < state.relics.length; r += 1) {
+        if (String(state.relics[r]).toLowerCase() === normalizedTarget) {
+          changed = true;
+          continue;
+        }
+        nextRelics.push(state.relics[r]);
+      }
+
+      if (changed) {
+        state.relics = nextRelics;
+        StateManager.setPlayer(owner.id, state);
+      }
+    }
+  }
+
+  function handleHoardMetaRemoval(attr) {
+    if (!attr || typeof attr.get !== 'function') {
+      return;
+    }
+
+    var name = String(attr.get('name') || '');
+    var match = name.match(/^repeating_inventory_([A-Za-z0-9\-]+)_hoard_meta$/);
+    if (!match) {
+      return;
+    }
+
+    var charId = attr.get('characterid');
+    if (!charId) {
+      return;
+    }
+
+    var rowId = match[1];
+    if (isRowRemovalSuppressed(charId, 'inventory', rowId)) {
+      return;
+    }
+
+    var meta = extractHoardMeta(attr);
+    if (!meta || meta.type !== 'relic') {
+      return;
+    }
+
+    var relicId = meta.id ? String(meta.id).toLowerCase() : '';
+    if (!relicId) {
+      return;
+    }
+
+    removeRepeatingRow(charId, 'inventory', rowId);
+
+    var binderResult = null;
+    if (typeof RelicBinder !== 'undefined' && RelicBinder && typeof RelicBinder.removeRelic === 'function') {
+      try {
+        binderResult = RelicBinder.removeRelic(charId, relicId);
+      } catch (err) {
+        binderResult = null;
+      }
+    }
+
+    if (!binderResult || !binderResult.ok) {
+      removeRelicIdFromState(charId, relicId);
+    }
+  }
+
+  function installRelicMetaRemovalWatchdog() {
+    if (relicMetaWatchdogInstalled) {
+      return;
+    }
+    if (typeof on !== 'function') {
+      return;
+    }
+
+    relicMetaWatchdogInstalled = true;
+    on('destroy:attribute', function (attr) {
+      try {
+        handleHoardMetaRemoval(attr);
+      } catch (err) {
+        // Silent guard; Roll20 may already dispose of the attribute object.
       }
     });
   }
@@ -1453,6 +1641,7 @@
   }
 
   installInventoryLockWatchdog();
+  installRelicMetaRemovalWatchdog();
 
   function ensureAbility(charId, abilityName, action, isTokenAction) {
     if (!charId || !abilityName) {
