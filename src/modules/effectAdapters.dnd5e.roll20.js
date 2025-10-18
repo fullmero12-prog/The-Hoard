@@ -433,9 +433,73 @@
   function removeRelicInventoryRow(charId, relicId) {
     var rowId = findHoardRelicInventoryRow(charId, relicId);
     if (!rowId) {
-      return;
+      return false;
     }
     removeRepeatingRow(charId, 'inventory', rowId);
+    return true;
+  }
+
+  function removeRelicInventory(charId, relicId) {
+    if (!charId || !relicId) {
+      return { ok: false };
+    }
+
+    return removeRelicInventoryRow(charId, relicId)
+      ? { ok: true }
+      : { ok: false };
+  }
+
+  function sanitizeRelicName(name) {
+    if (!name && name !== 0) {
+      return '';
+    }
+    return String(name);
+  }
+
+  function removeRelicAbility(charId, relicName) {
+    if (!charId) {
+      return { ok: false };
+    }
+
+    var cleaned = sanitizeRelicName(relicName);
+    if (!cleaned) {
+      return { ok: false };
+    }
+
+    var namesToCheck = [
+      'Hoard: ' + cleaned,
+      'HR Relic: ' + cleaned,
+      cleaned
+    ];
+
+    var ability = null;
+    for (var i = 0; i < namesToCheck.length; i++) {
+      var checkName = namesToCheck[i];
+      if (!checkName) {
+        continue;
+      }
+
+      ability = findObjs({
+        _type: 'ability',
+        _characterid: charId,
+        name: checkName
+      })[0];
+
+      if (ability) {
+        break;
+      }
+    }
+
+    if (!ability) {
+      return { ok: false };
+    }
+
+    try {
+      ability.remove();
+      return { ok: true };
+    } catch (err) {
+      return { ok: false };
+    }
   }
 
   function purgeHoardRelicInventory(charId) {
@@ -1608,6 +1672,8 @@
   var helper = root.EffectAdaptersDnd5eRoll20 || {};
   helper.ensureRelicInventory = ensureRelicInventory;
   helper.ensureRelicAbility = ensureRelicAbility;
+  helper.removeRelicInventory = removeRelicInventory;
+  helper.removeRelicAbility = removeRelicAbility;
   helper.ensureBoonAbility = ensureBoonAbility;
   helper.appendBoonNote = appendBoonNote;
   helper.needsAttributeAssistance = needsAttributeAssistance;
