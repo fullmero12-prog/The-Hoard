@@ -486,15 +486,6 @@ var EffectRegistry = (function () {
       displayName: 'Guardian\'s Band (Common)',
       rarity: 'Common',
       category: 'Defense',
-      adapters: [
-        {
-          type: 'adapter',
-          op: 'add_global_ac_mod_row',
-          label: 'Guardian\'s Band',
-          value: 1,
-          active: true
-        }
-      ],
       fields: [
         { label: 'Passive', value: 'Gain a +1 bonus to AC while worn.' },
         { label: 'Reminder', value: 'Stacks with shields, armor, and other bonuses unless noted.' }
