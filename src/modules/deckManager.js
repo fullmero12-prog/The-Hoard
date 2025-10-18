@@ -93,12 +93,25 @@ var DeckManager = (function () {
   /** Build a faux card object so downstream code can reuse existing paths */
   function buildCardStub(baseName, rarity, entry) {
     var payload = deepClone(entry);
+    var relicAdapter = null;
+
     if (payload && typeof payload === 'object') {
-      if (!payload.effectId && payload.effect_id) {
-        payload.effectId = payload.effect_id;
-      }
-      if (!payload.effectId && payload.id) {
-        payload.effectId = payload.id;
+      if (baseName === 'Relics' && typeof RelicData !== 'undefined' && RelicData && typeof RelicData.buildRelicPayload === 'function') {
+        relicAdapter = RelicData.buildRelicPayload(payload);
+        if (relicAdapter) {
+          payload.relicPayload = relicAdapter;
+          payload.relicId = relicAdapter.id;
+          if (!payload.effectId) {
+            payload.effectId = relicAdapter.id;
+          }
+        }
+      } else {
+        if (!payload.effectId && payload.effect_id) {
+          payload.effectId = payload.effect_id;
+        }
+        if (!payload.effectId && payload.id) {
+          payload.effectId = payload.id;
+        }
       }
     }
 
@@ -122,7 +135,10 @@ var DeckManager = (function () {
         return null;
       }
     };
-    if (payload && payload.effectId) {
+    if (relicAdapter) {
+      card.relicPayload = relicAdapter;
+      card.relicId = relicAdapter.id;
+    } else if (payload && payload.effectId) {
       card.effectId = payload.effectId;
     }
     return card;

@@ -20,7 +20,7 @@ var RelicData = (function () {
     }
   }
 
-  var RELIC_CATALOG = [
+  var RAW_RELIC_CATALOG = [
     // Tempo & Action Economy
     {
       "id": "relic_quickcast_signet_C",
@@ -526,8 +526,144 @@ var RelicData = (function () {
     }
   ];
 
+  function ensureArray(value) {
+    if (Array.isArray(value)) {
+      return value.map(function (item) {
+        return (item && typeof item === 'object') ? deepClone(item) : item;
+      });
+    }
+    if (value === null || typeof value === 'undefined') {
+      return [];
+    }
+    if (value && typeof value === 'object') {
+      return [deepClone(value)];
+    }
+    return [value];
+  }
+
+  function normalizeRelicSlug(name) {
+    return String(name || '')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '_')
+      .replace(/^_+|_+$/g, '');
+  }
+
+  function normalizeRelicKey(value) {
+    return String(value || '')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  function prepareRelicEntry(spec) {
+    var entry = deepClone(spec);
+    var metaVersion = entry.metaVersion || 1;
+    var id = entry.id || entry.effectId || normalizeRelicSlug(entry.name);
+
+    entry.id = id;
+    entry.relicId = id;
+    entry.metaVersion = metaVersion;
+    entry.effectId = entry.effectId || id;
+
+    var baseName = entry.name || id;
+    var baseDescription = entry.text_in_run || entry.description || '';
+
+    var inventory = (entry.inventory && typeof entry.inventory === 'object')
+      ? deepClone(entry.inventory)
+      : {};
+    inventory.name = inventory.name || baseName;
+    inventory.description = inventory.description || baseDescription;
+    inventory.mods = ensureArray(inventory.mods);
+    inventory.metaVersion = inventory.metaVersion || metaVersion;
+    inventory.relicId = inventory.relicId || id;
+
+    var ability = (entry.ability && typeof entry.ability === 'object')
+      ? deepClone(entry.ability)
+      : {};
+    ability.name = ability.name || baseName;
+    ability.relicName = ability.relicName || ability.name;
+    ability.description = ability.description || baseDescription;
+    ability.metaVersion = ability.metaVersion || metaVersion;
+
+    entry.inventory = inventory;
+    entry.ability = ability;
+
+    return entry;
+  }
+
+  var RELIC_CATALOG = RAW_RELIC_CATALOG.map(prepareRelicEntry);
+
   function deepClone(obj) {
     return JSON.parse(JSON.stringify(obj));
+  }
+
+  function getRelicById(identifier) {
+    if (!identifier) {
+      return null;
+    }
+
+    var target = normalizeRelicKey(identifier);
+    if (!target) {
+      return null;
+    }
+
+    for (var i = 0; i < RELIC_CATALOG.length; i += 1) {
+      var entry = RELIC_CATALOG[i];
+      var idKey = normalizeRelicKey(entry.id);
+      var nameKey = normalizeRelicKey(entry.name);
+      var relicKey = normalizeRelicKey(entry.relicId);
+
+      if ((idKey && idKey === target) || (nameKey && nameKey === target) || (relicKey && relicKey === target)) {
+        return deepClone(entry);
+      }
+    }
+
+    return null;
+  }
+
+  function buildRelicPayload(target) {
+    if (!target && target !== 0) {
+      return null;
+    }
+
+    var entry = null;
+    if (typeof target === 'string') {
+      entry = getRelicById(target);
+    } else if (target && typeof target === 'object') {
+      if (target.inventory && target.ability && target.id) {
+        entry = deepClone(target);
+      } else if (target.id || target.name) {
+        entry = getRelicById(target.id || target.name);
+      }
+    }
+
+    if (!entry) {
+      return null;
+    }
+
+    var payload = {
+      id: entry.id,
+      name: entry.name,
+      rarity: entry.rarity || null,
+      metaVersion: entry.metaVersion || 1,
+      inventory: deepClone(entry.inventory),
+      ability: deepClone(entry.ability)
+    };
+
+    if (payload.inventory && !Array.isArray(payload.inventory.mods)) {
+      payload.inventory.mods = ensureArray(payload.inventory.mods);
+    }
+
+    if (payload.inventory && !payload.inventory.relicId) {
+      payload.inventory.relicId = entry.id;
+    }
+
+    if (payload.ability && !payload.ability.relicName) {
+      payload.ability.relicName = payload.ability.name || entry.name || entry.id;
+    }
+
+    return payload;
   }
 
   function buildBucketsFrom(entries) {
@@ -566,6 +702,8 @@ var RelicData = (function () {
   return {
     getAll: getAll,
     getRarityBuckets: getRarityBuckets,
+    getRelicById: getRelicById,
+    buildRelicPayload: buildRelicPayload,
     register: register
   };
 })();
