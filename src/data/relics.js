@@ -181,6 +181,9 @@ var RelicData = (function () {
       "category": "Defense",
       "price": 30,
       "text_in_run": "Gain a +1 bonus to AC.",
+      "inventory": {
+        "mods": ["AC +1"]
+      },
       "uses": { "cadence": "per_room", "value": 0 },
       "tags": ["Defense", "Armor", "Passive"]
     },
