@@ -313,7 +313,7 @@ var DevTools = (function () {
   }
 
   function applyRelicEffect(record, playerState, playerid) {
-    var result = { applied: false, reason: 'effect_pipeline_pending' };
+    var result = { applied: false, reason: 'relic_pipeline_pending' };
 
     if (!record || !playerState) {
       result.reason = 'missing_state';
@@ -341,10 +341,7 @@ var DevTools = (function () {
       no_effect: 'effectId missing on relic',
       no_character: 'no bound character',
       missing_state: 'player state unavailable',
-      missing_registry: 'legacy effect registry removed',
-      missing_engine: 'legacy effect engine removed',
-      missing_effect: 'legacy effect definition unavailable',
-      effect_pipeline_pending: 'effect pipeline migration pending'
+      relic_pipeline_pending: 'relic-item pipeline offline (apply manually)'
     };
 
     return Object.prototype.hasOwnProperty.call(map, code) ? map[code] : 'unknown issue';
@@ -557,10 +554,44 @@ var DevTools = (function () {
   }
 
   /**
+   * Capture how many relics and reroll token trackers are about to be cleared.
+   * Helps the GM confirm that manual adjustments match the reset scope.
+   * @returns {{relics:number, rerollTokens:number}}
+   */
+  function summarizeRelicAndTokenState() {
+    var snapshot = { relics: 0, rerollTokens: 0 };
+    if (!state.HoardRun || !state.HoardRun.players) {
+      return snapshot;
+    }
+
+    for (var pid in state.HoardRun.players) {
+      if (!state.HoardRun.players.hasOwnProperty(pid)) {
+        continue;
+      }
+      var playerState = state.HoardRun.players[pid];
+      if (!playerState) {
+        continue;
+      }
+
+      if (playerState.relics && playerState.relics.length) {
+        snapshot.relics += playerState.relics.length;
+      }
+
+      var reroll = parseInt(playerState.rerollTokens, 10);
+      if (!isNaN(reroll) && reroll > 0) {
+        snapshot.rerollTokens += reroll;
+      }
+    }
+
+    return snapshot;
+  }
+
+  /**
    * Reset the entire Hoard Run state.
    * Clears all progress, currencies, boons, etc.
    */
   function resetState() {
+    var inventorySnapshot = summarizeRelicAndTokenState();
     var apCleanup = { abilitiesRemoved: 0, attributesRemoved: 0 };
     if (
       typeof SpellbookHelper !== 'undefined' &&
@@ -588,6 +619,10 @@ var DevTools = (function () {
     var tagSuffix = apHelperAttrsRemoved === 1 ? '' : 's';
     var apSpellAttrsRemoved = apCleanup && apCleanup.spellAttributesRemoved ? apCleanup.spellAttributesRemoved : 0;
     var apSpellAttrSuffix = apSpellAttrsRemoved === 1 ? '' : 's';
+    var relicRecordsCleared = inventorySnapshot && inventorySnapshot.relics ? inventorySnapshot.relics : 0;
+    var relicSuffix = relicRecordsCleared === 1 ? '' : 's';
+    var rerollTrackersCleared = inventorySnapshot && inventorySnapshot.rerollTokens ? inventorySnapshot.rerollTokens : 0;
+    var rerollSuffix = rerollTrackersCleared === 1 ? '' : 's';
     gmSay(
       '⚙️ HoardRun state has been reset. Removed ' +
         removedAttrs +
@@ -606,7 +641,15 @@ var DevTools = (function () {
         apHelperAttrsRemoved +
         ' AP spell helper attribute' +
         tagSuffix +
-        '. Legacy effect cleanup skipped (effect pipeline migration pending).'
+        '. Cleared ' +
+        relicRecordsCleared +
+        ' relic record' +
+        relicSuffix +
+        ' and ' +
+        rerollTrackersCleared +
+        ' reroll token tracker' +
+        rerollSuffix +
+        '. Relic-item pipeline automation is offline; apply sheet adjustments manually until it returns.'
     );
   }
 

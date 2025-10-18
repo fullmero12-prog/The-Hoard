@@ -6,3 +6,7 @@ This repository captures design notes and implementation guides for "The Hoard,"
 * `LICENSE` — Licensing information.
 
 As implementation assets (Roll20 macros, card templates, API scripts) are produced they should be stored alongside this documentation.
+
+## Relic Item Pipeline (In Progress)
+
+The legacy effect engine has been retired in favor of a new relic-item pipeline. Relic grants now focus on cataloging which keepsakes the players own, and the forthcoming automation layer will sync inventory, token actions, and sheet attributes once it ships. Until that work lands, GMs should continue to apply relic adjustments manually when testing the run.

@@ -7,6 +7,10 @@ It gives our modules a safe, reusable way to create or update character sheet
 attributes while still triggering sheet workers and handling repeating
 sections.
 
+> **Status Note (July 2024):** The relic-item pipeline is still wiring up its
+> automation hooks. Until it lands, expect relic grants to skip any automatic
+> attribute edits and apply the adjustments manually when testing.
+
 ## Why we added it
 
 * **Sheet worker safety.** `AttributeManager.setAttributes` prefers
