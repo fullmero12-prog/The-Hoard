@@ -153,7 +153,6 @@ var StateManager = (function () {
     ) {
       EffectEngine.removeTokenAbilitiesForPlayer(existing, playerid);
     }
-
     if (
       existing &&
       existing.boundCharacterId &&

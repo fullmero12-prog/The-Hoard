@@ -413,6 +413,10 @@ var EffectEngine = (function () {
     character.set('gmnotes', encodeURIComponent(updated));
   }
 
+  function applyNotePatch(character, effect, patch) {
+    appendGMNote(character, effect.name || effect.id || 'Effect', patch.text || '');
+  }
+
   function applyAbilityPatch(characterId, patch, effect) {
     var name = patch.name || patch.label;
     if (!name) {
@@ -655,10 +659,6 @@ var EffectEngine = (function () {
     }
 
     return removed;
-  }
-
-  function applyNotePatch(character, effect, patch) {
-    appendGMNote(character, effect.name || effect.id || 'Effect', patch.text || '');
   }
 
   function getRequestedAncestorStatMirrors(effect) {
