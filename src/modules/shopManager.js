@@ -74,6 +74,16 @@ var ShopManager = (function () {
     }
   };
 
+  function deepClone(value) {
+    if (value === null || typeof value === 'undefined') {
+      return value;
+    }
+    if (typeof value !== 'object') {
+      return value;
+    }
+    return JSON.parse(JSON.stringify(value));
+  }
+
   function normalizeEffectId(value) {
     if (value === null || typeof value === 'undefined') {
       return null;
@@ -156,6 +166,12 @@ var ShopManager = (function () {
   }
 
   function extractRelicDescription(slot, card) {
+    if (slot && slot.relicAdapter && slot.relicAdapter.inventory && slot.relicAdapter.inventory.description) {
+      return slot.relicAdapter.inventory.description;
+    }
+    if (slot && slot.cardData && slot.cardData.inventory && slot.cardData.inventory.description) {
+      return slot.cardData.inventory.description;
+    }
     if (slot && slot.cardData && slot.cardData.text_in_run) {
       return slot.cardData.text_in_run;
     }
@@ -550,55 +566,151 @@ var ShopManager = (function () {
 
     var id = typeof card.id !== "undefined" ? card.id : "";
     var name = typeof card.get === "function" ? card.get("name") : card.name;
-    var effectId = null;
-
     var slot = {
-      type,
-      rarity,
+      type: type,
+      rarity: rarity,
       cardId: id,
       cardName: name,
-      price
+      price: price
     };
 
+    var payload = null;
     if (card.isStub) {
       slot.isStub = true;
-      var payload = card.data || null;
-      if (payload && typeof payload === "object") {
-        if (!payload.effectId && payload.effect_id) {
-          payload.effectId = payload.effect_id;
-        }
-        if (!payload.effectId && payload.id) {
-          payload.effectId = payload.id;
-        }
-        effectId = normalizeEffectId(payload.effectId);
-      }
+      payload = card.data || null;
       slot.cardData = payload;
       slot.deckSource = card.deckSource || null;
-      if (!effectId && card.effectId) {
-        effectId = normalizeEffectId(card.effectId);
-      }
-    } else {
-      effectId = resolveEffectIdFromCard(card);
     }
 
     if (extras) {
-      Object.keys(extras).forEach(key => {
+      Object.keys(extras).forEach(function (key) {
+        if (key === "relicPayload") {
+          return;
+        }
         slot[key] = extras[key];
       });
-      if (!effectId && Object.prototype.hasOwnProperty.call(extras, "effectId")) {
+    }
+
+    if (type === "relic") {
+      var relicPayload = null;
+      if (extras && extras.relicPayload) {
+        relicPayload = deepClone(extras.relicPayload);
+      } else if (card.relicPayload) {
+        relicPayload = deepClone(card.relicPayload);
+      } else if (payload && typeof RelicData !== 'undefined' && RelicData && typeof RelicData.buildRelicPayload === 'function') {
+        relicPayload = RelicData.buildRelicPayload(payload);
+      }
+
+      if (!relicPayload && typeof RelicData !== "undefined" && RelicData && typeof RelicData.buildRelicPayload === 'function') {
+        var candidate = slot.relicId || (payload && payload.id) || null;
+        if (!candidate && card && typeof card.get === "function") {
+          var gmnotes = normalizeGMNotes(card.get('gmnotes'));
+          var gmParsed = safeJsonParse(gmnotes);
+          if (gmParsed && (gmParsed.id || gmParsed.relicId || gmParsed.name)) {
+            candidate = gmParsed.id || gmParsed.relicId || gmParsed.name;
+          }
+        }
+        if (!candidate && name) {
+          candidate = name;
+        }
+        relicPayload = RelicData.buildRelicPayload(candidate);
+      }
+
+      if (relicPayload) {
+        slot.relicId = relicPayload.id;
+        slot.relicAdapter = deepClone(relicPayload);
+        if (!slot.description && relicPayload.inventory && relicPayload.inventory.description) {
+          slot.description = relicPayload.inventory.description;
+        }
+        if (!slot.cardData && payload) {
+          slot.cardData = payload;
+        }
+        if (!slot.effectId) {
+          slot.effectId = relicPayload.id;
+        }
+      }
+    } else {
+      var effectId = null;
+
+      if (card.isStub) {
+        if (payload && typeof payload === 'object') {
+          if (!payload.effectId && payload.effect_id) {
+            payload.effectId = payload.effect_id;
+          }
+          if (!payload.effectId && payload.id) {
+            payload.effectId = payload.id;
+          }
+          effectId = normalizeEffectId(payload.effectId);
+        }
+        if (!effectId && card.effectId) {
+          effectId = normalizeEffectId(card.effectId);
+        }
+      } else {
+        effectId = resolveEffectIdFromCard(card);
+      }
+
+      if (!effectId && slot.cardData && slot.cardData.effectId) {
+        effectId = normalizeEffectId(slot.cardData.effectId);
+      }
+
+      if (!effectId && extras && Object.prototype.hasOwnProperty.call(extras, 'effectId')) {
         effectId = normalizeEffectId(extras.effectId);
+      }
+
+      if (effectId) {
+        slot.effectId = effectId;
       }
     }
 
-    if (!effectId && slot.cardData && slot.cardData.effectId) {
-      effectId = normalizeEffectId(slot.cardData.effectId);
-    }
-
-    if (effectId) {
-      slot.effectId = effectId;
-    }
-
     return slot;
+  }
+
+  function getRelicAdapterForSlot(slot, card) {
+    if (!slot || slot.type !== "relic") {
+      return null;
+    }
+
+    if (slot.relicAdapter) {
+      return deepClone(slot.relicAdapter);
+    }
+
+    if (typeof RelicData === "undefined" || !RelicData || typeof RelicData.buildRelicPayload !== 'function') {
+      return null;
+    }
+
+    if (slot.relicId) {
+      var byId = RelicData.buildRelicPayload(slot.relicId);
+      if (byId) {
+        return byId;
+      }
+    }
+
+    if (slot.cardData) {
+      var fromData = RelicData.buildRelicPayload(slot.cardData);
+      if (fromData) {
+        return fromData;
+      }
+    }
+
+    if (card && typeof card.get === "function") {
+      var gmnotes = normalizeGMNotes(card.get('gmnotes'));
+      var parsed = safeJsonParse(gmnotes);
+      if (parsed) {
+        var fromNotes = RelicData.buildRelicPayload(parsed.id || parsed.relicId || parsed.name || parsed);
+        if (fromNotes) {
+          return fromNotes;
+        }
+      }
+    }
+
+    if (slot.cardName) {
+      var fromName = RelicData.buildRelicPayload(slot.cardName);
+      if (fromName) {
+        return fromName;
+      }
+    }
+
+    return null;
   }
 
   /** Builds the boon slot */
@@ -653,6 +765,9 @@ var ShopManager = (function () {
       extras.isStub = true;
       extras.cardData = card.data;
       extras.deckSource = card.deckSource;
+      if (card.relicPayload) {
+        extras.relicPayload = card.relicPayload;
+      }
     }
 
     return buildSlot("relic", rarity, card, price, extras);
@@ -881,7 +996,14 @@ var ShopManager = (function () {
       }
     }
 
-    let description = extractCardDescription(slot, card);
+    let description = '';
+    if (slot && slot.type === "relic") {
+      description = extractRelicDescription(slot, card);
+    } else if (slot && slot.type === 'boon') {
+      description = extractBoonDescription(slot, card);
+    } else {
+      description = extractCardDescription(slot, card);
+    }
     if (!description && slot && slot.cardData && slot.cardData.summary) {
       description = slot.cardData.summary;
     }
@@ -995,7 +1117,14 @@ var ShopManager = (function () {
     const rarity = slot.cardData && slot.cardData.rarity
       ? slot.cardData.rarity
       : rarityLabelFor(slot.rarity);
-    const description = extractCardDescription(slot, card);
+    let description = '';
+    if (slot.type === "relic") {
+      description = extractRelicDescription(slot, card);
+    } else if (slot.type === 'boon') {
+      description = extractBoonDescription(slot, card);
+    } else {
+      description = extractCardDescription(slot, card);
+    }
 
     if (description) {
       const rarityText = rarityLabelFor(rarity);
@@ -1066,41 +1195,55 @@ var ShopManager = (function () {
       record.description = extractBoonDescription(slot, card);
     }
 
-    var recordEffectId = slot.effectId || null;
-    if (!recordEffectId && slot.cardData && slot.cardData.effectId) {
-      recordEffectId = slot.cardData.effectId;
-    }
-    if (!recordEffectId && card) {
-      recordEffectId = resolveEffectIdFromCard(card);
-    }
-    recordEffectId = normalizeEffectId(recordEffectId);
-    if (recordEffectId) {
-      record.effectId = recordEffectId;
+    var relicAdapter = null;
+    if (slot.type === "relic") {
+      relicAdapter = getRelicAdapterForSlot(slot, card);
+      if (!relicAdapter && typeof RelicData !== 'undefined' && RelicData && typeof RelicData.buildRelicPayload === 'function') {
+        relicAdapter = RelicData.buildRelicPayload(record.name || slot.cardName);
+      }
+      if (relicAdapter) {
+        record.relicId = relicAdapter.id;
+        record.inventory = deepClone(relicAdapter.inventory);
+        record.ability = deepClone(relicAdapter.ability);
+      }
+    } else {
+      var recordEffectId = slot.effectId || null;
+      if (!recordEffectId && slot.cardData && slot.cardData.effectId) {
+        recordEffectId = slot.cardData.effectId;
+      }
+      if (!recordEffectId && card) {
+        recordEffectId = resolveEffectIdFromCard(card);
+      }
+      recordEffectId = normalizeEffectId(recordEffectId);
+      if (recordEffectId) {
+        record.effectId = recordEffectId;
+      }
     }
 
     if (slot.type === "relic") {
       playerState.relics.push(record);
 
       var characterId = playerState && playerState.boundCharacterId;
-      var effectId = record && record.effectId;
       var buyerName = getPlayerDisplayName(playerid);
       var relicName = slot.cardName || 'Unknown Relic';
       var helper = (typeof EffectAdaptersDnd5eRoll20 !== 'undefined') ? EffectAdaptersDnd5eRoll20 : null;
       var relicDescription = extractRelicDescription(slot, card);
       if (!characterId) {
         whisperGM('Relic "' + relicName + '" bought by ' + buyerName + ' has no bound character. Effect not applied.');
-      } else if (!effectId) {
-        whisperGM('Relic "' + relicName + '" bought by ' + buyerName + ' has no effectId. Effect not applied.');
+      } else if (!relicAdapter) {
+        whisperGM('Relic "' + relicName + '" bought by ' + buyerName + ' has no adapter payload. Effect not applied.');
       } else if (!helper) {
-        whisperGM('Relic "' + relicName + '" effect "' + effectId + '" not applied — helper unavailable.');
+        whisperGM('Relic "' + relicName + '" for ' + buyerName + ' not applied — adapter helper unavailable.');
       } else {
         var inventoryResult = null;
         if (typeof helper.ensureRelicInventory === 'function') {
           inventoryResult = helper.ensureRelicInventory({
             characterId: characterId,
-            relicId: effectId,
-            relicName: relicName,
-            description: relicDescription
+            relicId: relicAdapter.id,
+            relicName: relicAdapter.inventory && relicAdapter.inventory.name ? relicAdapter.inventory.name : relicName,
+            description: (relicAdapter.inventory && relicAdapter.inventory.description) || relicDescription,
+            mods: relicAdapter.inventory ? relicAdapter.inventory.mods : [],
+            metaVersion: relicAdapter.inventory ? relicAdapter.inventory.metaVersion : relicAdapter.metaVersion
           });
         }
         if (!inventoryResult || !inventoryResult.ok) {
@@ -1109,8 +1252,10 @@ var ShopManager = (function () {
 
         if (typeof helper.ensureRelicAbility === 'function') {
           var abilityResult = helper.ensureRelicAbility(characterId, {
-            relicName: relicName,
-            description: relicDescription
+            relicName: (relicAdapter.ability && relicAdapter.ability.relicName) ? relicAdapter.ability.relicName : relicName,
+            name: relicAdapter.ability ? relicAdapter.ability.name : relicName,
+            description: (relicAdapter.ability && relicAdapter.ability.description) || relicDescription,
+            metaVersion: relicAdapter.ability ? relicAdapter.ability.metaVersion : relicAdapter.metaVersion
           });
           if (!abilityResult || !abilityResult.ok) {
             whisperGM('Relic "' + relicName + '" for ' + buyerName + ' could not create a token action.');

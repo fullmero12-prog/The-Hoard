@@ -213,17 +213,6 @@ var DevTools = (function () {
     return JSON.parse(JSON.stringify(value));
   }
 
-  function normalizeEffectId(value) {
-    if (value === null || typeof value === 'undefined') {
-      return null;
-    }
-    if (typeof value === 'string') {
-      var trimmed = value.trim();
-      return trimmed ? trimmed : null;
-    }
-    return String(value);
-  }
-
   function normalizeRelicLookup(value) {
     return String(value || '')
       .toLowerCase()
@@ -295,18 +284,25 @@ var DevTools = (function () {
     }
 
     var payload = deepClone(entry);
-    var effectId = payload.effectId || payload.effect_id || payload.id || null;
-    effectId = normalizeEffectId(effectId);
+    var adapter = (typeof RelicData !== 'undefined' && RelicData && typeof RelicData.buildRelicPayload === 'function')
+      ? RelicData.buildRelicPayload(payload)
+      : null;
 
     var record = {
-      id: payload.id || effectId || payload.name,
-      name: payload.name || 'Relic',
+      id: payload.id || (adapter && adapter.id) || payload.name,
+      name: payload.name || (adapter && adapter.name) || 'Relic',
       data: payload,
-      rarity: payload.rarity || null
+      rarity: payload.rarity || null,
+      description: payload.text_in_run || payload.description || ''
     };
 
-    if (effectId) {
-      record.effectId = effectId;
+    if (adapter) {
+      record.relicId = adapter.id;
+      record.inventory = deepClone(adapter.inventory);
+      record.ability = deepClone(adapter.ability);
+      if (adapter.inventory && adapter.inventory.description) {
+        record.description = adapter.inventory.description;
+      }
     }
 
     return record;
@@ -320,25 +316,84 @@ var DevTools = (function () {
       return result;
     }
 
-    var effectId = normalizeEffectId(record.effectId);
-    if (!effectId) {
-      result.reason = 'no_effect';
-      return result;
-    }
-
     var characterId = playerState.boundCharacterId;
     if (!characterId) {
       result.reason = 'no_character';
       return result;
     }
 
-    // TODO: Route relic hooks through the successor effect pipeline when it becomes available.
+    if (typeof RelicData === 'undefined' || !RelicData || typeof RelicData.buildRelicPayload !== 'function') {
+      result.reason = 'missing_payload';
+      return result;
+    }
+
+    var payload = null;
+    if (record.relicId) {
+      payload = RelicData.buildRelicPayload(record.relicId);
+    }
+    if (!payload && record.data) {
+      payload = RelicData.buildRelicPayload(record.data);
+    }
+    if (!payload && record.name) {
+      payload = RelicData.buildRelicPayload(record.name);
+    }
+
+    if (!payload) {
+      result.reason = 'missing_payload';
+      return result;
+    }
+
+    var helper = (typeof EffectAdaptersDnd5eRoll20 !== 'undefined') ? EffectAdaptersDnd5eRoll20 : null;
+    if (!helper) {
+      result.reason = 'adapter_unavailable';
+      return result;
+    }
+
+    var inventoryOk = false;
+    if (typeof helper.ensureRelicInventory === 'function') {
+      var inventoryResult = helper.ensureRelicInventory({
+        characterId: characterId,
+        relicId: payload.id,
+        relicName: payload.inventory && payload.inventory.name ? payload.inventory.name : payload.name,
+        description: payload.inventory && payload.inventory.description ? payload.inventory.description : '',
+        mods: payload.inventory ? payload.inventory.mods : [],
+        metaVersion: payload.inventory ? payload.inventory.metaVersion : payload.metaVersion
+      });
+      inventoryOk = inventoryResult && inventoryResult.ok;
+    }
+
+    var abilityOk = false;
+    if (typeof helper.ensureRelicAbility === 'function') {
+      var abilityResult = helper.ensureRelicAbility(characterId, {
+        relicName: payload.ability && payload.ability.relicName ? payload.ability.relicName : payload.name,
+        name: payload.ability ? payload.ability.name : payload.name,
+        description: payload.ability && payload.ability.description ? payload.ability.description : '',
+        metaVersion: payload.ability ? payload.ability.metaVersion : payload.metaVersion
+      });
+      abilityOk = abilityResult && abilityResult.ok;
+    }
+
+    if (inventoryOk || abilityOk) {
+      result.applied = true;
+      result.reason = null;
+    } else if (!inventoryOk && !abilityOk) {
+      result.reason = 'adapter_failed';
+    } else if (!inventoryOk) {
+      result.reason = 'inventory_failed';
+    } else {
+      result.reason = 'ability_failed';
+    }
+
     return result;
   }
 
   function describeRelicIssue(code) {
     var map = {
-      no_effect: 'effectId missing on relic',
+      missing_payload: 'adapter payload unavailable',
+      adapter_unavailable: 'effect adapter helper missing',
+      adapter_failed: 'adapter could not apply inventory or ability',
+      inventory_failed: 'inventory row failed to sync',
+      ability_failed: 'token action failed to create',
       no_character: 'no bound character',
       missing_state: 'player state unavailable',
       relic_pipeline_pending: 'relic-item pipeline offline (apply manually)'
