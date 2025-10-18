@@ -171,6 +171,381 @@
         }
       }
     }
+
+    var orderAttr = findObjs({
+      _type: 'attribute',
+      characterid: charId,
+      name: '_reporder_repeating_' + section
+    })[0];
+
+    if (orderAttr) {
+      var currentOrder = String(orderAttr.get('current') || '');
+      if (currentOrder) {
+        var orderParts = currentOrder.split(',');
+        var filtered = [];
+
+        for (var j = 0; j < orderParts.length; j++) {
+          if (orderParts[j] && orderParts[j] !== rowId) {
+            filtered.push(orderParts[j]);
+          }
+        }
+
+        orderAttr.set('current', filtered.join(','));
+      }
+    }
+  }
+
+  var inventoryWatchdogInstalled = false;
+
+  var inventoryAdditiveTokens = {
+    'Melee Attacks': true,
+    'Melee Damage': true,
+    'AC': true,
+    'Saving Throws': true,
+    'Strength Save': true,
+    'Dexterity Save': true,
+    'Constitution Save': true,
+    'Intelligence Save': true,
+    'Wisdom Save': true,
+    'Charisma Save': true,
+    'Ability Checks': true,
+    'Acrobatics': true,
+    'Animal Handling': true,
+    'Arcana': true,
+    'Athletics': true,
+    'Deception': true,
+    'History': true,
+    'Insight': true,
+    'Intimidation': true,
+    'Investigation': true,
+    'Medicine': true,
+    'Nature': true,
+    'Perception': true,
+    'Performance': true,
+    'Persuasion': true,
+    'Religion': true,
+    'Sleight of Hand': true,
+    'Stealth': true,
+    'Survival': true,
+    'Spell Attack': true,
+    'Spell DC': true,
+    'Strength': true,
+    'Dexterity': true,
+    'Constitution': true,
+    'Intelligence': true,
+    'Wisdom': true,
+    'Charisma': true
+  };
+
+  var inventoryReplacementTokens = {
+    'Strength': true,
+    'Dexterity': true,
+    'Constitution': true,
+    'Intelligence': true,
+    'Wisdom': true,
+    'Charisma': true
+  };
+
+  function sanitizeInventoryMods(mods) {
+    var sanitized = [];
+    var seen = {};
+
+    if (!mods || !mods.length) {
+      return sanitized;
+    }
+
+    for (var i = 0; i < mods.length; i++) {
+      var raw = mods[i];
+      if (typeof raw === 'undefined' || raw === null) {
+        continue;
+      }
+
+      var cleaned = String(raw).replace(/\s+/g, ' ').trim();
+      if (!cleaned) {
+        continue;
+      }
+
+      var additiveMatch = cleaned.match(/^(.*?)(?:\s+)?\+(-?\d+)$/);
+      if (additiveMatch) {
+        var additiveName = additiveMatch[1].replace(/\s+/g, ' ').trim();
+        var additiveValue = additiveMatch[2];
+        if (inventoryAdditiveTokens[additiveName]) {
+          var parsedAdditive = parseInt(additiveValue, 10);
+          if (!isNaN(parsedAdditive) && String(parsedAdditive) === additiveValue.replace(/^\+/, '')) {
+            var additiveToken = additiveName + ' ' + (parsedAdditive >= 0 ? '+' : '') + parsedAdditive;
+            if (!seen[additiveToken]) {
+              sanitized.push(additiveToken);
+              seen[additiveToken] = true;
+            }
+          }
+        }
+        continue;
+      }
+
+      var replaceMatch = cleaned.match(/^(.*?):\s*(-?\d+)$/);
+      if (replaceMatch) {
+        var replaceName = replaceMatch[1].replace(/\s+/g, ' ').trim();
+        var replaceValue = replaceMatch[2];
+        if (inventoryReplacementTokens[replaceName]) {
+          var parsedReplace = parseInt(replaceValue, 10);
+          if (!isNaN(parsedReplace) && String(parsedReplace) === replaceValue) {
+            var replaceToken = replaceName + ': ' + parsedReplace;
+            if (!seen[replaceToken]) {
+              sanitized.push(replaceToken);
+              seen[replaceToken] = true;
+            }
+          }
+        }
+      }
+    }
+
+    return sanitized;
+  }
+
+  function buildHoardMetaString(relicId, version) {
+    var meta = { type: 'relic', id: relicId, ver: String(version || '1') };
+    try {
+      return JSON.stringify(meta);
+    } catch (err) {
+      return '{"type":"relic","id":"' + relicId + '","ver":"' + String(version || '1') + '"}';
+    }
+  }
+
+  function parseHoardMetaValue(value) {
+    if (!value) {
+      return null;
+    }
+    if (typeof value === 'object') {
+      return value;
+    }
+    try {
+      return JSON.parse(String(value));
+    } catch (err) {
+      return null;
+    }
+  }
+
+  function findHoardRelicInventoryRow(charId, relicId) {
+    var target = String(relicId || '').toLowerCase();
+    if (!target) {
+      return '';
+    }
+
+    var attrs = findObjs({
+      _type: 'attribute',
+      characterid: charId
+    }) || [];
+
+    for (var i = 0; i < attrs.length; i++) {
+      var attr = attrs[i];
+      var name = attr.get('name') || '';
+      if (name.indexOf('repeating_inventory_') !== 0) {
+        continue;
+      }
+
+      if (name.slice(-11) !== '_hoard_meta') {
+        continue;
+      }
+
+      var rowMatch = name.match(/^repeating_inventory_([A-Za-z0-9\-]+)_hoard_meta$/);
+      if (!rowMatch) {
+        continue;
+      }
+
+      var meta = parseHoardMetaValue(attr.get('current'));
+      if (!meta || meta.type !== 'relic') {
+        continue;
+      }
+
+      var metaId = meta.id ? String(meta.id).toLowerCase() : '';
+      if (metaId === target) {
+        return rowMatch[1];
+      }
+    }
+
+    return '';
+  }
+
+  function enforceInventoryLock(charId, rowId) {
+    if (!charId || !rowId) {
+      return;
+    }
+
+    var equippedName = 'repeating_inventory_' + rowId + '_equipped';
+    var equippedAttr = findObjs({
+      _type: 'attribute',
+      characterid: charId,
+      name: equippedName
+    })[0];
+
+    if (equippedAttr) {
+      var current = String(equippedAttr.get('current') || '');
+      if (current !== '1') {
+        if (typeof equippedAttr.setWithWorker === 'function') {
+          equippedAttr.setWithWorker({ current: '1' });
+        } else {
+          equippedAttr.set('current', '1');
+        }
+      }
+      return;
+    }
+
+    setAttr(charId, equippedName, '1');
+  }
+
+  function syncRelicInventoryRow(charId, patch, effect) {
+    var relicId = String(patch.relicId || (effect && effect.id) || '').toLowerCase();
+    if (!charId || !relicId) {
+      return false;
+    }
+
+    var rowId = findHoardRelicInventoryRow(charId, relicId);
+    if (!rowId) {
+      rowId = randRowId();
+    }
+
+    var prefix = 'repeating_inventory_' + rowId + '_';
+    var baseName = patch.itemName || (effect && effect.name) || relicId;
+    var itemName = 'Hoard: ' + String(baseName);
+    var mods = sanitizeInventoryMods(patch.mods || []);
+    var content = pickFirst(
+      patch.content,
+      effect && effect.note,
+      ''
+    );
+    var metaVersion = patch.metaVersion || 1;
+
+    setAttr(charId, prefix + 'itemname', itemName);
+    setAttr(charId, prefix + 'itemcount', '1');
+    setAttr(charId, prefix + 'itemweight', '');
+    setAttr(charId, prefix + 'equipped', '1');
+    setAttr(charId, prefix + 'itemmodifiers', mods.join(', '));
+    setAttr(charId, prefix + 'itemcontent', String(content || ''));
+    setAttr(charId, prefix + 'hoard_meta', buildHoardMetaString(relicId, metaVersion));
+    setAttr(charId, prefix + 'hoard_lock', '1');
+
+    ensureReporder(charId, 'inventory', rowId);
+    enforceInventoryLock(charId, rowId);
+    return true;
+  }
+
+  function removeRelicInventoryRow(charId, relicId) {
+    var rowId = findHoardRelicInventoryRow(charId, relicId);
+    if (!rowId) {
+      return;
+    }
+    removeRepeatingRow(charId, 'inventory', rowId);
+  }
+
+  function purgeHoardRelicInventory(charId) {
+    if (!charId) {
+      return 0;
+    }
+
+    var attrs = findObjs({
+      _type: 'attribute',
+      characterid: charId
+    }) || [];
+
+    var rows = [];
+    for (var i = 0; i < attrs.length; i++) {
+      var attr = attrs[i];
+      var name = attr.get('name') || '';
+      if (name.indexOf('repeating_inventory_') !== 0) {
+        continue;
+      }
+      if (name.slice(-11) !== '_hoard_meta') {
+        continue;
+      }
+
+      var match = name.match(/^repeating_inventory_([A-Za-z0-9\-]+)_hoard_meta$/);
+      if (!match) {
+        continue;
+      }
+
+      var meta = parseHoardMetaValue(attr.get('current'));
+      if (meta && meta.type === 'relic') {
+        rows.push(match[1]);
+      }
+    }
+
+    var removed = 0;
+    for (var j = 0; j < rows.length; j++) {
+      removeRepeatingRow(charId, 'inventory', rows[j]);
+      removed += 1;
+    }
+
+    return removed;
+  }
+
+  function handleInventoryEquipChange(attr) {
+    if (!attr) {
+      return;
+    }
+
+    var name = attr.get('name') || '';
+    var match = name.match(/^repeating_inventory_([A-Za-z0-9\-]+)_equipped$/);
+    if (!match) {
+      return;
+    }
+
+    var rowId = match[1];
+    var charId = attr.get('characterid');
+    if (!charId) {
+      return;
+    }
+
+    var lockAttr = findObjs({
+      _type: 'attribute',
+      characterid: charId,
+      name: 'repeating_inventory_' + rowId + '_hoard_lock'
+    })[0];
+
+    if (!lockAttr || String(lockAttr.get('current') || '').trim() !== '1') {
+      return;
+    }
+
+    var metaAttr = findObjs({
+      _type: 'attribute',
+      characterid: charId,
+      name: 'repeating_inventory_' + rowId + '_hoard_meta'
+    })[0];
+
+    if (!metaAttr) {
+      return;
+    }
+
+    var meta = parseHoardMetaValue(metaAttr.get('current'));
+    if (!meta || meta.type !== 'relic') {
+      return;
+    }
+
+    var current = String(attr.get('current') || '');
+    if (current !== '1') {
+      if (typeof attr.setWithWorker === 'function') {
+        attr.setWithWorker({ current: '1' });
+      } else {
+        attr.set('current', '1');
+      }
+    }
+  }
+
+  function installInventoryLockWatchdog() {
+    if (inventoryWatchdogInstalled) {
+      return;
+    }
+    if (typeof on !== 'function') {
+      return;
+    }
+
+    inventoryWatchdogInstalled = true;
+    on('change:attribute', function (attr) {
+      try {
+        handleInventoryEquipChange(attr);
+      } catch (err) {
+        // Silent guard; sandbox may throw if attribute vanished mid-change.
+      }
+    });
   }
 
   function toActiveValue(value, fallback) {
@@ -838,6 +1213,10 @@
       return true;
     }
 
+    if (patch.op === 'sync_relic_inventory') {
+      return syncRelicInventoryRow(charId, patch, effect);
+    }
+
     return false;
   }
 
@@ -960,6 +1339,11 @@
       return true;
     }
 
+    if (patch.op === 'sync_relic_inventory') {
+      removeRelicInventoryRow(charId, patch.relicId || (effect && effect.id));
+      return true;
+    }
+
     if (patch.op === 'add_resource_counter') {
       var baseName = 'hr_res_' + String(patch.name || 'resource').replace(/[^a-z0-9]/gi, '_').toLowerCase();
       var suffixes = ['_max', '_cur', '_cadence'];
@@ -1003,6 +1387,8 @@
     return false;
   }
 
+  installInventoryLockWatchdog();
+
   EffectAdapters.registerAdapter({
     name: 'dnd5e-roll20',
     detect: function (character) {
@@ -1027,6 +1413,9 @@
     },
     remove: function (charId, patch, effect) {
       return removePatch(charId, patch, effect);
+    },
+    purgeHoardInventory: function (charId) {
+      return purgeHoardRelicInventory(charId);
     }
   });
 })();

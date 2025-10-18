@@ -26,6 +26,9 @@ var EffectRegistry = (function () {
   }
 
   var effects = {};
+  var defaultRelicInventoryMods = {
+    'relic_guardians_band_C': ['AC +1']
+  };
 
   function buildAbilityTemplate(header, fields) {
     var template = '&{template:default} {{name=' + header + '}}';
@@ -67,6 +70,99 @@ var EffectRegistry = (function () {
       name: label,
       max: max,
       cadence: cadence || 'per_room'
+    };
+  }
+
+  function buildInventorySummary(fields) {
+    if (!fields || !fields.length) {
+      return '';
+    }
+
+    var lines = [];
+    for (var i = 0; i < fields.length; i++) {
+      var field = fields[i];
+      if (!field || !field.label) {
+        continue;
+      }
+      var value = typeof field.value === 'undefined' ? '' : field.value;
+      lines.push(field.label + ': ' + value);
+    }
+
+    return lines.join('\n');
+  }
+
+  function resolveInventoryMods(id, config) {
+    var mods = [];
+    var inventoryCfg = config.inventory || null;
+
+    if (inventoryCfg && inventoryCfg.mods && inventoryCfg.mods.length) {
+      for (var i = 0; i < inventoryCfg.mods.length; i++) {
+        mods.push(inventoryCfg.mods[i]);
+      }
+      return mods;
+    }
+
+    if (defaultRelicInventoryMods.hasOwnProperty(id)) {
+      var defaults = defaultRelicInventoryMods[id];
+      for (var j = 0; j < defaults.length; j++) {
+        mods.push(defaults[j]);
+      }
+    }
+
+    return mods;
+  }
+
+  function resolveInventoryContent(config) {
+    var inventoryCfg = config.inventory || null;
+    if (inventoryCfg && typeof inventoryCfg.content !== 'undefined') {
+      return inventoryCfg.content || '';
+    }
+    if (config.note) {
+      return config.note;
+    }
+    return buildInventorySummary(config.fields || []);
+  }
+
+  function resolveInventoryName(id, config) {
+    var inventoryCfg = config.inventory || null;
+    if (inventoryCfg && inventoryCfg.itemName) {
+      return inventoryCfg.itemName;
+    }
+    if (config.displayName) {
+      return config.displayName;
+    }
+    if (config.name) {
+      return config.name;
+    }
+    return id;
+  }
+
+  function resolveInventoryVersion(config) {
+    var inventoryCfg = config.inventory || null;
+    if (!inventoryCfg) {
+      return 1;
+    }
+    if (typeof inventoryCfg.ver !== 'undefined') {
+      return inventoryCfg.ver;
+    }
+    if (typeof inventoryCfg.version !== 'undefined') {
+      return inventoryCfg.version;
+    }
+    if (typeof inventoryCfg.metaVersion !== 'undefined') {
+      return inventoryCfg.metaVersion;
+    }
+    return 1;
+  }
+
+  function createInventoryPatch(id, config) {
+    return {
+      type: 'adapter',
+      op: 'sync_relic_inventory',
+      relicId: id,
+      itemName: resolveInventoryName(id, config),
+      mods: resolveInventoryMods(id, config),
+      content: resolveInventoryContent(config),
+      metaVersion: resolveInventoryVersion(config)
     };
   }
 
@@ -134,6 +230,10 @@ var EffectRegistry = (function () {
 
     if (config.note) {
       patches.push(createNotePatch(config.note));
+    }
+
+    if (config.inventory !== false) {
+      patches.push(createInventoryPatch(id, config));
     }
 
     return {
