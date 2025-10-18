@@ -165,6 +165,79 @@ var BoonManager = (function () {
     return base + '|' + rare;
   }
 
+  function normalizeEffectId(value) {
+    if (value === null || typeof value === 'undefined') {
+      return null;
+    }
+    if (typeof value === 'string') {
+      return value.trim() || null;
+    }
+    return String(value);
+  }
+
+  function resolveBoonDescription(card) {
+    if (!card) {
+      return '';
+    }
+
+    if (card.text_in_run) {
+      return card.text_in_run;
+    }
+    if (card.description) {
+      return card.description;
+    }
+    if (card.text) {
+      return card.text;
+    }
+    if (card.data && card.data.text_in_run) {
+      return card.data.text_in_run;
+    }
+    if (card.cardData && card.cardData.text_in_run) {
+      return card.cardData.text_in_run;
+    }
+    return '';
+  }
+
+  function applyBoonToCharacter(playerState, boonRecord, ancestorName, playerLabel) {
+    if (!playerState) {
+      return;
+    }
+
+    var charId = playerState.boundCharacterId;
+    if (!charId) {
+      gmSay('Boon "' + _.escape(boonRecord.name) + '" for ' + playerLabel + ' could not attach to a character — no binding set.');
+      return;
+    }
+
+    var helper = (typeof EffectAdaptersDnd5eRoll20 !== 'undefined') ? EffectAdaptersDnd5eRoll20 : null;
+    if (!helper) {
+      gmSay('Effect helper unavailable when granting boon "' + _.escape(boonRecord.name) + '" to ' + playerLabel + '.');
+      return;
+    }
+
+    var description = boonRecord.description || resolveBoonDescription(boonRecord.data || boonRecord);
+    var abilityResult = null;
+    if (typeof helper.ensureBoonAbility === 'function') {
+      abilityResult = helper.ensureBoonAbility(charId, {
+        boonName: boonRecord.name,
+        ancestor: ancestorName,
+        description: description
+      });
+    }
+
+    if (!abilityResult || !abilityResult.ok) {
+      gmSay('Failed to create a token action for boon "' + _.escape(boonRecord.name) + '" on the bound character.');
+    }
+
+    if (description && typeof helper.needsAttributeAssistance === 'function' && helper.needsAttributeAssistance(description)) {
+      var summary = boonRecord.name + ': ' + description;
+      if (typeof helper.appendBoonNote === 'function') {
+        helper.appendBoonNote(charId, summary);
+      }
+      gmSay('Manual follow-up may be required for boon "' + _.escape(boonRecord.name) + '" (' + playerLabel + '): attribute adjustments not automated.');
+    }
+  }
+
   function buildOwnedBoonMap(playerid) {
     var ownedMap = {};
 
@@ -544,10 +617,13 @@ var BoonManager = (function () {
       picked._rarity = order[j];
       picked._idx = picks.length;
       if (!picked.effectId && chosen.effectId) {
-        picked.effectId = chosen.effectId;
+        picked.effectId = normalizeEffectId(chosen.effectId);
       }
       if (!picked.effectId && picked.id) {
-        picked.effectId = picked.id;
+        picked.effectId = normalizeEffectId(picked.id);
+      }
+      if (!picked.effectId && picked.name) {
+        picked.effectId = normalizeEffectId(picked.name);
       }
 
       picks.push(picked);
@@ -608,14 +684,18 @@ var BoonManager = (function () {
     if (!ps.boons) {
       ps.boons = [];
     }
+
+    var effectId = normalizeEffectId(picked.effectId || picked.id || picked.name);
+    var description = resolveBoonDescription(picked);
     ps.boons.push({
       id: picked.id || picked.name,
       name: picked.name,
-      effectId: picked.effectId || picked.id || picked.name,
+      effectId: effectId,
       rarity: rarity,
       ancestor: offer.ancestor,
       acquiredAt: new Date().toISOString(),
-      cost: cost
+      cost: cost,
+      description: description
     });
 
     delete offers[playerid];
@@ -624,9 +704,15 @@ var BoonManager = (function () {
 
     ensureBoonHandout(playerid, picked, offer.ancestor);
 
-    // TODO: Invoke the replacement effect pipeline once boon effects migrate off EffectEngine/EffectRegistry.
-
     var playerName = getPlayerName(playerid);
+    applyBoonToCharacter(ps, {
+      name: picked.name,
+      effectId: effectId,
+      ancestor: offer.ancestor,
+      description: description,
+      data: picked
+    }, offer.ancestor, playerName);
+
     var message = '🌟 You gained <b>' + _.escape(picked.name) + '</b> (' + rarityLabel(rarity) + ')';
     if (cost > 0) {
       message += ' for ' + cost + ' Scrip';
