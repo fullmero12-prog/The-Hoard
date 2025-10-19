@@ -233,8 +233,6 @@
     });
   }
 
-  var inventoryWatchdogInstalled = false;
-
   var inventoryAdditiveTokens = {
     'Melee Attacks': true,
     'Melee Damage': true,
@@ -577,76 +575,6 @@
     }
 
     return removed;
-  }
-
-  function handleInventoryEquipChange(attr) {
-    if (!attr) {
-      return;
-    }
-
-    var name = attr.get('name') || '';
-    var match = name.match(/^repeating_inventory_([A-Za-z0-9\-]+)_equipped$/);
-    if (!match) {
-      return;
-    }
-
-    var rowId = match[1];
-    var charId = attr.get('characterid');
-    if (!charId) {
-      return;
-    }
-
-    var lockAttr = findObjs({
-      _type: 'attribute',
-      characterid: charId,
-      name: 'repeating_inventory_' + rowId + '_hoard_lock'
-    })[0];
-
-    if (!lockAttr || String(lockAttr.get('current') || '').trim() !== '1') {
-      return;
-    }
-
-    var metaAttr = findObjs({
-      _type: 'attribute',
-      characterid: charId,
-      name: 'repeating_inventory_' + rowId + '_hoard_meta'
-    })[0];
-
-    if (!metaAttr) {
-      return;
-    }
-
-    var meta = parseHoardMetaValue(metaAttr.get('current'));
-    if (!meta || meta.type !== 'relic') {
-      return;
-    }
-
-    var current = String(attr.get('current') || '');
-    if (current !== '1') {
-      if (typeof attr.setWithWorker === 'function') {
-        attr.setWithWorker({ current: '1' });
-      } else {
-        attr.set('current', '1');
-      }
-    }
-  }
-
-  function installInventoryLockWatchdog() {
-    if (inventoryWatchdogInstalled) {
-      return;
-    }
-    if (typeof on !== 'function') {
-      return;
-    }
-
-    inventoryWatchdogInstalled = true;
-    on('change:attribute', function (attr) {
-      try {
-        handleInventoryEquipChange(attr);
-      } catch (err) {
-        // Silent guard; sandbox may throw if attribute vanished mid-change.
-      }
-    });
   }
 
   function removeRelicIdFromState(charId, relicId) {
@@ -1591,7 +1519,6 @@
     return false;
   }
 
-  installInventoryLockWatchdog();
   installRelicMetaRemovalWatchdog();
 
   function ensureAbility(charId, abilityName, action, isTokenAction) {
