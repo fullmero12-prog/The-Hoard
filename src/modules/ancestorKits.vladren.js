@@ -59,11 +59,18 @@
   }
 
   function buildTransfusionAction() {
+    var damageRoll = '[[2d8 + @{selected|hr_pb} + ?{Is the target at or below half HP?|No,0|Yes,1d8}]]';
+    var healToHpRoll = '[[{(@{selected|hp|max}-@{selected|hp}),$[[0]]}kl1]]';
+    var overflowTempRoll = '[[{$[[0]]-$[[1]],0}kh1]]';
+    var tempAfterRoll = '[[@{selected|hp_temp}+$[[2]]]]';
+
     return buildRollTemplate('Transfusion (Bonus; 60 ft; Con save)', [
-      { label: 'Save DC', value: '[[ @{selected|spell_save_dc} ]]' },
-      { label: 'Damage', value: '[[ 2d8 + @{selected|hr_pb} ]] necrotic (half on success)' },
-      { label: 'Bloodied bonus', value: 'If target ≤ 1/2 HP, add [[ 1d8 ]] necrotic' },
-      { label: 'Heal yourself', value: 'Equal to total necrotic dealt' }
+      { label: 'Target', value: '@{target|token_name} — @{target|hp}/@{target|hp|max} HP (Con save)' },
+      { label: 'Save DC', value: '@{selected|spell_save_dc}' },
+      { label: 'Necrotic damage', value: damageRoll + ' (half on success)' },
+      { label: 'Healing applied', value: healToHpRoll + ' HP restored (before temp HP)' },
+      { label: 'Excess to Pact temp HP', value: overflowTempRoll + ' (excess healing)' },
+      { label: 'Temp HP after heal', value: tempAfterRoll + ' (cap [[5*@{selected|hr_pb} + @{selected|hr_spellmod}]])' }
     ]);
   }
 
