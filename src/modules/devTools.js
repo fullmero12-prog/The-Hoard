@@ -139,6 +139,358 @@ var DevTools = (function () {
   }
 
   /**
+   * Determines whether a Roll20 checkbox style field is considered enabled.
+   * Accepts values such as "on", "1", "yes", or "true".
+   * @param {string} value
+   * @returns {boolean}
+   */
+  function isChecked(value) {
+    if (value === null || typeof value === 'undefined') {
+      return false;
+    }
+
+    var lowered = String(value).toLowerCase();
+    return lowered === 'on' || lowered === '1' || lowered === 'true' || lowered === 'yes';
+  }
+
+  /**
+   * Produces a readable label for a spell repeating section.
+   * @param {string} section
+   * @param {string} levelField
+   * @returns {{label:string, order:number}}
+   */
+  function describeSpellSection(section, levelField) {
+    var label = section || 'spells';
+    var order = 100;
+
+    if (!section) {
+      return { label: label, order: order };
+    }
+
+    if (section === 'spell-cantrip') {
+      return { label: 'Cantrips', order: -1 };
+    }
+
+    var matchLevel = /^spell-(\d+)$/.exec(section);
+    if (matchLevel) {
+      var parsed = parseInt(matchLevel[1], 10);
+      if (!isNaN(parsed)) {
+        return { label: 'Level ' + parsed, order: parsed };
+      }
+    }
+
+    if (levelField) {
+      var parsedLevel = parseInt(levelField, 10);
+      if (!isNaN(parsedLevel)) {
+        label = 'Level ' + parsedLevel;
+        order = parsedLevel;
+      }
+    }
+
+    if (section.indexOf('npc') !== -1) {
+      return { label: 'NPC ' + section.replace('spell', '').replace(/[-_]+/g, ' ').trim(), order: 75 };
+    }
+
+    return { label: label, order: order };
+  }
+
+  /**
+   * Gathers repeating spell rows for a character.
+   * @param {string} characterId
+   * @returns {Array}
+   */
+  function collectSpellRows(characterId) {
+    if (!characterId || typeof findObjs !== 'function') {
+      return [];
+    }
+
+    var attrs = findObjs({ _type: 'attribute', _characterid: characterId }) || [];
+    var rowsById = {};
+    var seenOrder = [];
+    var apTags = {};
+    var i;
+
+    for (i = 0; i < attrs.length; i += 1) {
+      var attr = attrs[i];
+      var attrName = '';
+      try {
+        attrName = attr && typeof attr.get === 'function' ? attr.get('name') : '';
+      } catch (attrErr) {
+        attrName = '';
+      }
+
+      if (!attrName) {
+        continue;
+      }
+
+      if (attrName.indexOf('hr_apspell_') === 0) {
+        try {
+          var link = attr.get('current') || attr.get('max') || '';
+          if (link) {
+            apTags[link] = attrName;
+          }
+        } catch (linkErr) {
+          // Ignore lookup issues for malformed helper attributes.
+        }
+      }
+    }
+
+    for (i = 0; i < attrs.length; i += 1) {
+      var attribute = attrs[i];
+      var name = '';
+      try {
+        name = attribute && typeof attribute.get === 'function' ? attribute.get('name') : '';
+      } catch (nameErr) {
+        name = '';
+      }
+
+      if (!name) {
+        continue;
+      }
+
+      var match = /^repeating_([A-Za-z0-9\-]+)_([-A-Za-z0-9]+)_(spellname|spelllevel|spellprepared|spellalwaysprepared)$/.exec(name);
+      if (!match) {
+        continue;
+      }
+
+      var section = match[1];
+      if (section.indexOf('spell') !== 0) {
+        continue;
+      }
+
+      var rowId = match[2];
+      var field = match[3];
+
+      if (!rowsById[rowId]) {
+        rowsById[rowId] = {
+          section: section,
+          rowId: rowId,
+          name: '',
+          level: '',
+          prepared: '',
+          always: ''
+        };
+        seenOrder.push(rowId);
+      }
+
+      var current = '';
+      try {
+        current = attribute.get('current') || '';
+      } catch (curErr) {
+        current = '';
+      }
+
+      if (field === 'spellname') {
+        rowsById[rowId].name = current;
+      } else if (field === 'spelllevel') {
+        rowsById[rowId].level = current;
+      } else if (field === 'spellprepared') {
+        rowsById[rowId].prepared = current;
+      } else if (field === 'spellalwaysprepared') {
+        rowsById[rowId].always = current;
+      }
+    }
+
+    var rows = [];
+    for (var r = 0; r < seenOrder.length; r += 1) {
+      var id = seenOrder[r];
+      var row = rowsById[id];
+      if (!row) {
+        continue;
+      }
+
+      var descriptor = describeSpellSection(row.section, row.level);
+      row.sectionLabel = descriptor.label;
+      row.sectionOrder = descriptor.order;
+
+      var prefix = 'repeating_' + row.section + '_' + row.rowId + '_';
+      if (apTags[prefix]) {
+        row.apTag = apTags[prefix];
+      }
+
+      rows.push(row);
+    }
+
+    rows.sort(function (a, b) {
+      if (a.sectionOrder !== b.sectionOrder) {
+        return a.sectionOrder - b.sectionOrder;
+      }
+
+      var nameA = (a.name || '').toLowerCase();
+      var nameB = (b.name || '').toLowerCase();
+      if (nameA < nameB) {
+        return -1;
+      }
+      if (nameA > nameB) {
+        return 1;
+      }
+
+      if (a.rowId < b.rowId) {
+        return -1;
+      }
+      if (a.rowId > b.rowId) {
+        return 1;
+      }
+
+      return 0;
+    });
+
+    return rows;
+  }
+
+  /**
+   * Whisper repeating spell rows for targeted players or the selected character.
+   * Accepts comma-separated player specifiers (name, ID, all, online) similar to !givecurrency.
+   * Falls back to the currently selected token when no specifiers are provided.
+   * @param {object} msg
+   * @param {string} argString
+   */
+  function dumpSpellbook(msg, argString) {
+    if (typeof findObjs !== 'function') {
+      gmSay('⚠️ Roll20 object search unavailable; cannot inspect spellbook rows.');
+      return;
+    }
+
+    var trimmed = (argString || '').trim();
+    var characterTargets = [];
+    var seenCharacters = {};
+    var missingBindings = [];
+
+    function pushCharacter(charId, label) {
+      if (!charId || seenCharacters[charId]) {
+        return;
+      }
+      seenCharacters[charId] = true;
+      characterTargets.push({ id: charId, label: label });
+    }
+
+    function getCharacterLabel(charId) {
+      if (!charId) {
+        return 'Unknown Character';
+      }
+      if (typeof getObj !== 'function') {
+        return charId;
+      }
+      var character = getObj('character', charId);
+      try {
+        return character ? character.get('name') || charId : charId;
+      } catch (labelErr) {
+        return charId;
+      }
+    }
+
+    function getPlayerLabel(playerId) {
+      if (!playerId || typeof getObj !== 'function') {
+        return playerId || 'Unknown Player';
+      }
+      var playerObj = getObj('player', playerId);
+      try {
+        var display = playerObj ? playerObj.get('_displayname') : '';
+        return display || playerId;
+      } catch (displayErr) {
+        return playerId;
+      }
+    }
+
+    if (trimmed) {
+      if (typeof StateManager === 'undefined' || !StateManager || typeof StateManager.getPlayer !== 'function') {
+        gmSay('⚠️ StateManager unavailable; cannot resolve player spellbooks.');
+      } else {
+        var playerSpecs = trimmed.split(',');
+        var seenPlayers = {};
+        for (var s = 0; s < playerSpecs.length; s += 1) {
+          var spec = playerSpecs[s].trim();
+          if (!spec) {
+            continue;
+          }
+
+          var resolvedPlayers = resolvePlayerTargets(spec);
+          for (var rp = 0; rp < resolvedPlayers.length; rp += 1) {
+            var pid = resolvedPlayers[rp];
+            if (seenPlayers[pid]) {
+              continue;
+            }
+            seenPlayers[pid] = true;
+
+            var playerState = StateManager.getPlayer(pid);
+            var charId = playerState && playerState.boundCharacterId ? playerState.boundCharacterId : null;
+            if (charId) {
+              var label = getCharacterLabel(charId) + ' (' + getPlayerLabel(pid) + ')';
+              pushCharacter(charId, label);
+            } else {
+              missingBindings.push(getPlayerLabel(pid));
+            }
+          }
+        }
+      }
+    }
+
+    if (!characterTargets.length && msg && msg.selected && msg.selected.length) {
+      for (var selIndex = 0; selIndex < msg.selected.length; selIndex += 1) {
+        var selection = msg.selected[selIndex];
+        if (!selection || selection._type !== 'graphic') {
+          continue;
+        }
+        if (typeof getObj !== 'function') {
+          continue;
+        }
+        var token = getObj('graphic', selection._id);
+        if (!token) {
+          continue;
+        }
+        var charIdFromToken = token.get('represents');
+        if (!charIdFromToken) {
+          continue;
+        }
+        pushCharacter(charIdFromToken, getCharacterLabel(charIdFromToken));
+      }
+    }
+
+    if (!characterTargets.length) {
+      gmSay('Usage: !spells-dump <player|"Player Name"|all|online> — or select a token linked to the character first.');
+      return;
+    }
+
+    if (missingBindings.length) {
+      gmSay('ℹ️ No bound character for: ' + missingBindings.join(', ') + '.');
+    }
+
+    for (var t = 0; t < characterTargets.length; t += 1) {
+      var target = characterTargets[t];
+      var spellRows = collectSpellRows(target.id);
+      var headerLabel = target.label || getCharacterLabel(target.id);
+
+      if (!spellRows.length) {
+        gmSay('ℹ️ No repeating spell rows found for ' + htmlEscape(headerLabel) + '.');
+        continue;
+      }
+
+      var lines = ['<b>Spell rows — ' + htmlEscape(headerLabel) + '</b>'];
+      for (var rowIndex = 0; rowIndex < spellRows.length; rowIndex += 1) {
+        var row = spellRows[rowIndex];
+        var flags = [];
+        if (isChecked(row.prepared)) {
+          flags.push('Prep');
+        }
+        if (isChecked(row.always)) {
+          flags.push('Always');
+        }
+
+        var labelParts = [row.sectionLabel || 'Spells'];
+        var flagText = flags.length ? ' | ' + flags.join(', ') : '';
+        var prefixText = '[' + labelParts.join('') + flagText + '] ';
+        var line = prefixText + htmlEscape(row.name || '(Unnamed Spell)') + ' — RowID: ' + row.rowId;
+        if (row.apTag) {
+          line += ' — Tag: ' + htmlEscape(row.apTag);
+        }
+        lines.push(line);
+      }
+
+      gmSay(lines.join('<br>'));
+    }
+  }
+
+  /**
    * Returns all player IDs that currently have Hoard Run state entries.
    * @returns {string[]}
    */
@@ -1255,6 +1607,13 @@ var DevTools = (function () {
         }
         dumpInventoryModifiers(msg);
         break;
+      case '!spells-dump':
+        if (typeof isGM === 'function' && !isGM(msg.playerid)) {
+          gmSay('⚠️ Only the GM can inspect spellbooks.');
+          return;
+        }
+        dumpSpellbook(msg, argString);
+        break;
       case '!givecurrency':
         if (typeof isGM === 'function' && !isGM(msg.playerid)) {
           gmSay('⚠️ Only the GM can grant currencies.');
@@ -1280,7 +1639,7 @@ var DevTools = (function () {
       return;
     }
     on('chat:message', handleInput);
-    gmSay('🧰 DevTools loaded. Commands: !resetstate, !debugstate, !testshop, !testrelic, !resethandouts, !mods-dump, !givecurrency, !giverelic');
+    gmSay('🧰 DevTools loaded. Commands: !resetstate, !debugstate, !testshop, !testrelic, !resethandouts, !mods-dump, !spells-dump, !givecurrency, !giverelic');
     isRegistered = true;
   }
 
