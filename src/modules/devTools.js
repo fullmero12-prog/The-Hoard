@@ -763,6 +763,7 @@ var DevTools = (function () {
     var inventorySnapshot = summarizeRelicAndTokenState();
     var apCleanup = { abilitiesRemoved: 0, attributesRemoved: 0 };
     var tokenAbilityCleanup = removeHoardTokenAbilities();
+    var relicRowCleanup = { rowsRemoved: 0, relicsProcessed: 0 };
     if (
       typeof SpellbookHelper !== 'undefined' &&
       SpellbookHelper &&
@@ -827,6 +828,18 @@ var DevTools = (function () {
       }
     }
 
+    if (
+      typeof RelicBinder !== 'undefined' &&
+      RelicBinder &&
+      typeof RelicBinder.purgeAllRelicInventory === 'function'
+    ) {
+      try {
+        relicRowCleanup = RelicBinder.purgeAllRelicInventory();
+      } catch (purgeErr) {
+        relicRowCleanup = { rowsRemoved: 0, relicsProcessed: 0 };
+      }
+    }
+
     resetHandouts();
     var removedAttrs = purgeHelperAttributes();
     delete state.HoardRun;
@@ -847,6 +860,8 @@ var DevTools = (function () {
     var rerollSuffix = rerollTrackersCleared === 1 ? '' : 's';
     var hoardTokenActionsRemoved = tokenAbilityCleanup && tokenAbilityCleanup.removed ? tokenAbilityCleanup.removed : 0;
     var hoardTokenSuffix = hoardTokenActionsRemoved === 1 ? '' : 's';
+    var hoardInventoryRowsRemoved = relicRowCleanup && relicRowCleanup.rowsRemoved ? relicRowCleanup.rowsRemoved : 0;
+    var hoardInventorySuffix = hoardInventoryRowsRemoved === 1 ? '' : 's';
     gmSay(
       '⚙️ HoardRun state has been reset. Removed ' +
         removedAttrs +
@@ -873,10 +888,14 @@ var DevTools = (function () {
         rerollTrackersCleared +
         ' reroll token tracker' +
         rerollSuffix +
-        ' and ' +
+        ', ' +
         hoardTokenActionsRemoved +
         ' Hoard token action' +
         hoardTokenSuffix +
+        ', and ' +
+        hoardInventoryRowsRemoved +
+        ' Hoard inventory row' +
+        hoardInventorySuffix +
         '. Relic-item pipeline automation is offline; apply sheet adjustments manually until it returns.'
     );
   }
