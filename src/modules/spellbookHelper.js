@@ -45,6 +45,17 @@ var SpellbookHelper = (function () {
     return expr.replace(/\[\[(.*?)\]\]/g, '$1').replace(/\s+/g, ' ').trim();
   }
 
+  function slugifySpellName(name) {
+    if (!name) {
+      return '';
+    }
+
+    return String(name)
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '_')
+      .replace(/^_+|_+$/g, '');
+  }
+
   function normalizeDamage(entry, defaultLabel) {
     if (!entry) return null;
 
@@ -152,6 +163,45 @@ var SpellbookHelper = (function () {
     return true;
   }
 
+  function removeRepeatingRow(charId, prefix) {
+    var removal = { removed: false, attributesRemoved: 0 };
+    if (!charId || !prefix || typeof findObjs !== 'function') {
+      return removal;
+    }
+
+    if (prefix.indexOf('repeating_') !== 0) {
+      return removal;
+    }
+
+    var attrs = findObjs({ _type: 'attribute', _characterid: charId }) || [];
+    for (var i = 0; i < attrs.length; i += 1) {
+      var attr = attrs[i];
+      var attrName = '';
+      try {
+        attrName = attr && typeof attr.get === 'function' ? attr.get('name') : '';
+      } catch (removeNameErr) {
+        attrName = '';
+      }
+
+      if (attrName && attrName.indexOf(prefix) === 0) {
+        try {
+          attr.remove();
+          removal.removed = true;
+          removal.attributesRemoved += 1;
+        } catch (removeAttrErr) {}
+      }
+    }
+
+    if (removal.removed) {
+      var parsed = parseRepeatingPrefix(prefix);
+      if (parsed) {
+        removeRowFromReporder(charId, parsed.section, parsed.rowId);
+      }
+    }
+
+    return removal;
+  }
+
   // --- Try to install as a repeating spell on OGL/5e (best-effort) ---
   function tryInstallOnOGL5e(charId, spell) {
     try {
@@ -161,6 +211,11 @@ var SpellbookHelper = (function () {
       var section = (lvl === 0) ? 'spell-cantrip' : ('spell-' + lvl);
       var damageInfo = normalizeDamage(spell.damage, 'Damage');
       var damageInfo2 = normalizeDamage(spell.damage2, 'Secondary Damage');
+
+      var slug = slugifySpellName(spell.name);
+      if (!slug) {
+        return false;
+      }
 
       var dmgType = '';
       if (damageInfo && damageInfo.type) {
@@ -262,10 +317,24 @@ var SpellbookHelper = (function () {
         }
       }
 
+      var tagName = 'hr_apspell_' + slug;
+      var existingTag = getAttrObj(charId, tagName);
+      var oldPrefix = '';
+      if (existingTag) {
+        try {
+          oldPrefix = existingTag.get('current') || '';
+        } catch (oldPrefixErr) {
+          oldPrefix = '';
+        }
+      }
+
       // We store a back-link so we can find it later by spell name
       // (helps us patch it when a boon modifies it)
-      var tagName = 'hr_apspell_' + spell.name.toLowerCase().replace(/[^a-z0-9]+/g,'_');
       setAttr(charId, tagName, base); // base prefix lets us update the row fields later
+
+      if (oldPrefix && oldPrefix !== base) {
+        removeRepeatingRow(charId, oldPrefix);
+      }
 
       return true;
     } catch (e) {
@@ -288,7 +357,7 @@ var SpellbookHelper = (function () {
   // macroNotes is appended to the repeating spell description when possible.
   function patchAPSpell(charId, spellName, modify) {
     if (!charId || !spellName || !modify) return false;
-    var tagName = 'hr_apspell_' + spellName.toLowerCase().replace(/[^a-z0-9]+/g,'_');
+    var tagName = 'hr_apspell_' + slugifySpellName(spellName);
     var base = getAttrObj(charId, tagName);
     var patched = false;
 
@@ -346,6 +415,7 @@ var SpellbookHelper = (function () {
     var tagAttrs = [];
     var prefixes = [];
     var seenPrefixes = {};
+    var slugTargets = {};
 
     for (var i = 0; i < attrs.length; i += 1) {
       var attr = attrs[i];
@@ -368,6 +438,11 @@ var SpellbookHelper = (function () {
           prefixes.push(prefix);
           seenPrefixes[prefix] = true;
         }
+
+        var slug = attrName.slice('hr_apspell_'.length);
+        if (slug) {
+          slugTargets[slug] = true;
+        }
       }
     }
 
@@ -381,31 +456,50 @@ var SpellbookHelper = (function () {
 
     for (var p = 0; p < prefixes.length; p += 1) {
       var prefix = prefixes[p];
-      var parsed = parseRepeatingPrefix(prefix);
-      var removedAny = false;
-      var rowAttrs = findObjs({ _type: 'attribute', _characterid: charId }) || [];
-      for (var r = 0; r < rowAttrs.length; r += 1) {
-        var rowAttr = rowAttrs[r];
-        var rowName = '';
-        try {
-          rowName = rowAttr && typeof rowAttr.get === 'function' ? rowAttr.get('name') : '';
-        } catch (rowNameErr) {
-          rowName = '';
-        }
-        if (rowName && rowName.indexOf(prefix) === 0) {
-          try {
-            rowAttr.remove();
-            outcome.spellAttributesRemoved += 1;
-            removedAny = true;
-          } catch (removeRowErr) {}
-        }
-      }
-      if (removedAny) {
+      var removal = removeRepeatingRow(charId, prefix);
+      if (removal.removed) {
         outcome.spellsRemoved += 1;
+        outcome.spellAttributesRemoved += removal.attributesRemoved;
       }
+    }
 
-      if (parsed) {
-        removeRowFromReporder(charId, parsed.section, parsed.rowId);
+    if (typeof slugTargets === 'object') {
+      var rowNameAttrs = findObjs({ _type: 'attribute', _characterid: charId }) || [];
+      for (var n = 0; n < rowNameAttrs.length; n += 1) {
+        var nameAttr = rowNameAttrs[n];
+        var nameAttrName = '';
+        try {
+          nameAttrName = nameAttr && typeof nameAttr.get === 'function' ? nameAttr.get('name') : '';
+        } catch (spellNameErr) {
+          nameAttrName = '';
+        }
+
+        if (!nameAttrName || nameAttrName.indexOf('repeating_') !== 0 || nameAttrName.indexOf('_spellname') === -1) {
+          continue;
+        }
+
+        var slugged = '';
+        try {
+          slugged = slugifySpellName(nameAttr.get('current'));
+        } catch (slugErr) {
+          slugged = '';
+        }
+
+        if (!slugged || !slugTargets[slugged]) {
+          continue;
+        }
+
+        var prefixName = nameAttrName.replace(/spellname$/, '');
+        if (!prefixName || seenPrefixes[prefixName]) {
+          continue;
+        }
+
+        var extraRemoval = removeRepeatingRow(charId, prefixName);
+        if (extraRemoval.removed) {
+          seenPrefixes[prefixName] = true;
+          outcome.spellsRemoved += 1;
+          outcome.spellAttributesRemoved += extraRemoval.attributesRemoved;
+        }
       }
     }
 
