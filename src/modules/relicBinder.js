@@ -521,8 +521,111 @@ var RelicBinder = (function () {
     return result;
   }
 
+  /**
+   * Removes all Hoard-managed relic inventory rows from every character.
+   * Useful when state tracking has lost the character binding but the sheet
+   * rows remain. This scans for hoard_meta entries and clears each relic.
+   * @return {{ rowsRemoved: number, relicsProcessed: number }}
+   */
+  function purgeAllRelicInventory() {
+    var summary = { rowsRemoved: 0, relicsProcessed: 0 };
+    if (typeof findObjs !== 'function') {
+      return summary;
+    }
+
+    var attrs = findObjs({ _type: 'attribute' }) || [];
+    var processed = {};
+
+    for (var i = 0; i < attrs.length; i += 1) {
+      var attr = attrs[i];
+      if (!attr || typeof attr.get !== 'function') {
+        continue;
+      }
+
+      var name = '';
+      try {
+        name = attr.get('name') || '';
+      } catch (nameErr) {
+        name = '';
+      }
+
+      if (!name || name.indexOf('repeating_inventory_') !== 0 || name.slice(-11) !== '_hoard_meta') {
+        continue;
+      }
+
+      var match = name.match(/^repeating_inventory_([A-Za-z0-9\-]+)_hoard_meta$/);
+      if (!match) {
+        continue;
+      }
+
+      var charId = '';
+      try {
+        charId = attr.get('characterid') || attr.get('_characterid') || '';
+      } catch (charErr) {
+        charId = '';
+      }
+
+      if (!charId) {
+        continue;
+      }
+
+      var meta = parseHoardMeta(attr.get('current'));
+      if (!meta || meta.type !== 'relic') {
+        continue;
+      }
+
+      var relicId = meta.id ? String(meta.id) : '';
+      if (!relicId) {
+        continue;
+      }
+
+      var key = charId + '::' + relicId;
+      if (processed[key]) {
+        continue;
+      }
+      processed[key] = true;
+
+      summary.relicsProcessed += 1;
+
+      var rowIds = findRelicInventoryRows(charId, relicId);
+      var rowCount = rowIds.length;
+
+      var removalResult = null;
+      try {
+        removalResult = removeRelic(charId, relicId);
+      } catch (removeErr) {
+        removalResult = null;
+      }
+
+      if (removalResult && removalResult.ok) {
+        if (rowCount) {
+          summary.rowsRemoved += rowCount;
+        } else if (removalResult.inventoryRemoved) {
+          summary.rowsRemoved += 1;
+        }
+        continue;
+      }
+
+      if (!rowCount) {
+        rowIds = findRelicInventoryRows(charId, relicId);
+        rowCount = rowIds.length;
+      }
+
+      for (var r = 0; r < rowIds.length; r += 1) {
+        if (removeRepeatingRow(charId, 'inventory', rowIds[r])) {
+          summary.rowsRemoved += 1;
+        }
+      }
+
+      removeRelicFromPlayers(charId, relicId);
+    }
+
+    return summary;
+  }
+
   return {
     grantRelic: grantRelic,
-    removeRelic: removeRelic
+    removeRelic: removeRelic,
+    purgeAllRelicInventory: purgeAllRelicInventory
   };
 })();
