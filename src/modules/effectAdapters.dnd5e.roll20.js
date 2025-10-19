@@ -310,7 +310,9 @@
         if (inventoryAdditiveTokens[additiveName]) {
           var parsedAdditive = parseInt(additiveValue, 10);
           if (!isNaN(parsedAdditive) && String(parsedAdditive) === additiveValue.replace(/^\+/, '')) {
-            var additiveToken = additiveName + ' ' + (parsedAdditive >= 0 ? '+' : '') + parsedAdditive;
+            var additiveSign = parsedAdditive >= 0 ? '+' : '-';
+            var additiveMagnitude = Math.abs(parsedAdditive);
+            var additiveToken = additiveName + ' ' + additiveSign + ' ' + additiveMagnitude;
             if (!seen[additiveToken]) {
               sanitized.push(additiveToken);
               seen[additiveToken] = true;
