@@ -212,11 +212,38 @@ var AttributeManager = (function () {
   }
 
   /**
-   * Generates a Roll20-friendly repeating row id (mirrors ChatSetAttr logic).
+   * Generates a Roll20-friendly repeating row id.
+   * Ensures the prefix hyphen and alphanumeric body expected by sheet workers.
    * @returns {string}
    */
   function generateRowId() {
-    return generateUUID().replace(/_/g, 'Z');
+    var source = String(generateUUID() || '').replace(/_/g, 'Z');
+    var charset = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    var body = source.length > 1 ? source.slice(1) : '';
+    var sanitized = '';
+
+    for (var i = 0; i < body.length; i++) {
+      var ch = body.charAt(i);
+      var isUpper = ch >= 'A' && ch <= 'Z';
+      var isLower = ch >= 'a' && ch <= 'z';
+      var isDigit = ch >= '0' && ch <= '9';
+      if (isUpper || isLower || isDigit) {
+        sanitized += ch;
+      } else {
+        var replacementIndex = Math.floor(Math.random() * charset.length);
+        sanitized += charset.charAt(replacementIndex);
+      }
+    }
+
+    while (sanitized.length < 19) {
+      sanitized += charset.charAt(Math.floor(Math.random() * charset.length));
+    }
+
+    if (sanitized.length > 19) {
+      sanitized = sanitized.slice(0, 19);
+    }
+
+    return '-' + sanitized;
   }
 
   function normaliseSection(section) {
