@@ -31,3 +31,4 @@
 - `!resetvladren` — Resets per-room charges for Vladren Moroi features on the issuing GM.
 - `!bindvladren` — Mirrors Vladren Moroi's token action buttons onto the currently selected PC (GM only).
 - `!bindkit <Ancestor>` — (GM only) Mirrors the registered Ancestor kit abilities onto the selected PC token using `AncestorKits`. The mirrored macros live on the sheet's **Attributes & Abilities** tab and show up as token action buttons for that character.
+
