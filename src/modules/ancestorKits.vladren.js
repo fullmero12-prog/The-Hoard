@@ -21,6 +21,58 @@
     }
   }
 
+  function getAttributeInt(characterId, names) {
+    if (!characterId) {
+      return null;
+    }
+
+    var list = [];
+    if (Object.prototype.toString.call(names) === '[object Array]') {
+      list = names.slice();
+    } else if (typeof names === 'string') {
+      list = [names];
+    }
+
+    for (var i = 0; i < list.length; i += 1) {
+      var attrName = list[i];
+      if (!attrName) {
+        continue;
+      }
+
+      var attr = findObjs({
+        _type: 'attribute',
+        _characterid: characterId,
+        name: attrName
+      })[0];
+
+      if (!attr) {
+        continue;
+      }
+
+      var value = parseInt(attr.get('current'), 10);
+      if (!isNaN(value)) {
+        return value;
+      }
+    }
+
+    return null;
+  }
+
+  function getAttrInt(characterId, nameList, fallback) {
+    var fallbackValue = parseInt(fallback, 10);
+
+    if (!isNaN(fallbackValue)) {
+      return fallbackValue;
+    }
+
+    var attrValue = getAttributeInt(characterId, nameList);
+    if (typeof attrValue === 'number' && !isNaN(attrValue)) {
+      return attrValue;
+    }
+
+    return 0;
+  }
+
   var KIT_KEY = 'Vladren';
   var KIT_NAME = 'Vladren Moroi';
   var SOURCE_CHARACTER_NAME = 'Ancestor — Vladren Moroi';
@@ -28,7 +80,6 @@
   var TEXT_WRAPPER_START = '<div style="font-family:inherit;font-size:13px;line-height:1.25;">'
     + '<h3 style="margin:0 0 6px 0;">' + KIT_NAME + ' — The Crimson Tide</h3>';
   var TEXT_WRAPPER_END = '</div>';
-
   var KIT_RULES_HTML = [
     '<b>Crimson Pact.</b> Excess healing becomes <b>temp HP</b> (cap <b>5×PB + spell mod</b>). While you have Pact temp HP: <b>+1 AC</b>; your <b>necrotic ignores resistance</b> (treat immunity as resistance).',
     '<b>Transfusion (Bonus, 1/turn).</b> One creature within <b>60 ft</b> makes a <b>Con save</b>. Fail: <b>2d8 necrotic + PB</b> (success half). You <b>heal</b> for the damage dealt. If the target is <b>½ HP or less</b>, Transfusion deals <b>+1d8 necrotic</b>.',
@@ -59,12 +110,15 @@
   }
 
   function buildTransfusionAction() {
+    var damageRoll = 'floor((2d8 + @{selected|hr_pb} + ?{Is the target at or below half HP?|No,0|Yes,1d8})'
+      + ' * ?{Did the target succeed on the save?|No (Failed),1|Yes (Succeeded),0.5})';
+
     var templateLines = [
       '&{template:default} ',
       '{{name=🩸 Transfusion (Bonus; 60 ft; Con save)}}',
       '{{Target=@{target|token_name} — @{target|hp}/@{target|hp|max} HP (Con save)}}',
       '{{Save DC=@{selected|spell_save_dc}}}',
-      '{{Necrotic Damage=[[ [[2d8 + @{selected|hr_pb} + ?{Is the target at or below half HP?|No,0|Yes,1d8}]] ]] (half on success)}}',
+      '{{Necrotic Damage=[[ ' + damageRoll + ' ]] (auto halves on success)}}',
       '{{Healing Applied=[[ {(@{selected|hp|max}-@{selected|hp}), $[[0]]}kl1 ]] HP restored (before temp HP)}}',
       '{{Excess to Pact Temp HP=[[ { $[[0]] - $[[1]], 0 }kh1 ]] (excess healing)}}',
       '{{Temp HP after Heal=[[ {@{selected|hp_temp} + $[[2]], 5*@{selected|hr_pb}+@{selected|hr_spellmod}}kl1 ]] (cap [[5*@{selected|hr_pb}+@{selected|hr_spellmod}]])}}',
@@ -86,6 +140,157 @@
       { label: 'Then', value: 'Take [[ 6d6 ]] necrotic (success [[ 3d6 ]] necrotic).' },
       { label: 'Heal yourself', value: 'Equal to necrotic dealt; excess becomes Pact temp HP.' }
     ]);
+  }
+
+  /**
+   * Applies Vladren's Transfusion healing to a character sheet.
+   * Converts overflow into Pact temp HP (capped at 5×PB + spell mod).
+   * @param {string} characterId
+   * @param {number|string} healAmount
+   * @param {number|string} pb
+   * @param {number|string} spellMod
+   * @returns {?{rolled:number,healed:number,overflow:number,overflowApplied:number,overflowLost:number,trimmed:number,hpBefore:number,hpAfter:number,maxHp:number,tempBefore:number,tempAfter:number,tempCap:number}}
+   */
+  function applyTransfusionHealing(characterId, healAmount, pb, spellMod) {
+    if (!characterId) {
+      return null;
+    }
+
+    var hpAttr = findObjs({ _type: 'attribute', _characterid: characterId, name: 'hp' })[0];
+    var tempAttr = findObjs({ _type: 'attribute', _characterid: characterId, name: 'hp_temp' })[0];
+    var maxAttr = findObjs({ _type: 'attribute', _characterid: characterId, name: 'hp_max' })[0];
+
+    if (!hpAttr || !maxAttr) {
+      warn('Transfusion healing aborted — missing hp or hp_max for ' + characterId + '.');
+      return null;
+    }
+
+    var hpCurrent = getAttrInt(characterId, 'hp');
+    if (hpCurrent < 0 || isNaN(hpCurrent)) {
+      hpCurrent = 0;
+    }
+
+    var hpMax = getAttrInt(characterId, 'hp_max');
+    if (hpMax < 0 || isNaN(hpMax)) {
+      hpMax = 0;
+    }
+
+    var tempCurrent = getAttrInt(characterId, 'hp_temp');
+    if (tempCurrent < 0 || isNaN(tempCurrent)) {
+      tempCurrent = 0;
+    }
+
+    var healValue = parseFloat(healAmount);
+    if (isNaN(healValue)) {
+      healValue = 0;
+    }
+    healValue = Math.floor(healValue);
+    if (healValue < 0) {
+      healValue = 0;
+    }
+
+    var pbValue = getAttrInt(characterId, ['hr_pb', 'pb'], pb);
+    if (pbValue < 0) {
+      pbValue = 0;
+    }
+
+    var spellValue = getAttrInt(characterId, ['hr_spellmod', 'spell_mod'], spellMod);
+    
+    var tempCap = (5 * pbValue) + spellValue;
+    if (isNaN(tempCap) || tempCap < 0) {
+      tempCap = 0;
+    }
+
+    var missing = hpMax - hpCurrent;
+    if (missing < 0) {
+      missing = 0;
+    }
+
+    var healed = healValue;
+    if (healed > missing) {
+      healed = missing;
+    }
+
+    var hpNext = hpCurrent + healed;
+    if (hpNext > hpMax) {
+      hpNext = hpMax;
+    }
+
+    var overflow = healValue - healed;
+    if (overflow < 0) {
+      overflow = 0;
+    }
+
+    var desiredTemp = tempCurrent + overflow;
+    var tempNext = desiredTemp;
+    if (tempNext > tempCap) {
+      tempNext = tempCap;
+    }
+    if (tempNext < 0) {
+      tempNext = 0;
+    }
+
+    var overflowApplied = 0;
+    if (tempNext > tempCurrent) {
+      overflowApplied = tempNext - tempCurrent;
+    }
+
+    var overflowLost = overflow - overflowApplied;
+    if (overflowLost < 0) {
+      overflowLost = 0;
+    }
+
+    var trimmed = 0;
+    if (tempNext < tempCurrent) {
+      trimmed = tempCurrent - tempNext;
+    }
+
+    try {
+      if (typeof hpAttr.setWithWorker === 'function') {
+        hpAttr.setWithWorker({ current: hpNext });
+      } else {
+        hpAttr.set('current', hpNext);
+      }
+    } catch (err) {
+      warn('Failed to update hp for ' + characterId + ': ' + err.message);
+    }
+
+    if (tempAttr) {
+      try {
+        if (typeof tempAttr.setWithWorker === 'function') {
+          tempAttr.setWithWorker({ current: tempNext });
+        } else {
+          tempAttr.set('current', tempNext);
+        }
+      } catch (err2) {
+        warn('Failed to update hp_temp for ' + characterId + ': ' + err2.message);
+      }
+    } else if (typeof createObj === 'function') {
+      try {
+        tempAttr = createObj('attribute', {
+          characterid: characterId,
+          name: 'hp_temp',
+          current: tempNext
+        });
+      } catch (err3) {
+        warn('Failed to create hp_temp for ' + characterId + ': ' + err3.message);
+      }
+    }
+
+    return {
+      rolled: healValue,
+      healed: healed,
+      overflow: overflow,
+      overflowApplied: overflowApplied,
+      overflowLost: overflowLost,
+      trimmed: trimmed,
+      hpBefore: hpCurrent,
+      hpAfter: hpNext,
+      maxHp: hpMax,
+      tempBefore: tempCurrent,
+      tempAfter: tempNext,
+      tempCap: tempCap
+    };
   }
 
   function ensureHandoutForPlayer(playerId, playerName) {
