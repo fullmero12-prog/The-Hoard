@@ -59,19 +59,19 @@
   }
 
   function buildTransfusionAction() {
-    var damageRoll = '[[2d8 + @{selected|hr_pb} + ?{Is the target at or below half HP?|No,0|Yes,1d8}]]';
-    var healToHpRoll = '[[{(@{selected|hp|max}-@{selected|hp}),$[[0]]}kl1]]';
-    var overflowTempRoll = '[[{$[[0]]-$[[1]],0}kh1]]';
-    var tempAfterRoll = '[[@{selected|hp_temp}+$[[2]]]]';
+    var templateLines = [
+      '&{template:default} ',
+      '{{name=🩸 Transfusion (Bonus; 60 ft; Con save)}}',
+      '{{Target=@{target|token_name} — @{target|hp}/@{target|hp|max} HP (Con save)}}',
+      '{{Save DC=@{selected|spell_save_dc}}}',
+      '{{Necrotic Damage=[[ [[2d8 + @{selected|hr_pb} + ?{Is the target at or below half HP?|No,0|Yes,1d8}]] ]] (half on success)}}',
+      '{{Healing Applied=[[ {(@{selected|hp|max}-@{selected|hp}), $[[0]]}kl1 ]] HP restored (before temp HP)}}',
+      '{{Excess to Pact Temp HP=[[ { $[[0]] - $[[1]], 0 }kh1 ]] (excess healing)}}',
+      '{{Temp HP after Heal=[[ {@{selected|hp_temp} + $[[2]], 5*@{selected|hr_pb}+@{selected|hr_spellmod}}kl1 ]] (cap [[5*@{selected|hr_pb}+@{selected|hr_spellmod}]])}}',
+      '{{While you have Pact Temp HP=+1 AC • Necrotic ignores resistance (treat immunity as resistance)}}'
+    ];
 
-    return buildRollTemplate('Transfusion (Bonus; 60 ft; Con save)', [
-      { label: 'Target', value: '@{target|token_name} — @{target|hp}/@{target|hp|max} HP (Con save)' },
-      { label: 'Save DC', value: '@{selected|spell_save_dc}' },
-      { label: 'Necrotic damage', value: damageRoll + ' (half on success)' },
-      { label: 'Healing applied', value: healToHpRoll + ' HP restored (before temp HP)' },
-      { label: 'Excess to Pact temp HP', value: overflowTempRoll + ' (excess healing)' },
-      { label: 'Temp HP after heal', value: tempAfterRoll + ' (cap [[5*@{selected|hr_pb} + @{selected|hr_spellmod}]])' }
-    ]);
+    return templateLines.join('\n');
   }
 
   function buildSanguinePoolAction() {
