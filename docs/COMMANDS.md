@@ -32,3 +32,9 @@
 - `!bindvladren` — Mirrors Vladren Moroi's token action buttons onto the currently selected PC (GM only).
 - `!bindkit <Ancestor>` — (GM only) Mirrors the registered Ancestor kit abilities onto the selected PC token using `AncestorKits`. The mirrored macros live on the sheet's **Attributes & Abilities** tab and show up as token action buttons for that character.
 
+## Ancestor Kit Actions
+- `!seraphine-heat [+25|+10|add <N>|set <N>|reset|show] [--char <id>]` — Adjust or inspect Seraphine's Heat meter for the selected token (auto-triggers Overheat at the cap).
+- `!seraphine-vent [--char <id>]` — Resolves the Vent action (drops Heat to 0 and prints the Dex save DC and damage dice).
+- `!seraphine-overheat-clear [--char <id>]` — Clears the Overheat reminder flag (typically at the start of the turn after Overheating).
+- `!seraphine-staff-attack [--char <id>]` — Provides the Emberwright’s Staff attack template (uses sheet spell attack bonus and spellcasting modifier for damage).
+

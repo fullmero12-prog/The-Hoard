@@ -1,0 +1,510 @@
+// ------------------------------------------------------------
+// Ancestor Kit Registration: Seraphine Emberwright
+// ------------------------------------------------------------
+// What this does (in simple terms):
+//   • Registers the Seraphine kit with the shared AncestorKits core.
+//   • Adds token actions to track Heat (+25 / +10), Vent, and Overheat helpers.
+//   • Auto-triggers Overheat at ≥ Heat cap (default 100): temp HP = PB + spell mod; Heat resets to 0.
+//   • Gives each controller a personal kit handout with rules.
+//   • Uses sheet PB directly and derives spell mod from `spellcasting_ability` (no hr_* mirrors).
+// ------------------------------------------------------------
+
+(function(){
+  'use strict';
+
+  var root   = (typeof globalThis !== 'undefined') ? globalThis : this;
+  var logger = root.HRLog || null;
+
+  function warn(message){
+    if (logger && logger.warn) logger.warn('AncestorKits', message);
+    else if (typeof log === 'function') log('[Hoard Run] [AncestorKits] ⚠️ ' + message);
+  }
+
+  // --- Sheet/Attr helpers ----------------------------------------------------
+
+  function findAttr(charId, name){
+    if (!charId || !name) return null;
+    var m = findObjs({_type:'attribute', _characterid:charId, name:name}) || [];
+    return m[0] || null;
+  }
+
+  function getAttrCurrent(charId, name){
+    var a = findAttr(charId, name);
+    return a ? a.get('current') : null;
+  }
+
+  function setAttr(charId, name, value){
+    if (!charId || !name) return null;
+    var attr = findAttr(charId, name);
+    var payload = {current:value};
+    try{
+      if (attr){
+        if (typeof attr.setWithWorker === 'function') attr.setWithWorker(payload);
+        else attr.set('current', value);
+        return attr;
+      } else {
+        return createObj('attribute', {_characterid:charId, name:name, current:value});
+      }
+    }catch(err){
+      warn('Failed to set/create attr ' + name + ' for ' + charId + ': ' + (err.message||err));
+      return null;
+    }
+  }
+
+  function ensureAttrValue(charId, name, value){
+    var cur = getAttrCurrent(charId, name);
+    if (cur === null || String(cur) !== String(value)) return setAttr(charId, name, value);
+    return findAttr(charId, name);
+  }
+
+  function getAttributeInt(characterId, names){
+    if (!characterId) return null;
+    var list = Array.isArray(names) ? names.slice() : [names];
+    for (var i = 0; i < list.length; i++){
+      var nm = list[i]; if (!nm) continue;
+      var a = (findObjs({_type:'attribute', _characterid:characterId, name:nm}) || [])[0];
+      if (!a) continue;
+      var v = parseInt(a.get('current'), 10);
+      if (!isNaN(v)) return v;
+    }
+    return null;
+  }
+
+  // --- Spell mod resolver (from spellcasting_ability) ------------------------
+
+  function getSpellModFromSheet(charId){
+    // Try to parse spellcasting_ability, which often looks like "@{intelligence_mod}" (sometimes with a trailing '+')
+    var raw = (getAttrCurrent(charId, 'spellcasting_ability') || '').toString().trim();
+    if (raw){
+      // Case A: pointer like "@{intelligence_mod}" (possible trailing '+')
+      var m = raw.match(/@{([^}]+)}/);
+      var key = m ? m[1] : null;
+
+      // Case B: plain ability name like "intelligence"/"wisdom"/"charisma" (or abbrev)
+      if (!key){
+        var t = raw.toLowerCase().replace(/[^a-z]/g, '');
+        if (/^(int|intelligence)$/.test(t)) key = 'intelligence_mod';
+        else if (/^(wis|wisdom)$/.test(t)) key = 'wisdom_mod';
+        else if (/^(cha|charisma)$/.test(t)) key = 'charisma_mod';
+        else if (/^(str|strength)$/.test(t)) key = 'strength_mod';
+        else if (/^(dex|dexterity)$/.test(t)) key = 'dexterity_mod';
+        else if (/^(con|constitution)$/.test(t)) key = 'constitution_mod';
+      }
+
+      if (key){
+        var val = getAttributeInt(charId, [key]);
+        if (val != null) return val;
+      }
+    }
+
+    // Fallback: estimate from DC (DC = 8 + PB + mod)
+    var dc = getAttributeInt(charId, ['spell_save_dc']);
+    var pb = getAttributeInt(charId, ['pb']) || 0;
+    if (dc != null){
+      var est = dc - 8 - pb;
+      if (!isNaN(est)) return est;
+    }
+
+    return 0;
+  }
+
+  // --- Seraphine constants ---------------------------------------------------
+
+  var KIT_KEY   = 'Seraphine';
+  var KIT_NAME  = 'Seraphine Emberwright';
+  var SRC_NAME  = 'Ancestor — Seraphine Emberwright';
+
+  var HEAT_ATTR      = 'hr_seraphine_heat';
+  var HEAT_CAP_ATTR  = 'hr_seraphine_heat_cap';
+  var OVERHEAT_FLAG  = 'hr_seraphine_overheat_active';
+
+  // Handout content
+  var TEXT_WRAPPER_START = '<div style="font-family:inherit;font-size:13px;line-height:1.25;">'
+    + '<h3 style="margin:0 0 6px 0;">' + KIT_NAME + ' — Phoenix of the Nine Coals</h3>';
+  var TEXT_WRAPPER_END = '</div>';
+
+  var KIT_RULES_HTML = [
+    '<b>Save DC (Seraphine).</b> 8 + PB + your spell mod.',
+    '<b>Emberwright’s Staff (Corridor-only).</b> Magical quarterstaff; use your spellcasting ability for attack & damage. Reach 10 ft. When you take the Attack action with it, make two staff attacks.',
+    '<b>Stoke the Coals (Heat).</b> Staff hit or leveled spell: <b>+25 Heat</b> (cantrip: <b>+10</b>).',
+    '<b>Overheat (100 Heat).</b> The action that hit 100 gains Overheat benefits. Until the start of your next turn: staff attacks gain <b>+2d8 fire</b> and reach <b>15 ft</b>; your spells add <b>+1d8 fire</b> to one target they damage; you gain <b>temp HP = PB + your spell mod</b> and <b>speed −10 ft</b>. Then Heat resets to 0.',
+    '<b>Vent (Bonus, 1/turn).</b> Drop all Heat. Each creature of your choice within 5 ft makes a Dex save; on a fail it takes <b>(Heat ÷ 25)d10 fire</b> (half on success). Ignite up to two 5-ft squares (difficult terrain; 1d6 fire on enter/start) until your next turn.'
+  ].join('<br><br>');
+
+  // --- Roll template helper --------------------------------------------------
+
+  function rtDefault(title, rows){
+    var p = ['&{template:default} {{name=' + title + '}}'];
+    (rows||[]).forEach(function(r){
+      if (!r) return;
+      var k = r.key || r.label || 'info';
+      p.push('{{' + k + '=' + (r.value||'') + '}}');
+    });
+    return p.join(' ');
+  }
+
+  // --- Heat management -------------------------------------------------------
+
+  function getHeat(charId){
+    var v = parseInt(getAttrCurrent(charId, HEAT_ATTR)||'0',10);
+    return isNaN(v) ? 0 : Math.max(0,v);
+  }
+  function getHeatCap(charId){
+    var v = parseInt(getAttrCurrent(charId, HEAT_CAP_ATTR)||'100',10);
+    return (isNaN(v) || v<=0) ? 100 : v;
+  }
+  function setHeat(charId, value){
+    return setAttr(charId, HEAT_ATTR, Math.max(0, Math.floor(value||0)));
+  }
+  function addHeat(charId, delta){
+    var n = getHeat(charId) + Math.floor(delta||0);
+    setHeat(charId, n);
+    return n;
+  }
+
+  function setOverheatFlag(charId, on){
+    ensureAttrValue(charId, OVERHEAT_FLAG, on ? 1 : 0);
+  }
+  function isOverheated(charId){
+    var v = String(getAttrCurrent(charId, OVERHEAT_FLAG)||'0').trim().toLowerCase();
+    return (v !== '0' && v !== 'false' && v !== 'off' && v !== '');
+  }
+
+  // Temp HP helper: set hp_temp to max(current, value)
+  function applyTempHpMax(charId, tempAmount){
+    var tempAttr = findAttr(charId, 'hp_temp');
+    var cur = parseInt(tempAttr ? tempAttr.get('current') : '0', 10);
+    if (isNaN(cur)) cur = 0;
+    var next = Math.max(cur, Math.max(0, Math.floor(tempAmount||0)));
+
+    if (tempAttr){
+      if (typeof tempAttr.setWithWorker === 'function') tempAttr.setWithWorker({current: next});
+      else tempAttr.set('current', next);
+    } else {
+      createObj('attribute', {_characterid:charId, name:'hp_temp', current: next});
+    }
+    return {before:cur, after:next};
+  }
+
+  // --- Overheat flow ---------------------------------------------------------
+
+  function triggerOverheat(charId, who){
+    var pb  = getAttributeInt(charId, ['pb']) || 0;
+    var mod = getSpellModFromSheet(charId);
+    var thp = pb + mod;
+
+    setHeat(charId, 0);
+    setOverheatFlag(charId, true);
+
+    var tempRes = applyTempHpMax(charId, thp);
+
+    var msg = rtDefault('🔥 OVERHEAT!', [
+      {label:'Until your next turn', value:'Staff: +2d8 fire & reach 15 ft; Spells: +1d8 fire to one target; Speed −10 ft.'},
+      {label:'Temp HP', value:'Gained <b>' + thp + '</b> (sheet now <b>' + tempRes.after + '</b>).'},
+      {label:'Reminder', value:'Apply the benefits to the action that pushed Heat ≥ 100.'}
+    ]);
+
+    sendChat('Seraphine', '/w "' + (who||'GM') + '" ' + msg);
+  }
+
+  function maybeOverheat(charId, who){
+    var cap = getHeatCap(charId);
+    var cur = getHeat(charId);
+    if (cur >= cap){
+      triggerOverheat(charId, who);
+      return true;
+    }
+    return false;
+  }
+
+  // --- Chat utils ------------------------------------------------------------
+
+  function msgWho(msg){
+    return (msg && msg.who) ? String(msg.who).replace(/\s*\(GM\)\s*$/,'') : 'GM';
+  }
+
+  function charFromMsgOrArg(msg, explicitCharId){
+    if (explicitCharId) return explicitCharId;
+
+    try{
+      if (msg && msg.selected && msg.selected.length){
+        var tok = getObj('graphic', msg.selected[0]._id);
+        if (tok){
+          var cid = tok.get('represents');
+          if (cid) return cid;
+        }
+      }
+    }catch(_){ }
+    return null;
+  }
+
+  function parseOpts(args){
+    var out = {char:null, rest:[]};
+    for (var i=0;i<args.length;i++){
+      var a = String(args[i]||'');
+      if (a === '--char'){
+        out.char = args[i+1] || null; i++;
+      } else {
+        out.rest.push(a);
+      }
+    }
+    return out;
+  }
+
+  // --- API commands ----------------------------------------------------------
+
+  // !seraphine-heat +25|+10|add <n>|set <n>|reset|show [--char <characterId>]
+  function handleHeatCommand(msg, args){
+    var who = msgWho(msg);
+    var opts = parseOpts(args||[]);
+    var charId = charFromMsgOrArg(msg, opts.char);
+    if (!charId){ sendChat('Seraphine','/w "'+who+'" ⚠️ Select a token (or use --char <id>).'); return; }
+
+    var rest = opts.rest;
+    var verb = (rest[0]||'').toLowerCase();
+
+    if (!verb){
+      sendChat('Seraphine','/w "'+who+'" Heat: <b>' + getHeat(charId) + '</b> / ' + getHeatCap(charId));
+      return;
+    }
+
+    var delta = 0, showAfter = true;
+
+    if (verb === 'show'){
+      // just show
+    } else if (verb === 'reset'){
+      setHeat(charId, 0);
+      setOverheatFlag(charId, false);
+      sendChat('Seraphine','/w "'+who+'" Heat reset to <b>0</b>. Overheat flag cleared.');
+      showAfter = false;
+    } else if (verb === 'set'){
+      var v = parseInt(rest[1]||'0',10);
+      if (isNaN(v)) v = 0;
+      setHeat(charId, v);
+      maybeOverheat(charId, who);
+    } else if (verb === '+25' || verb === 'add25' || verb === '25'){
+      delta = 25; addHeat(charId, delta); maybeOverheat(charId, who);
+    } else if (verb === '+10' || verb === 'add10' || verb === '10'){
+      delta = 10; addHeat(charId, delta); maybeOverheat(charId, who);
+    } else if (verb === 'add'){
+      var n = parseInt(rest[1]||'0',10); if (isNaN(n)) n=0;
+      addHeat(charId, n); maybeOverheat(charId, who);
+    } else {
+      sendChat('Seraphine','/w "'+who+'" Usage: !seraphine-heat [+25|+10|add N|set N|reset|show] [--char id]');
+      showAfter = false;
+    }
+
+    if (showAfter){
+      sendChat('Seraphine','/w "'+who+'" Heat: <b>' + getHeat(charId) + '</b> / ' + getHeatCap(charId) + (delta?(' (+'+delta+')'):''));
+    }
+  }
+
+  // !seraphine-vent [--char <id>]
+  function handleVentCommand(msg, args){
+    var who = msgWho(msg);
+    var opts = parseOpts(args||[]);
+    var charId = charFromMsgOrArg(msg, opts.char);
+    if (!charId){ sendChat('Seraphine','/w "'+who+'" ⚠️ Select a token (or use --char <id>).'); return; }
+
+    var heat = getHeat(charId);
+    var steps = Math.floor(heat/25);
+    var pb = getAttributeInt(charId, ['pb']) || 0;
+    var sm = getSpellModFromSheet(charId);
+    var dc = 8 + pb + sm;
+
+    // Reset Heat
+    setHeat(charId, 0);
+
+    var desc = rtDefault('🌬️ Vent (Bonus • 1/turn)', [
+      {label:'Save', value:'Dex save <b>DC ' + dc + '</b> (half on success)'},
+      {label:'Damage', value: steps>0 ? ('Roll [['+ steps +'d10]] fire') : 'No damage (needed ≥25 Heat)'},
+      {label:'Effect', value:'You drop all Heat (now 0). Ignite up to two 5-ft squares (difficult terrain; 1d6 fire on enter/start) until your next turn.'}
+    ]);
+
+    sendChat('Seraphine','/w "'+who+'" ' + desc);
+  }
+
+  // !seraphine-overheat-clear [--char <id>]
+  function handleOverheatClear(msg, args){
+    var who = msgWho(msg);
+    var opts = parseOpts(args||[]);
+    var charId = charFromMsgOrArg(msg, opts.char);
+    if (!charId){ sendChat('Seraphine','/w "'+who+'" ⚠️ Select a token (or use --char <id>).'); return; }
+
+    setOverheatFlag(charId, false);
+    sendChat('Seraphine','/w "'+who+'" Overheat cleared. (Start of your turn reminder.)');
+  }
+
+  // !seraphine-staff-attack [--char <id>]
+  function handleStaffAttackCommand(msg, args){
+    var who = msgWho(msg);
+    var opts = parseOpts(args||[]);
+    var charId = charFromMsgOrArg(msg, opts.char);
+    if (!charId){ sendChat('Seraphine','/w "'+who+'" ⚠️ Select a token (or use --char <id>).'); return; }
+
+    var sm = getSpellModFromSheet(charId); // numeric mod for damage
+    var out = rtDefault('Emberwright’s Staff (Attack)', [
+      {label:'To Hit',  value:'[[ 1d20 + @{selected|spell_attack_bonus} ]] vs AC'},
+      {label:'Damage',  value:'[[ 1d8 + ' + sm + ' ]] bludgeoning (magical)'},
+      {label:'Reach',   value:'10 ft (15 ft while Overheated)'},
+      {label:'Note',    value:'On hit: click <b>Stoke +25</b> (cantrip hit = <b>Stoke +10</b>). Make two attacks when you take the Attack action.'}
+    ]);
+
+    sendChat('Seraphine','/w "'+who+'" ' + out);
+  }
+
+  if (typeof on === 'function'){
+    on('chat:message', function(msg){
+      if (msg.type !== 'api' || !msg.content) return;
+      var parts = msg.content.trim().split(/\s+/);
+      var cmd   = parts[0].toLowerCase();
+      var args  = parts.slice(1);
+
+      if (cmd === '!seraphine-heat')              handleHeatCommand(msg, args);
+      else if (cmd === '!seraphine-vent')         handleVentCommand(msg, args);
+      else if (cmd === '!seraphine-overheat-clear') handleOverheatClear(msg, args);
+      else if (cmd === '!seraphine-staff-attack') handleStaffAttackCommand(msg, args);
+    });
+
+    // Safety: if someone hand-edits Heat on the sheet, check the threshold.
+    on('change:attribute', function(attr){
+      try{
+        if (!attr) return;
+        if (attr.get('name') !== HEAT_ATTR) return;
+        var charId = attr.get('_characterid');
+        if (!charId) return;
+        var newVal = parseInt(attr.get('current')||'0',10);
+        if (newVal >= getHeatCap(charId) && !isOverheated(charId)){
+          triggerOverheat(charId, 'GM');
+        }
+      }catch(e){ warn('Heat watcher error: ' + (e.message||e)); }
+    });
+  }
+
+  // --- Action builders (token actions) --------------------------------------
+
+  function actionStaffAttack(){
+    return '!seraphine-staff-attack --char @{selected|character_id}';
+  }
+  function actionHeatAdd(n){
+    return '!seraphine-heat +' + n + ' --char @{selected|character_id}';
+  }
+  function actionHeatShow(){
+    return '!seraphine-heat show --char @{selected|character_id}';
+  }
+  function actionVent(){
+    return '!seraphine-vent --char @{selected|character_id}';
+  }
+  function actionOverheatClear(){
+    return '!seraphine-overheat-clear --char @{selected|character_id}';
+  }
+  function actionOverheatDetails(){
+    return rtDefault('Overheat — Details', [
+      {label:'Until your next turn', value:'Staff +2d8 fire & reach 15 ft; Spells +1d8 fire to one target; Speed −10 ft.'},
+      {label:'Temp HP', value:'Gain PB + spell mod; Heat resets to 0.'},
+      {label:'Trigger', value:'The action that pushed Heat ≥ 100 benefits.'}
+    ]);
+  }
+  function actionOverheatStaffFire(){
+    return rtDefault('Overheat: Staff +2d8 Fire', [{label:'+2d8 fire', value:'[[ 2d8 ]]'}]);
+  }
+  function actionOverheatSpellFire(){
+    return rtDefault('Overheat: Spell +1d8 Fire', [{label:'+1d8 fire', value:'[[ 1d8 ]]'}]);
+  }
+
+  // --- Install / Handouts ----------------------------------------------------
+
+  function ensureHandoutForPlayer(playerId, playerName){
+    var title = KIT_NAME + ' — Kit (' + (playerName||'Unknown Player') + ')';
+    var hand  = findObjs({_type:'handout', name:title})[0];
+    var perms = playerId || '';
+    if (!hand){
+      hand = createObj('handout', {name:title, archived:false, inplayerjournals:perms, controlledby:perms});
+    } else {
+      hand.set({archived:false, inplayerjournals:perms, controlledby:perms});
+    }
+    hand.set('notes', TEXT_WRAPPER_START + KIT_RULES_HTML + TEXT_WRAPPER_END);
+    return hand;
+  }
+
+  function gatherPlayerIds(targetChar, opts){
+    var ids = {};
+    var controlled = (targetChar.get('controlledby')||'').split(',');
+    controlled.forEach(function(entry){
+      var id = (entry||'').trim();
+      if (!id || id === 'all') return;
+      ids[id] = true;
+    });
+    if (opts && opts.by && !ids[opts.by]) ids[opts.by] = true;
+    return Object.keys(ids);
+  }
+
+  function onInstall(targetChar, opts){
+    var ids = gatherPlayerIds(targetChar, opts||{});
+    var charId = targetChar && (targetChar.id || targetChar.get('_id'));
+
+    ids.forEach(function(pid){
+      var p = getObj('player', pid);
+      ensureHandoutForPlayer(pid, p ? p.get('_displayname') : 'Unknown Player');
+    });
+
+    if (!charId) return;
+
+    // Heat baseline only (no hr_pb/hr_spellmod mirrors)
+    ensureAttrValue(charId, HEAT_ATTR, 0);
+    ensureAttrValue(charId, HEAT_CAP_ATTR, 100);
+    ensureAttrValue(charId, OVERHEAT_FLAG, 0);
+  }
+
+  function onUninstall(targetChar){
+    if (!targetChar) return;
+    var charId = targetChar.id || (typeof targetChar.get === 'function' && targetChar.get('_id'));
+    if (!charId) return;
+    ensureAttrValue(charId, OVERHEAT_FLAG, 0);
+  }
+
+  // --- Registration ----------------------------------------------------------
+
+  var _registered = false;
+  function registerKit(){
+    if (_registered) return true;
+    if (typeof AncestorKits === 'undefined' || !AncestorKits || typeof AncestorKits.register !== 'function'){
+      return false;
+    }
+
+    AncestorKits.register(KIT_KEY, {
+      ancestor: KIT_NAME,
+      prefix: KIT_KEY,
+      sourceCharName: SRC_NAME,
+      sourceCharacterName: SRC_NAME,
+      abilities: [
+        {name:'Emberwright’s Staff (Attack)',     action: actionStaffAttack(),       tokenAction:true},
+
+        {name:'Stoke +25 (Hit/Leveled)',          action: actionHeatAdd(25),         tokenAction:true},
+        {name:'Stoke +10 (Cantrip)',              action: actionHeatAdd(10),         tokenAction:true},
+        {name:'Heat: Show',                        action: actionHeatShow(),          tokenAction:false},
+
+        {name:'Vent (Bonus • 1/turn)',            action: actionVent(),              tokenAction:true},
+
+        {name:'Overheat — Details',                action: actionOverheatDetails(),   tokenAction:false},
+        {name:'Overheat: Staff +2d8 Fire',         action: actionOverheatStaffFire(), tokenAction:false},
+        {name:'Overheat: Spell +1d8 Fire',         action: actionOverheatSpellFire(), tokenAction:false},
+        {name:'Overheat — Clear (Start Turn)',     action: actionOverheatClear(),     tokenAction:false}
+      ],
+      onInstall: onInstall,
+      onUninstall: onUninstall
+    });
+
+    _registered = true;
+    return true;
+  }
+
+  if (!registerKit() && typeof on === 'function'){
+    on('ready', function(){
+      if (!registerKit()){
+        warn('Seraphine kit failed to register – AncestorKits.register unavailable.');
+      }
+    });
+  }
+
+})();
