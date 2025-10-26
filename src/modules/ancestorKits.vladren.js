@@ -109,24 +109,46 @@
     ]);
   }
 
-  function buildTransfusionAction() {
-    var damageRoll = '[[2d8 + @{selected|hr_pb} + ?{Is target ≤ half HP?|No,0|Yes,1d8}]]';
-    var cap = '[[5*@{selected|hr_pb} + @{selected|hr_spellmod}]]';
-    var parts = [
-      '&{template:spell}',
-      '{{level=Bonus Action}}',
-      '{{name=🩸 Transfusion}}',
-      '{{school=Necromancy}}',
-      '{{castingtime=Bonus Action}}',
-      '{{range=60 ft}}',
-      '{{target=One creature within range (Con save)}}',
-      '{{save=Constitution}}',
-      '{{damage=' + damageRoll + ' necrotic (half on success)}}',
-      '{{higherlvl=If the target is below half HP, add +1d8 necrotic.}}',
-      '{{desc=You siphon vitality from the target, healing yourself for the damage dealt. Excess healing becomes Pact Temp HP (cap ' + cap + '). While you have Pact Temp HP, gain +1 AC and your necrotic damage ignores resistance (treat immunity as resistance).}}'
-    ];
-    return parts.join(' ');
-  }
+function buildTransfusionAction() {
+  // inline pieces
+  var dmg    = '[[2d8 + @{selected|hr_pb} + ?{Is target ≤ half HP?|No,0|Yes,1d8}]]';
+  var saveDC = '@{selected|spell_save_dc}';
+  var cap    = '[[5*@{selected|hr_pb} + @{selected|hr_spellmod}]]';
+
+  // 1) Spell info card (no rolls)
+  var spellCard = [
+    '&{template:spell}',
+    '{{level=Bonus Action}}',
+    '{{name=🩸 Transfusion}}',
+    '{{school=Necromancy}}',
+    '{{castingtime=Bonus Action}}',
+    '{{range=60 ft}}',
+    '{{target=One creature within range (Con save)}}',
+    '{{description=You siphon vitality from the target, healing yourself for the damage dealt. ',
+    'Excess healing becomes Pact Temp HP (cap ' + cap + '). While you have Pact Temp HP, gain +1 AC ',
+    'and your necrotic damage ignores resistance (treat immunity as resistance).}}'
+  ].join(' ');
+
+  // 2) Damage roll card (pretty roll box + save line)
+  // Uses documented fields for the 5E dmg template:
+  // https://wiki.roll20.net/D%26D_5E_by_Roll20/Roll_Templates
+  var dmgCard = [
+    '&{template:dmg}',
+    '{{rname=Transfusion}}',
+    '{{range=60 ft}}',
+    '{{damage=1}}',
+    '{{dmg1flag=1}}',
+    '{{dmg1=' + dmg + '}}',
+    '{{dmg1type=necrotic}}',
+    '{{save=1}}',
+    '{{saveattr=CON}}',
+    '{{savedc=' + saveDC + '}}',
+    '{{savedesc=Half damage on success.}}'
+  ].join(' ');
+
+  // return both, in order
+  return spellCard + ' ' + dmgCard;
+}
 
   function buildSanguinePoolAction() {
     return buildRollTemplate('Sanguine Pool (Reaction • 1/room)', [
