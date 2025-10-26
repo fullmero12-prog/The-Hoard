@@ -134,7 +134,7 @@ function buildTransfusionAction() {
 
   function buildTransfusionDescriptionAction() {
     var pb = '@{selected|pb}';
-    var cap = '[[ 5*' + pb + ' + @{selected|spell_mod} ]]';
+    var cap = '[[ 5*' + pb + ' + @{selected|@{selected|spellcasting_ability}_mod} ]]';
 
     return (
       '&{template:spell} ' +
