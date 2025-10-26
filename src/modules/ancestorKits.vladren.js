@@ -110,11 +110,9 @@
   }
 
 function buildTransfusionAction() {
-  var pb     = '@{selected|pb}';
+  var dmg    = '[[ 2d8 + @{selected|pb} + ?{Is target ≤ half HP?|No,0|Yes,1d8} ]]';
   var saveDC = '@{selected|spell_save_dc}';
-  var dmg    = '[[ 2d8 + ' + pb + ' + ?{Is target ≤ half HP?|No,0|Yes,1d8} ]]';
-
-  // IMPORTANT: ability name includes the [Vladren] prefix
+  // Make sure this exactly matches the ability name on the sheet
   var descAbility = '[Vladren] Transfusion - Description';
 
   return (
@@ -132,22 +130,25 @@ function buildTransfusionAction() {
   );
 }
 
-  function buildTransfusionDescriptionAction() {
-    var pb = '@{selected|pb}';
-    var cap = '[[ 5*' + pb + ' + @{selected|@{selected|spellcasting_ability}_mod} ]]';
+function buildTransfusionDescriptionAction() {
+  // cap = 5*PB + max(0, spell_save_dc - 8 - PB)
+  var cap = '[[ (5*@{selected|pb}) + {(@{selected|spell_save_dc} - 8 - @{selected|pb}), 0}kh1 ]]';
 
-    return (
-      '&{template:spell} ' +
-      '{{level=Bonus Action}} ' +
-      '{{name=🩸 Transfusion}} ' +
-      '{{school=Necromancy}} ' +
-      '{{castingtime=Bonus Action}} ' +
-      '{{range=60 ft}} ' +
-      '{{target=One creature within range (Con save)}} ' +
-      '{{components=—}} ' +
-      '{{description=You siphon vitality from the target, healing yourself for the damage dealt. If the target is at or below half its hit points, Transfusion deals an extra 1d8 necrotic. Excess healing becomes Pact Temp HP (cap ' + cap + '). While you have Pact Temp HP, gain +1 AC and your necrotic damage ignores resistance (treat immunity as resistance).}}'
-    );
-  }
+  return (
+    '&{template:spell} ' +
+    '{{level=Bonus Action}} ' +
+    '{{name=🩸 Transfusion}} ' +
+    '{{school=Necromancy}} ' +
+    '{{castingtime=Bonus Action}} ' +
+    '{{range=60 ft}} ' +
+    '{{target=One creature within range (Con save)}} ' +
+    '{{components=—}} ' +
+    '{{description=You siphon vitality from the target, healing yourself for the damage dealt. ' +
+      'If the target is at or below half its hit points, Transfusion deals an extra 1d8 necrotic. ' +
+      'Excess healing becomes Pact Temp HP (cap ' + cap + '). While you have Pact Temp HP, gain +1 AC ' +
+      'and your necrotic damage ignores resistance (treat immunity as resistance).}}'
+  );
+}
 
   function buildSanguinePoolAction() {
     return buildRollTemplate('Sanguine Pool (Reaction • 1/room)', [
