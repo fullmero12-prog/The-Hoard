@@ -3,7 +3,7 @@
 // ------------------------------------------------------------
 // What this does (in simple terms):
 //   • Registers the Vladren kit with the shared AncestorKits core.
-//   • Supplies roll template actions for Vladren's four abilities.
+//   • Supplies roll template actions for Vladren's core abilities.
 //   • Ensures each player controlling the bound PC receives the kit handout.
 // ------------------------------------------------------------
 
@@ -109,30 +109,44 @@
     ]);
   }
 
-function buildTransfusionAction() {
-  var pb     = '@{selected|pb}';
-  var saveDC = '@{selected|spell_save_dc}';
+  function buildTransfusionAction() {
+    var pb = '@{selected|pb}';
+    var saveDC = '@{selected|spell_save_dc}';
+    var dmg = '[[ 2d8 + ' + pb + ' + ?{Is target ≤ half HP?|No,0|Yes,1d8} ]]';
 
-  // Damage shown in the red box; prompt adds +1d8 if target ≤ half HP
-  var dmg = '[[ 2d8 + ' + pb + ' + ?{Is target ≤ half HP?|No,0|Yes,1d8} ]]';
+    // Single 5E dmg template: save banner + damage + link to the description ability.
+    return (
+      '&{template:dmg} ' +
+      '{{rname=🩸 Transfusion}} ' +
+      '{{range=60 ft}} ' +
+      '{{damage=1}} ' +
+      '{{dmg1flag=1}} ' +
+      '{{dmg1=' + dmg + '}} ' +
+      '{{dmg1type=necrotic}} ' +
+      '{{save=1}} ' +
+      '{{saveattr=CON}} ' +
+      '{{savedc=' + saveDC + '}} ' +
+      '{{savedesc=Half damage on success.}} ' +
+      '{{desc=[Ability Description](~selected|Transfusion — Description)}}'
+    );
+  }
 
-  // Single card using the official 5E "dmg" template
-  // (This is the one that produces the DC banner + save stat + big damage number.)
-  return (
-    '&{template:dmg} ' +
-    '{{rname=🩸 Transfusion}} ' +
-    '{{range=60 ft}} ' +
-    '{{damage=1}} ' +
-    '{{dmg1flag=1}} ' +
-    '{{dmg1=' + dmg + '}} ' +
-    '{{dmg1type=necrotic}} ' +
-    '{{save=1}} ' +
-    '{{saveattr=CON}} ' +
-    '{{savedc=' + saveDC + '}} ' +
-    '{{savedesc=Half damage on success.}} ' +
-    '{{description=You heal for the damage dealt. If the target is at or below half its hit points, add +1d8 necrotic. While you have Pact Temp HP, gain +1 AC and your necrotic damage ignores resistance (treat immunity as resistance).}}'
-  );
-}
+  function buildTransfusionDescriptionAction() {
+    var pb = '@{selected|pb}';
+    var cap = '[[ 5*' + pb + ' + @{selected|spell_mod} ]]';
+
+    return (
+      '&{template:spell} ' +
+      '{{level=Bonus Action}} ' +
+      '{{name=🩸 Transfusion}} ' +
+      '{{school=Necromancy}} ' +
+      '{{castingtime=Bonus Action}} ' +
+      '{{range=60 ft}} ' +
+      '{{target=One creature within range (Con save)}} ' +
+      '{{components=—}} ' +
+      '{{description=You siphon vitality from the target, healing yourself for the damage dealt. If the target is at or below half its hit points, Transfusion deals an extra 1d8 necrotic. Excess healing becomes Pact Temp HP (cap ' + cap + '). While you have Pact Temp HP, gain +1 AC and your necrotic damage ignores resistance (treat immunity as resistance).}}'
+    );
+  }
 
   function buildSanguinePoolAction() {
     return buildRollTemplate('Sanguine Pool (Reaction • 1/room)', [
@@ -597,6 +611,7 @@ function buildTransfusionAction() {
       abilities: [
         { name: 'Crimson Pact (Info)', action: buildCrimsonPactAction(), tokenAction: true },
         { name: 'Transfusion (Bonus)', action: buildTransfusionAction(), tokenAction: true },
+        { name: 'Transfusion — Description', action: buildTransfusionDescriptionAction(), tokenAction: false },
         { name: 'Sanguine Pool (Reaction • 1/room)', action: buildSanguinePoolAction(), tokenAction: true },
         { name: 'Hemoplague (1/room)', action: buildHemoplagueAction(), tokenAction: true }
       ],
