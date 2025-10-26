@@ -109,26 +109,28 @@
     ]);
   }
 
-  function buildTransfusionAction() {
-    var pb = '@{selected|pb}';
-    var saveDC = '@{selected|spell_save_dc}';
-    var dmg = '[[ 2d8 + ' + pb + ' + ?{Is target ≤ half HP?|No,0|Yes,1d8} ]]';
+function buildTransfusionAction() {
+  var pb     = '@{selected|pb}';
+  var saveDC = '@{selected|spell_save_dc}';
+  var dmg    = '[[ 2d8 + ' + pb + ' + ?{Is target ≤ half HP?|No,0|Yes,1d8} ]]';
 
-    // Single 5E dmg template: save banner + damage + link to the description ability.
-    return (
-      '&{template:dmg} ' +
-      '{{rname=[🩸 Transfusion](~selected|Transfusion - Description)}} ' +
-      '{{range=60 ft}} ' +
-      '{{damage=1}} ' +
-      '{{dmg1flag=1}} ' +
-      '{{dmg1=' + dmg + '}} ' +
-      '{{dmg1type=necrotic}} ' +
-      '{{save=1}} ' +
-      '{{saveattr=CON}} ' +
-      '{{savedc=' + saveDC + '}} ' +
-      '{{savedesc=Half damage on success.}}'
-    );
-  }
+  // IMPORTANT: ability name includes the [Vladren] prefix
+  var descAbility = '[Vladren] Transfusion - Description';
+
+  return (
+    '&{template:dmg} ' +
+    '{{rname=[🩸 Transfusion](~selected|' + descAbility + ')}} ' +
+    '{{range=60 ft}} ' +
+    '{{damage=1}} ' +
+    '{{dmg1flag=1}} ' +
+    '{{dmg1=' + dmg + '}} ' +
+    '{{dmg1type=necrotic}} ' +
+    '{{save=1}} ' +
+    '{{saveattr=CON}} ' +
+    '{{savedc=' + saveDC + '}} ' +
+    '{{savedesc=Half damage on success.}}'
+  );
+}
 
   function buildTransfusionDescriptionAction() {
     var pb = '@{selected|pb}';
