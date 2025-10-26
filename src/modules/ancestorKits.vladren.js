@@ -110,21 +110,22 @@
   }
 
   function buildTransfusionAction() {
-    var damageRoll = '[[2d8 + @{selected|hr_pb} + ?{Target ≤ Half HP?|No,0|Yes,1d8}]]';
-    var healRoll = '[[{(@{selected|hp|max}-@{selected|hp}), $[[0]]}kl1]]';
-    var overflowRoll = '[[{($[[0]] - $[[1]]),0}kh1]]';
-    var tempCap = '[[5*@{selected|hr_pb} + @{selected|hr_spellmod}]]';
-    var tempAfter = '[[@{selected|hp_temp} + $[[2]]]]';
-
-    return buildRollTemplate('<span style="color:#b30000; font-weight:bold;">🩸 Transfusion</span> <span style="color:#999;">Bonus · 60 ft · Con Save</span>', [
-      { label: 'Target', value: '<span style="color:#b30000;">@{target|token_name}</span> <span style="color:#999;">— @{target|hp}/@{target|hp|max} HP</span>' },
-      { label: 'Save DC', value: '<span style="color:#b30000;">@{selected|spell_save_dc}</span> <span style="color:#999;">(Constitution)</span>' },
-      { label: 'Necrotic Damage', value: '<span style="color:#b30000;">' + damageRoll + '</span> <span style="color:#999;">necrotic (half on success)</span>' },
-      { label: 'Self Healing', value: '<span style="color:#b30000;">' + healRoll + '</span> <span style="color:#999;">HP restored</span>' },
-      { label: 'Overflow to Pact Temp HP', value: '<span style="color:#b30000;">' + overflowRoll + '</span> <span style="color:#999;">excess converted</span>' },
-      { label: 'Temp HP After Heal', value: '<span style="color:#b30000;">' + tempAfter + '</span> <span style="color:#999;">cap ' + tempCap + '</span>' },
-      { label: 'Effect', value: '<b>While you have Pact Temp HP:</b> <span style="color:#b30000;">+1 AC</span> · <span style="color:#b30000;">Necrotic ignores resistance</span> <span style="color:#999;">(treat immunity as resistance)</span>' }
-    ]);
+    var damageRoll = '[[2d8 + @{selected|hr_pb} + ?{Is target ≤ half HP?|No,0|Yes,1d8}]]';
+    var cap = '[[5*@{selected|hr_pb} + @{selected|hr_spellmod}]]';
+    var parts = [
+      '&{template:spell}',
+      '{{level=Bonus Action}}',
+      '{{name=🩸 Transfusion}}',
+      '{{school=Necromancy}}',
+      '{{castingtime=Bonus Action}}',
+      '{{range=60 ft}}',
+      '{{target=One creature within range (Con save)}}',
+      '{{save=Constitution}}',
+      '{{damage=' + damageRoll + ' necrotic (half on success)}}',
+      '{{higherlvl=If the target is below half HP, add +1d8 necrotic.}}',
+      '{{desc=You siphon vitality from the target, healing yourself for the damage dealt. Excess healing becomes Pact Temp HP (cap ' + cap + '). While you have Pact Temp HP, gain +1 AC and your necrotic damage ignores resistance (treat immunity as resistance).}}'
+    ];
+    return parts.join(' ');
   }
 
   function buildSanguinePoolAction() {
