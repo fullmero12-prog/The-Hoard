@@ -116,19 +116,15 @@
     var tempCap = '[[5*@{selected|hr_pb} + @{selected|hr_spellmod}]]';
     var tempAfter = '[[@{selected|hp_temp} + $[[2]]]]';
 
-    var parts = [
-      '&{template:default}',
-      '{{name=<span style="color:#b30000; font-weight:bold;">🩸 Transfusion</span> <span style="color:#999;">Bonus · 60 ft · Con Save</span>}}',
-      '{{Target=<span style="color:#b30000;">@{target|token_name}</span> <span style="color:#999;">— @{target|hp}/@{target|hp|max} HP</span>}}',
-      '{{Save DC=<span style="color:#b30000;">@{selected|spell_save_dc}</span>}}',
-      '{{Necrotic Damage=<span style="color:#b30000;">' + damageRoll + '</span> <span style="color:#999;">necrotic (half on success)</span>}}',
-      '{{Self Healing=<span style="color:#b30000;">' + healRoll + '</span> <span style="color:#999;">HP restored</span>}}',
-      '{{Overflow to Pact Temp HP=<span style="color:#b30000;">' + overflowRoll + '</span> <span style="color:#999;">excess converted</span>}}',
-      '{{Temp HP After Heal=<span style="color:#b30000;">' + tempAfter + '</span> <span style="color:#999;">cap ' + tempCap + '</span>}}',
-      '{{Effect=<b>While you have Pact Temp HP:</b> <span style="color:#b30000;">+1 AC</span> · <span style="color:#b30000;">Necrotic ignores resistance</span> <span style="color:#999;">(treat immunity as resistance)</span>}}'
-    ];
-
-    return parts.join(' ');
+    return buildRollTemplate('<span style="color:#b30000; font-weight:bold;">🩸 Transfusion</span> <span style="color:#999;">Bonus · 60 ft · Con Save</span>', [
+      { label: 'Target', value: '<span style="color:#b30000;">@{target|token_name}</span> <span style="color:#999;">— @{target|hp}/@{target|hp|max} HP</span>' },
+      { label: 'Save DC', value: '<span style="color:#b30000;">@{selected|spell_save_dc}</span> <span style="color:#999;">(Constitution)</span>' },
+      { label: 'Necrotic Damage', value: '<span style="color:#b30000;">' + damageRoll + '</span> <span style="color:#999;">necrotic (half on success)</span>' },
+      { label: 'Self Healing', value: '<span style="color:#b30000;">' + healRoll + '</span> <span style="color:#999;">HP restored</span>' },
+      { label: 'Overflow to Pact Temp HP', value: '<span style="color:#b30000;">' + overflowRoll + '</span> <span style="color:#999;">excess converted</span>' },
+      { label: 'Temp HP After Heal', value: '<span style="color:#b30000;">' + tempAfter + '</span> <span style="color:#999;">cap ' + tempCap + '</span>' },
+      { label: 'Effect', value: '<b>While you have Pact Temp HP:</b> <span style="color:#b30000;">+1 AC</span> · <span style="color:#b30000;">Necrotic ignores resistance</span> <span style="color:#999;">(treat immunity as resistance)</span>' }
+    ]);
   }
 
   function buildSanguinePoolAction() {
