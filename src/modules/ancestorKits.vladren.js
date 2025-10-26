@@ -110,32 +110,17 @@
   }
 
 function buildTransfusionAction() {
-  // Native 5E sheet attributes
   var pb     = '@{selected|pb}';
   var saveDC = '@{selected|spell_save_dc}';
-  var cap    = '[[ 5*' + pb + ' + @{selected|spell_mod} ]]';
 
-  // Damage roll shown in the red box; extra 1d8 if target ≤ half HP
+  // Damage shown in the red box; prompt adds +1d8 if target ≤ half HP
   var dmg = '[[ 2d8 + ' + pb + ' + ?{Is target ≤ half HP?|No,0|Yes,1d8} ]]';
 
-  // 1) Spell info (no rolls)
-  var spellCard =
-    '&{template:spell} ' +
-    '{{level=Bonus Action}} ' +
-    '{{name=🩸 Transfusion}} ' +
-    '{{school=Necromancy}} ' +
-    '{{castingtime=Bonus Action}} ' +
-    '{{range=60 ft}} ' +
-    '{{target=One creature within range (Con save)}} ' +
-    '{{description=You siphon vitality from the target, healing yourself for the damage dealt. ' +
-      'If the target is at or below half its hit points, Transfusion deals an extra 1d8 necrotic. ' +
-      'Excess healing becomes Pact Temp HP (cap ' + cap + '). ' +
-      'While you have Pact Temp HP, gain +1 AC and your necrotic damage ignores resistance (treat immunity as resistance).}}';
-
-  // 2) Damage roll (pretty roll box + save line)
-  var dmgCard =
+  // Single card using the official 5E "dmg" template
+  // (This is the one that produces the DC banner + save stat + big damage number.)
+  return (
     '&{template:dmg} ' +
-    '{{rname=Transfusion}} ' +
+    '{{rname=🩸 Transfusion}} ' +
     '{{range=60 ft}} ' +
     '{{damage=1}} ' +
     '{{dmg1flag=1}} ' +
@@ -144,9 +129,9 @@ function buildTransfusionAction() {
     '{{save=1}} ' +
     '{{saveattr=CON}} ' +
     '{{savedc=' + saveDC + '}} ' +
-    '{{savedesc=Half damage on success.}}';
-
-  return spellCard + '\n' + dmgCard;
+    '{{savedesc=Half damage on success.}} ' +
+    '{{description=You heal for the damage dealt. If the target is at or below half its hit points, add +1d8 necrotic. While you have Pact Temp HP, gain +1 AC and your necrotic damage ignores resistance (treat immunity as resistance).}}'
+  );
 }
 
   function buildSanguinePoolAction() {
