@@ -454,6 +454,102 @@
     ensureAttrValue(charId, HEAT_ATTR, 0);
     ensureAttrValue(charId, HEAT_CAP_ATTR, 100);
     ensureAttrValue(charId, OVERHEAT_FLAG, 0);
+
+    // Install Seraphine's Always Prepared list
+    if (typeof SpellbookHelper !== 'undefined'){
+      SpellbookHelper.installAlwaysPrepared(charId, [
+        {
+          name: 'Absorb Elements',
+          level: 1,
+          school: 'Abjuration',
+          castingTime: '1 reaction (when you take acid, cold, fire, lightning, or thunder damage)',
+          range: 'Self',
+          components: 'S',
+          duration: '1 round',
+          effect: 'The spell captures some of the incoming energy, lessening its effect on you and storing it for your next melee attack. You have resistance to the triggering damage type until the start of your next turn. Also, the first time you hit with a melee attack on your next turn, the target takes an extra 1d6 damage of the triggering type, and the spell ends.',
+          notes: 'At Higher Levels: When you cast this spell using a spell slot of 2nd level or higher, the extra damage increases by 1d6 for each slot level above 1st. Spell Lists: Artificer, Druid, Ranger, Sorcerer, Wizard. Source: Xanathar\'s Guide to Everything.'
+        },
+        {
+          name: 'Burning Hands',
+          level: 1,
+          school: 'Evocation',
+          castingTime: '1 action',
+          range: 'Self (15-foot cone)',
+          components: 'V,S',
+          duration: 'Instantaneous',
+          save: 'Dexterity',
+          damage: { roll: '3d6', type: 'fire' },
+          effect: 'As you hold your hands with thumbs touching and fingers spread, a thin sheet of flames shoots forth from your outstretched fingertips. Each creature in a 15-foot cone must make a Dexterity saving throw. A creature takes 3d6 fire damage on a failed save, or half as much damage on a successful one. The fire ignites any flammable objects in the area that aren’t being worn or carried.',
+          notes: 'At Higher Levels: When you cast this spell using a spell slot of 2nd level or higher, the damage increases by 1d6 for each slot level above 1st. Spell Lists: Sorcerer, Wizard. Source: Player\'s Handbook.'
+        },
+        {
+          name: 'Flaming Sphere',
+          level: 2,
+          school: 'Conjuration',
+          castingTime: '1 action',
+          range: '60 feet',
+          components: 'V,S,M (a bit of tallow, a pinch of brimstone, and a dusting of powdered iron)',
+          duration: 'Concentration, up to 1 minute',
+          save: 'Dexterity',
+          damage: { roll: '2d6', type: 'fire' },
+          effect: 'A 5-foot-diameter sphere of fire appears in an unoccupied space of your choice within range and lasts for the duration. Any creature that ends its turn within 5 feet of the sphere must make a Dexterity saving throw, taking 2d6 fire damage on a failed save, or half as much on a success. As a bonus action, you can move the sphere up to 30 feet. If you ram the sphere into a creature, it must make the saving throw against the sphere’s damage, and the sphere stops moving this turn. You can move it over barriers up to 5 feet tall and jump it across pits up to 10 feet wide. The sphere ignites flammable objects not being worn or carried and sheds bright light in a 20-foot radius and dim light for an additional 20 feet.',
+          notes: 'At Higher Levels: When you cast this spell using a spell slot of 3rd level or higher, the damage increases by 1d6 for each slot level above 2nd. Spell Lists: Druid, Sorcerer (Optional), Wizard. Source: Player\'s Handbook.'
+        },
+        {
+          name: 'Scorching Ray',
+          level: 2,
+          school: 'Evocation',
+          castingTime: '1 action',
+          range: '120 feet',
+          components: 'V,S',
+          duration: 'Instantaneous',
+          hit: 'Make a ranged spell attack for each ray.',
+          damage: { roll: '2d6', type: 'fire', notes: 'per ray' },
+          effect: 'You create three rays of fire and hurl them at targets within range. You can hurl them at one target or several. On a hit, the target takes 2d6 fire damage.',
+          notes: 'At Higher Levels: When you cast this spell using a spell slot of 3rd level or higher, you create one additional ray for each slot level above 2nd. Spell Lists: Sorcerer, Wizard. Source: Player\'s Handbook.'
+        },
+        {
+          name: 'Fireball',
+          level: 3,
+          school: 'Evocation',
+          castingTime: '1 action',
+          range: '150 feet',
+          components: 'V,S,M (a tiny ball of bat guano and sulfur)',
+          duration: 'Instantaneous',
+          save: 'Dexterity',
+          damage: { roll: '8d6', type: 'fire' },
+          effect: 'A bright streak flashes from your pointing finger to a point you choose within range then blossoms with a low roar into an explosion of flame. Each creature in a 20-foot radius must make a Dexterity saving throw. A target takes 8d6 fire damage on a failed save, or half as much damage on a successful one. The fire spreads around corners and ignites flammable objects in the area that aren’t being worn or carried.',
+          notes: 'At Higher Levels: When you cast this spell using a spell slot of 4th level or higher, the damage increases by 1d6 for each slot level above 3rd. Spell Lists: Sorcerer, Wizard. Source: Player\'s Handbook.'
+        },
+        {
+          name: 'Wall of Fire',
+          level: 4,
+          school: 'Evocation',
+          castingTime: '1 action',
+          range: '120 feet',
+          components: 'V,S,M (a small piece of phosphorus)',
+          duration: 'Concentration, up to 1 minute',
+          save: 'Dexterity',
+          damage: { roll: '5d8', type: 'fire' },
+          effect: 'You create a wall of fire on a solid surface within range. You can make the wall up to 60 feet long, 20 feet high, and 1 foot thick, or a ringed wall up to 20 feet in diameter, 20 feet high, and 1 foot thick. The wall is opaque and lasts for the duration. When the wall appears, each creature within its area must make a Dexterity saving throw, taking 5d8 fire damage on a failed save, or half as much on a success. One side of the wall, selected by you when you cast this spell, deals 5d8 fire damage to each creature that ends its turn within 10 feet of that side or inside the wall. A creature takes the same damage when it enters the wall for the first time on a turn or ends its turn there. The other side of the wall deals no damage.',
+          notes: 'At Higher Levels: When you cast this spell using a spell slot of 5th level or higher, the damage increases by 1d8 for each slot level above 4th. Spell Lists: Druid, Sorcerer, Wizard. Source: Player\'s Handbook.'
+        },
+        {
+          name: 'Immolation',
+          level: 5,
+          school: 'Evocation',
+          castingTime: '1 action',
+          range: '90 feet',
+          components: 'V',
+          duration: 'Concentration, up to 1 minute',
+          save: 'Dexterity',
+          damage: { roll: '8d6', type: 'fire', notes: 'initial' },
+          damage2: { label: 'Ongoing', roll: '4d6', type: 'fire', notes: 'at end of each of its turns on failed save; spell ends on a success' },
+          effect: 'Flames wreathe one creature you can see within range. The target must make a Dexterity saving throw, taking 8d6 fire damage on a failed save, or half as much on a success. On a failed save, the target also burns for the spell’s duration, shedding bright light in a 30-foot radius and dim light for an additional 30 feet. At the end of each of its turns, the target repeats the saving throw; it takes 4d6 fire damage on a failed save, and the spell ends on a successful one. These magical flames can’t be extinguished by nonmagical means. If damage from this spell kills a target, the target is turned to ash.',
+          notes: 'Spell Lists: Sorcerer, Wizard. Source: Xanathar\'s Guide to Everything.'
+        }
+      ]);
+    }
   }
 
   function onUninstall(targetChar){
