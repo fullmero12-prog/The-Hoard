@@ -94,6 +94,19 @@
     return setAttr(charId, name, value);
   }
 
+  function normalizeRowId(id) {
+    if (id === null || typeof id === 'undefined') {
+      return '';
+    }
+
+    var trimmed = String(id).trim();
+    if (!trimmed) {
+      return '';
+    }
+
+    return trimmed.charAt(0) === '-' ? trimmed : '-' + trimmed;
+  }
+
   function parseTempValue(value) {
     var parsed = parseInt(value, 10);
     if (isNaN(parsed)) {
@@ -126,13 +139,14 @@
     }
 
     var storedRow = getAttrCurrent(charId, PACT_ROW_ATTR);
-    var rowId = storedRow ? String(storedRow).trim() : '';
+    var rowId = normalizeRowId(storedRow);
 
     function matchesRow(id) {
-      if (!id) {
+      var normalized = normalizeRowId(id);
+      if (!normalized) {
         return false;
       }
-      var nameAttr = findAttr(charId, 'repeating_inventory_' + id + '_itemname');
+      var nameAttr = findAttr(charId, 'repeating_inventory_' + normalized + '_itemname');
       return !!(nameAttr && nameAttr.get('current') === PACT_ITEM_NAME);
     }
 
@@ -154,7 +168,7 @@
         if ((attr.get('current') || '') === PACT_ITEM_NAME) {
           var parts = name.split('_');
           if (parts.length >= 4) {
-            rowId = parts[2];
+            rowId = normalizeRowId(parts[2]);
             break;
           }
         }
@@ -164,9 +178,9 @@
     var created = false;
     if (!rowId) {
       if (typeof generateRowID === 'function') {
-        rowId = generateRowID();
+        rowId = normalizeRowId(generateRowID());
       } else {
-        rowId = (new Date().getTime().toString(36) + Math.floor(Math.random() * 100000));
+        rowId = normalizeRowId(new Date().getTime().toString(36) + Math.floor(Math.random() * 100000));
       }
       created = true;
     }
