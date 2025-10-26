@@ -87,6 +87,39 @@
     return ability || null;
   }
 
+  function parseTurnorder(raw){
+    if (!raw) return [];
+
+    if (Array.isArray(raw)) return raw.slice();
+
+    if (typeof raw === 'string'){
+      var trimmed = raw.trim();
+      if (!trimmed) return [];
+      try {
+        return JSON.parse(trimmed);
+      } catch (err){
+        warn('Failed to parse turnorder JSON: ' + (err.message||err));
+        return [];
+      }
+    }
+
+    return [];
+  }
+
+  function formatCharLabel(charId, token){
+    var label = '';
+    try {
+      var c = charId ? getObj('character', charId) : null;
+      if (c) label = c.get('name') || '';
+      if (!label && token && typeof token.get === 'function') label = token.get('name') || '';
+    } catch (_){ }
+
+    if (!label) return '';
+
+    label = String(label).replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    return '<b>' + label + '</b>: ';
+  }
+
   function getAttributeInt(characterId, names){
     if (!characterId) return null;
     var list = Array.isArray(names) ? names.slice() : [names];
@@ -180,6 +213,7 @@
   var HEAT_ATTR      = 'hr_seraphine_heat';
   var HEAT_CAP_ATTR  = 'hr_seraphine_heat_cap';
   var OVERHEAT_FLAG  = 'hr_seraphine_overheat_active';
+  var OVERHEAT_CLEAR_SNIPPET = '🔥 Overheat ended. Staff reach returns to 10 ft; remove +2d8 fire. (Auto-clear at turn start.)';
 
   // Handout content
   var TEXT_WRAPPER_START = '<div style="font-family:inherit;font-size:13px;line-height:1.25;">'
@@ -492,6 +526,38 @@
           triggerOverheat(charId, 'GM');
         }
       }catch(e){ warn('Heat watcher error: ' + (e.message||e)); }
+    });
+
+    on('change:campaign:turnorder', function(campaign, prev){
+      try {
+        if (!campaign) return;
+
+        var nextOrder = parseTurnorder(campaign.get('turnorder'));
+        if (!nextOrder.length) return;
+
+        var current = nextOrder[0];
+        if (!current || !current.id || current.id === '-1') return;
+
+        var prevOrder = parseTurnorder(prev && prev.turnorder);
+        var prevActiveId = prevOrder.length ? prevOrder[0].id : null;
+        if (prevActiveId === current.id) return;
+
+        var token = getObj('graphic', current.id);
+        if (!token) return;
+
+        var charId = token.get('represents');
+        if (!charId) return;
+
+        if (!findAttr(charId, OVERHEAT_FLAG)) return;
+        if (!isOverheated(charId)) return;
+
+        setOverheatFlag(charId, false);
+
+        var prefix = formatCharLabel(charId, token);
+        sendChat('Seraphine', '/w "GM" ' + prefix + OVERHEAT_CLEAR_SNIPPET);
+      } catch (err){
+        warn('Turn tracker watcher error: ' + (err.message||err));
+      }
     });
   }
 
