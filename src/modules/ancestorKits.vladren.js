@@ -146,7 +146,7 @@ function buildTransfusionAction() {
     '{{savedc=' + saveDC + '}} ' +
     '{{savedesc=Half damage on success.}}';
 
-  return spellCard + ' ' + dmgCard;
+  return spellCard + '\n' + dmgCard;
 }
 
   function buildSanguinePoolAction() {
