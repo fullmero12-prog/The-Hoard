@@ -147,11 +147,6 @@
     if (!toHit) toHit = pb + sm;
 
     var oh = isOverheated(charId);
-    var desc = 'Hit → click name for damage; then press <b>Stoke</b> (+25 / +10 cantrip). ';
-    desc += oh
-      ? '<b>Overheat:</b> +2d8 fire; reach 15 ft (until your next turn).'
-      : 'Overheated hits: +2d8 fire; reach 15 ft (until your next turn).';
-
     return (
       '&{template:atk} ' +
       '{{attack=1}} ' +
@@ -160,7 +155,6 @@
       '{{r1=[[ 1d20 + ' + toHit + ' ]]}} ' +
       '{{r2=[[ 1d20 + ' + toHit + ' ]]}} ' +
       '{{range=melee (10 ft; 15 ft while Overheated)}} ' +
-      '{{desc=' + desc + '}} ' +
       '{{always=1}}'
     );
   }
@@ -448,7 +442,19 @@
     critFlag = critFlag ? 1 : 0;
 
     var spellMod  = getSpellModFromSheet(charId);
+    var wasOverheated = isOverheated(charId);
+    var heatCap = getHeatCap(charId);
+    var heatGain = wasOverheated ? 0 : 25;
+    var heatAfterGain = getHeat(charId);
+    var triggeredOverheat = false;
+
+    if (heatGain){
+      heatAfterGain = addHeat(charId, heatGain);
+      triggeredOverheat = maybeOverheat(charId, who);
+    }
+
     var overheated = isOverheated(charId);
+    var heatNow = getHeat(charId);
 
     var baseDice = critFlag ? 2 : 1;
     var dmgRoll  = '[[ ' + baseDice + 'd8 + (' + spellMod + ') ]]';
@@ -468,10 +474,27 @@
       out.push('{{dmg2flag=1}}');
       out.push('{{dmg2=[[ ' + fireDice + 'd8 ]]}}');
       out.push('{{dmg2type=fire (Overheat)}}');
-      out.push('{{desc=Overheat active: +2d8 fire; reach 15 ft. Clear at turn start.}}');
     } else {
       out.push('{{dmg2flag=0}}');
-      out.push('{{desc=On hit: Stoke +25 (+10 cantrip). Overheated hits add +2d8 fire.}}');
+    }
+
+    var descParts = [];
+    if (heatGain){
+      if (triggeredOverheat){
+        descParts.push('Heat +25 → ' + heatAfterGain + ' / ' + heatCap + '. Overheat triggered; Heat reset to ' + heatNow + '.');
+      } else {
+        descParts.push('Heat +25 (now ' + heatNow + ' / ' + heatCap + ').');
+      }
+    } else if (wasOverheated){
+      descParts.push('Overheat active; Heat remains ' + heatNow + ' / ' + heatCap + '.');
+    }
+
+    if (overheated){
+      descParts.push('Overheat bonuses applied.');
+    }
+
+    if (descParts.length){
+      out.push('{{desc=' + descParts.join(' ') + '}}');
     }
 
     out.push('{{always=1}}');
