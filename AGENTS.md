@@ -59,7 +59,7 @@ All logic is modularized under `/src/modules/` and `/src/data/`. The list below 
 
 | Command | Purpose |
 |----------|----------|
-| `!startrun` | Begin a new Hoard Run. Resets currencies, triggers ancestor/weapon selection prompts. |
+| `!start` | Begin a new Hoard Run. Resets currencies, triggers ancestor/weapon selection prompts. |
 | `!selectweapon <Weapon>` | (Players) Choose Staff, Orb, Greataxe, Rapier, or Bow to seed ancestor/kit pairing. |
 | `!selectancestor <Name>` | (Players) Confirm the ancestor tied to the chosen weapon. |
 | `!nextr room|miniboss|boss` | Advance to the next room milestone with run-safe state updates. |

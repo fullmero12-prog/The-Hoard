@@ -1,7 +1,7 @@
 # Hoard Run Commands
 
 ## Corridor Flow
-- `!startrun` — Begin a new Hoard Run for the issuing player. Resets currencies, inventory, and room progress via `StateManager`.
+- `!start` — Begin a new Hoard Run for the issuing player. Resets currencies, inventory, and room progress via `StateManager`.
 - `!selectweapon <Weapon>` — Lock in the party's starting focus (Staff, Orb, Greataxe, Rapier, Bow).
 - `!selectancestor <Name>` — Bind the Ancestor boon package tied to the chosen weapon.
 - **Advance Room button (GM whisper)** — Progress the scripted Hoard Run flow (ancestor prompts, free boon phase, room counter). The button fires the legacy `!nextroom` command so totals stay in sync with manual advances without typing.

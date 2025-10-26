@@ -59,5 +59,5 @@ on('ready', function () {
     DevTools.register();
   }
 
-  sendChat('Hoard Run','/w gm ✅ Hoard loaded. Use !startrun to begin.');
+  sendChat('Hoard Run','/w gm ✅ Hoard loaded. Use !start to begin.');
 });
