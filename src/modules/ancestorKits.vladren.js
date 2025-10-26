@@ -21,6 +21,263 @@
     }
   }
 
+  var PACT_ITEM_NAME = 'Hoard: Crimson Pact Ward [Vladren]';  // <-- cleaner-safe tag
+  var PACT_ITEM_MODS = 'AC +1';
+  var PACT_ITEM_DESCRIPTION = 'Crimson Pact: +1 AC while you have Pact Temp HP.';
+  var PACT_FLAG_ATTR = 'hr_vladren_pact_enabled';
+  var PACT_ROW_ATTR = 'hr_vladren_pact_rowid';
+
+  // ------------------------------------------------------------
+  // Crimson Pact Inventory Helpers
+  // ------------------------------------------------------------
+
+  function findAttr(charId, name) {
+    if (!charId || !name) {
+      return null;
+    }
+
+    var matches = findObjs({
+      _type: 'attribute',
+      _characterid: charId,
+      name: name
+    }) || [];
+
+    return matches[0] || null;
+  }
+
+  function setAttr(charId, name, value) {
+    if (!charId || !name) {
+      return null;
+    }
+
+    var attr = findAttr(charId, name);
+    var payload = { current: value };
+
+    if (attr) {
+      try {
+        if (typeof attr.setWithWorker === 'function') {
+          attr.setWithWorker(payload);
+        } else {
+          attr.set('current', value);
+        }
+      } catch (err) {
+        warn('Failed to set attribute ' + name + ' for ' + charId + ': ' + (err.message || err));
+      }
+      return attr;
+    }
+
+    try {
+      return createObj('attribute', {
+        _characterid: charId,
+        name: name,
+        current: value
+      });
+    } catch (errCreate) {
+      warn('Failed to create attribute ' + name + ' for ' + charId + ': ' + (errCreate.message || errCreate));
+    }
+    return null;
+  }
+
+  function getAttrCurrent(charId, name) {
+    var attr = findAttr(charId, name);
+    if (!attr) {
+      return null;
+    }
+    return attr.get('current');
+  }
+
+  function ensureAttrValue(charId, name, value) {
+    var existing = getAttrCurrent(charId, name);
+    if (existing !== null && String(existing) === String(value)) {
+      return findAttr(charId, name);
+    }
+    return setAttr(charId, name, value);
+  }
+
+  function parseTempValue(value) {
+    var parsed = parseInt(value, 10);
+    if (isNaN(parsed)) {
+      return 0;
+    }
+    return parsed;
+  }
+
+  function isPactEnabled(charId) {
+    var flag = getAttrCurrent(charId, PACT_FLAG_ATTR);
+    if (flag === null || typeof flag === 'undefined') {
+      return false;
+    }
+    var normalized = String(flag).trim().toLowerCase();
+    if (!normalized) {
+      return false;
+    }
+    return normalized !== '0' && normalized !== 'false' && normalized !== 'off';
+  }
+
+  /**
+   * Ensures the hidden Crimson Pact inventory row exists on the sheet.
+   * Creates or repairs the row as needed and records its repeating ID.
+   * @param {string} charId
+   * @returns {?string}
+   */
+  function ensurePactInventoryRow(charId) {
+    if (!charId) {
+      return null;
+    }
+
+    var storedRow = getAttrCurrent(charId, PACT_ROW_ATTR);
+    var rowId = storedRow ? String(storedRow).trim() : '';
+
+    function matchesRow(id) {
+      if (!id) {
+        return false;
+      }
+      var nameAttr = findAttr(charId, 'repeating_inventory_' + id + '_itemname');
+      return !!(nameAttr && nameAttr.get('current') === PACT_ITEM_NAME);
+    }
+
+    if (!matchesRow(rowId)) {
+      rowId = '';
+    }
+
+    if (!rowId) {
+      var attrs = findObjs({ _type: 'attribute', _characterid: charId }) || [];
+      for (var i = 0; i < attrs.length; i += 1) {
+        var attr = attrs[i];
+        var name = attr && attr.get('name');
+        if (!name || name.indexOf('repeating_inventory_') !== 0) {
+          continue;
+        }
+        if (!/_itemname$/.test(name)) {
+          continue;
+        }
+        if ((attr.get('current') || '') === PACT_ITEM_NAME) {
+          var parts = name.split('_');
+          if (parts.length >= 4) {
+            rowId = parts[2];
+            break;
+          }
+        }
+      }
+    }
+
+    var created = false;
+    if (!rowId) {
+      if (typeof generateRowID === 'function') {
+        rowId = generateRowID();
+      } else {
+        rowId = (new Date().getTime().toString(36) + Math.floor(Math.random() * 100000));
+      }
+      created = true;
+    }
+
+    var prefix = 'repeating_inventory_' + rowId + '_';
+
+    ensureAttrValue(charId, prefix + 'itemname', PACT_ITEM_NAME);
+    ensureAttrValue(charId, prefix + 'itemmodifiers', PACT_ITEM_MODS);
+    ensureAttrValue(charId, prefix + 'itemcontent', PACT_ITEM_DESCRIPTION);
+
+    if (created) {
+      ensureAttrValue(charId, prefix + 'itemcount', 1);
+      ensureAttrValue(charId, prefix + 'itemweight', 0);
+      ensureAttrValue(charId, prefix + 'useasresource', 0);
+      ensureAttrValue(charId, prefix + 'hasattack', 0);
+      ensureAttrValue(charId, prefix + 'itemproperties', '');
+    }
+
+    ensureAttrValue(charId, PACT_ROW_ATTR, rowId);
+    ensureAttrValue(charId, PACT_FLAG_ATTR, 1);
+
+    return rowId;
+  }
+
+  function setPactEquipped(charId, rowId, enable) {
+    if (!charId || !rowId) {
+      return;
+    }
+    var desired = enable ? '1' : '0';
+    var attrName = 'repeating_inventory_' + rowId + '_equipped';
+    var current = getAttrCurrent(charId, attrName);
+    if (current !== null && String(current) === desired) {
+      return;
+    }
+    setAttr(charId, attrName, desired);
+  }
+
+  /**
+   * Synchronizes the pact item's equipped state with current temp HP.
+   * @param {string} charId
+   */
+  function syncPactState(charId) {
+    if (!charId) {
+      return;
+    }
+    if (!isPactEnabled(charId)) {
+      return;
+    }
+
+    var rowId = ensurePactInventoryRow(charId);
+    if (!rowId) {
+      return;
+    }
+
+    var tempAttr = findAttr(charId, 'hp_temp');
+    var tempValue = tempAttr ? tempAttr.get('current') : 0;
+    setPactEquipped(charId, rowId, parseTempValue(tempValue) > 0);
+  }
+
+  /**
+   * Listens for hp_temp changes and toggles the Crimson Pact bonus.
+   * @param {object} attr
+   */
+  function handleTempHpChange(attr) {
+    try {
+      if (!attr || attr.get('name') !== 'hp_temp') {
+        return;
+      }
+      var charId = attr.get('_characterid');
+      if (!charId || !isPactEnabled(charId)) {
+        return;
+      }
+
+      var rowId = ensurePactInventoryRow(charId);
+      if (!rowId) {
+        return;
+      }
+
+      setPactEquipped(charId, rowId, parseTempValue(attr.get('current')) > 0);
+    } catch (err) {
+      warn('Crimson Pact watcher error: ' + (err.message || err));
+    }
+  }
+
+  /**
+   * Rebuilds pact rows on script restart so existing chars stay synced.
+   */
+  function seedPactRows() {
+    if (typeof findObjs !== 'function') {
+      return;
+    }
+
+    var flags = findObjs({ _type: 'attribute', name: PACT_FLAG_ATTR }) || [];
+    var seen = {};
+    for (var i = 0; i < flags.length; i += 1) {
+      var flagAttr = flags[i];
+      if (!flagAttr) {
+        continue;
+      }
+      var charId = flagAttr.get('_characterid');
+      if (!charId || seen[charId]) {
+        continue;
+      }
+      seen[charId] = true;
+      if (!isPactEnabled(charId)) {
+        continue;
+      }
+      syncPactState(charId);
+    }
+  }
+
   function getAttributeInt(characterId, names) {
     if (!characterId) {
       return null;
@@ -455,6 +712,8 @@ function buildTransfusionDescriptionAction() {
       return;
     }
 
+    var rowId = ensurePactInventoryRow(charId);
+
     // Persist key stats so actions can roll without prompts. Re-run !hr-sync / !bindkit if PB or spell mods change.
     var pbAttr = findObjs({ _type: 'attribute', _characterid: charId, name: 'pb' })[0];
     var spellModAttr = findObjs({ _type: 'attribute', _characterid: charId, name: 'spell_mod' })[0];
@@ -484,6 +743,10 @@ function buildTransfusionDescriptionAction() {
     upsertAttr('hr_pb', pbValue);
     upsertAttr('hr_spellmod', spellModValue);
     upsertAttr('hr_false_life_pb_bonus', 0);
+
+    if (rowId) {
+      syncPactState(charId);
+    }
 
     // Install Vladren's Always Prepared spell list via repeating spell entries when available.
     if (typeof SpellbookHelper !== 'undefined') {
@@ -594,6 +857,29 @@ function buildTransfusionDescriptionAction() {
     }
   }
 
+  function onUninstall(targetChar) {
+    if (!targetChar) {
+      return;
+    }
+
+    var charId = targetChar.id || (typeof targetChar.get === 'function' && targetChar.get('_id'));
+    if (!charId) {
+      return;
+    }
+
+    var rowId = getAttrCurrent(charId, PACT_ROW_ATTR);
+    if (rowId) {
+      setPactEquipped(charId, String(rowId).trim(), false);
+    }
+
+    ensureAttrValue(charId, PACT_FLAG_ATTR, 0);
+  }
+
+  if (typeof on === 'function') {
+    on('change:attribute', handleTempHpChange);
+    on('ready', seedPactRows);
+  }
+
   var _registered = false;
 
   function registerKit() {
@@ -617,7 +903,8 @@ function buildTransfusionDescriptionAction() {
         { name: 'Sanguine Pool (Reaction • 1/room)', action: buildSanguinePoolAction(), tokenAction: true },
         { name: 'Hemoplague (1/room)', action: buildHemoplagueAction(), tokenAction: true }
       ],
-      onInstall: onInstall
+      onInstall: onInstall,
+      onUninstall: onUninstall
     });
 
     _registered = true;
