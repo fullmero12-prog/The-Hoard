@@ -100,86 +100,14 @@
     return parts.join(' ');
   }
 
-// --- Crimson Pact AC Watchdog (ES5) ---
-// Grants +1 AC while the character has any Temp HP (hp_temp > 0).
-// Uses a hidden inventory item with MODS "AC +1" and toggles its "equipped" flag.
-
-var PACT_ITEM_NAME = 'Hoard: Crimson Pact Ward';
-var PACT_ITEM_MODS = 'AC +1';
-
-function findAttr(charId, name) {
-  return findObjs({ _type: 'attribute', _characterid: charId, name: name })[0] || null;
-}
-
-function setAttr(charId, name, value) {
-  var a = findAttr(charId, name);
-  if (a) a.set('current', value);
-  else createObj('attribute', { _characterid: charId, name: name, current: value });
-}
-
-function ensurePactItem(charId) {
-  // Look for an existing repeating row with our item name
-  var attrs = findObjs({ _type: 'attribute', _characterid: charId });
-  var i, a, match = null, rowId = null;
-  for (i = 0; i < attrs.length; i += 1) {
-    a = attrs[i];
-    var n = a.get('name');
-    if (n && n.indexOf('repeating_inventory_') === 0 && /_itemname$/.test(n)) {
-      if ((a.get('current') || '') === PACT_ITEM_NAME) {
-        match = n;
-        break;
-      }
-    }
+  function buildCrimsonPactAction() {
+    // Uses hr_pb/hr_spellmod attributes set during install; refresh with !hr-sync / !bindkit if stats change.
+    return buildRollTemplate('Crimson Pact (Info)', [
+      { label: 'Cap', value: '[[ 5*@{selected|hr_pb} + @{selected|hr_spellmod} ]]' },
+      { label: 'While active', value: '+1 AC; your necrotic ignores resistance (treat immunity as resistance).' },
+      { label: 'Convert healing', value: 'Excess healing becomes Pact temp HP (up to cap).' }
+    ]);
   }
-  if (match) {
-    rowId = match.split('_')[2]; // repeating_inventory_{rowId}_itemname
-  } else {
-    // Create a new row
-    rowId = generateRowID();
-    setAttr(charId, 'repeating_inventory_' + rowId + '_itemname', PACT_ITEM_NAME);
-    setAttr(charId, 'repeating_inventory_' + rowId + '_itemcount', 1);
-    setAttr(charId, 'repeating_inventory_' + rowId + '_itemweight', 0);
-    setAttr(charId, 'repeating_inventory_' + rowId + '_equipped', 0);
-    setAttr(charId, 'repeating_inventory_' + rowId + '_useasresource', 0);
-    setAttr(charId, 'repeating_inventory_' + rowId + '_hasattack', 0);
-    setAttr(charId, 'repeating_inventory_' + rowId + '_itemmodifiers', PACT_ITEM_MODS); // <- MODS: AC +1
-    // optional description/properties:
-    setAttr(charId, 'repeating_inventory_' + rowId + '_itemproperties', '');
-    setAttr(charId, 'repeating_inventory_' + rowId + '_itemcontent', 'Crimson Pact: +1 AC while you have Pact Temp HP.');
-  }
-  return rowId;
-}
-
-function togglePactAC(charId, enable) {
-  var rowId = ensurePactItem(charId);
-  if (!rowId) return;
-  var eqName = 'repeating_inventory_' + rowId + '_equipped';
-  var a = findAttr(charId, eqName);
-  var desired = enable ? 1 : 0;
-  if (!a || String(a.get('current')) !== String(desired)) {
-    setAttr(charId, eqName, desired);
-  }
-}
-
-// Watchdog: when hp_temp changes, flip the item
-on('change:attribute', function (attr) {
-  try {
-    if (!attr || attr.get('name') !== 'hp_temp') return;
-    var charId = attr.get('_characterid');
-    var val = parseInt(attr.get('current'), 10);
-    if (isNaN(val)) val = 0;
-    // Rule says: while you have Pact temp HP → +1 AC.
-    // If you truly want ≥ 0, change (val > 0) to (val >= 0).
-    togglePactAC(charId, val > 0);
-  } catch (e) {
-    log('[Hoard Run] Pact AC Watchdog error: ' + e.message);
-  }
-});
-
-// Optional: seed all controlled characters on ready (ensures the row exists)
-on('ready', function () {
-  // no-op; rows will be created lazily on first hp_temp change
-});
 
 function buildTransfusionAction() {
   var dmg    = '[[ 2d8 + @{selected|pb} + ?{Is target ≤ half HP?|No,0|Yes,1d8} ]]';
