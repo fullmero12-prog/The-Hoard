@@ -144,16 +144,13 @@
     var toHit = toInt(getAttrByName(charId, 'spell_attack_bonus'));
     var pb    = getAttributeInt(charId, ['pb']) || 0;
     var sm    = getSpellModFromSheet(charId);
-
     if (!toHit) toHit = pb + sm;
 
-    var ohActive = isOverheated(charId);
-    var desc = 'Use your spellcasting ability for attack & damage. On hit: click the staff name above to roll damage, then press <b>Stoke +25</b> (cantrip hit = <b>Stoke +10</b>).';
-    if (ohActive){
-      desc += ' <b>Overheated:</b> Staff damage adds +2d8 fire and reach is 15 ft until your next turn.';
-    } else {
-      desc += ' Overheated hits add +2d8 fire and extend reach to 15 ft until your next turn.';
-    }
+    var oh = isOverheated(charId);
+    var desc = 'Hit → click name for damage; then press <b>Stoke</b> (+25 / +10 cantrip). ';
+    desc += oh
+      ? '<b>Overheat:</b> +2d8 fire; reach 15 ft (until your next turn).'
+      : 'Overheated hits: +2d8 fire; reach 15 ft (until your next turn).';
 
     return (
       '&{template:atk} ' +
@@ -162,7 +159,7 @@
       '{{mod=' + toHit + '}} ' +
       '{{r1=[[ 1d20 + ' + toHit + ' ]]}} ' +
       '{{r2=[[ 1d20 + ' + toHit + ' ]]}} ' +
-      '{{range=melee (reach 10 ft; 15 ft while Overheated)}} ' +
+      '{{range=melee (10 ft; 15 ft while Overheated)}} ' +
       '{{desc=' + desc + '}} ' +
       '{{always=1}}'
     );
@@ -213,7 +210,7 @@
   var HEAT_ATTR      = 'hr_seraphine_heat';
   var HEAT_CAP_ATTR  = 'hr_seraphine_heat_cap';
   var OVERHEAT_FLAG  = 'hr_seraphine_overheat_active';
-  var OVERHEAT_CLEAR_SNIPPET = '🔥 Overheat ended. Staff reach returns to 10 ft; remove +2d8 fire. (Auto-clear at turn start.)';
+  var OVERHEAT_CLEAR_SNIPPET = 'Overheat ended: reach 10 ft; remove +2d8 fire.';
 
   // Handout content
   var TEXT_WRAPPER_START = '<div style="font-family:inherit;font-size:13px;line-height:1.25;">'
@@ -292,13 +289,12 @@
 
     setHeat(charId, 0);
     setOverheatFlag(charId, true);
-
     var tempRes = applyTempHpMax(charId, thp);
 
-    var msg = rtDefault('🔥 OVERHEAT!', [
-      {label:'Until your next turn', value:'Staff: +2d8 fire & reach 15 ft; Spells: +1d8 fire to one target; Speed −10 ft.'},
-      {label:'Temp HP', value:'Gained <b>' + thp + '</b> (sheet now <b>' + tempRes.after + '</b>).'},
-      {label:'Reminder', value:'Apply the benefits to the action that pushed Heat ≥ 100.'}
+    var msg = rtDefault('🔥 OVERHEAT', [
+      {label:'Effects',  value:'Until next turn: Staff +2d8 fire & reach 15 ft; Spells +1d8 fire (one target); Speed −10 ft.'},
+      {label:'Temp HP',  value:'PB + spell mod (now <b>' + tempRes.after + '</b>)'},
+      {label:'Note',     value:'Apply to the action that hit 100 Heat. Heat reset to 0.'}
     ]);
 
     sendChat('Seraphine', '/w "' + (who||'GM') + '" ' + msg);
@@ -442,28 +438,22 @@
     var rest = opts.rest || [];
     var critFlag = 0;
     for (var i = 0; i < rest.length; i++){
-      var raw = String(rest[i]||'');
-      var low = raw.toLowerCase();
-      if (low === '--crit'){
-        var next = rest[i+1];
-        critFlag = parseInt(next||'0', 10);
-        if (isNaN(critFlag)) critFlag = 0;
-        i++;
-      } else if (low.indexOf('--crit=') === 0){
-        var val = raw.split('=')[1];
-        critFlag = parseInt(val||'0', 10);
-        if (isNaN(critFlag)) critFlag = 0;
+      var raw = String(rest[i]||'').toLowerCase();
+      if (raw === '--crit'){
+        critFlag = parseInt(rest[i+1]||'0', 10) || 0; i++;
+      } else if (raw.indexOf('--crit=') === 0){
+        critFlag = parseInt(rest[i].split('=')[1]||'0', 10) || 0;
       }
     }
     critFlag = critFlag ? 1 : 0;
 
-    var spellMod = getSpellModFromSheet(charId);
+    var spellMod  = getSpellModFromSheet(charId);
     var overheated = isOverheated(charId);
 
     var baseDice = critFlag ? 2 : 1;
-    var dmgRoll = '[[ ' + baseDice + 'd8 + (' + spellMod + ') ]]';
+    var dmgRoll  = '[[ ' + baseDice + 'd8 + (' + spellMod + ') ]]';
 
-    var tmpl = [
+    var out = [
       '&{template:dmg}',
       '{{rname=Emberwright’s Staff}}',
       '{{range=melee}}',
@@ -475,18 +465,17 @@
 
     if (overheated){
       var fireDice = critFlag ? 4 : 2;
-      tmpl.push('{{dmg2flag=1}}');
-      tmpl.push('{{dmg2=[[ ' + fireDice + 'd8 ]]}}');
-      tmpl.push('{{dmg2type=fire (Overheat)}}');
-      tmpl.push('{{desc=Overheated: Staff gains +2d8 fire (doubled on crit) and reach 15 ft until your next turn. Use !seraphine-overheat-clear at the start of your turn.}}');
+      out.push('{{dmg2flag=1}}');
+      out.push('{{dmg2=[[ ' + fireDice + 'd8 ]]}}');
+      out.push('{{dmg2type=fire (Overheat)}}');
+      out.push('{{desc=Overheat active: +2d8 fire; reach 15 ft. Clear at turn start.}}');
     } else {
-      tmpl.push('{{dmg2flag=0}}');
-      tmpl.push('{{desc=On hit: Stoke +25 Heat (cantrip: +10). Overheated hits add +2d8 fire.}}');
+      out.push('{{dmg2flag=0}}');
+      out.push('{{desc=On hit: Stoke +25 (+10 cantrip). Overheated hits add +2d8 fire.}}');
     }
 
-    tmpl.push('{{always=1}}');
-
-    sendChat('Seraphine', tmpl.join(' '));
+    out.push('{{always=1}}');
+    sendChat('Seraphine', out.join(' '));
   }
 
   // !seraphine-staff-attack [--char <id>]
@@ -579,10 +568,9 @@
     return '!seraphine-overheat-clear --char @{selected|character_id}';
   }
   function actionOverheatDetails(){
-    return rtDefault('Overheat — Details', [
-      {label:'Until your next turn', value:'Staff +2d8 fire & reach 15 ft; Spells +1d8 fire to one target; Speed −10 ft.'},
-      {label:'Temp HP', value:'Gain PB + spell mod; Heat resets to 0.'},
-      {label:'Trigger', value:'The action that pushed Heat ≥ 100 benefits.'}
+    return rtDefault('Overheat', [
+      {label:'Until next turn', value:'Staff +2d8 fire & reach 15 ft; Spells +1d8 fire (one target); Speed −10 ft.'},
+      {label:'On trigger',      value:'Heat → 0; gain temp HP = PB + spell mod.'}
     ]);
   }
   function actionOverheatStaffFire(){
