@@ -133,47 +133,61 @@
    * @param {string} charId
    * @returns {?string}
    */
+  function matchesPactRow(charId, id) {
+    var normalized = normalizeRowId(id);
+    if (!charId || !normalized) {
+      return false;
+    }
+
+    var nameAttr = findAttr(charId, 'repeating_inventory_' + normalized + '_itemname');
+    return !!(nameAttr && nameAttr.get('current') === PACT_ITEM_NAME);
+  }
+
+  function findExistingPactRowId(charId) {
+    if (!charId) {
+      return '';
+    }
+
+    var storedRow = getAttrCurrent(charId, PACT_ROW_ATTR);
+    var rowId = normalizeRowId(storedRow);
+    if (matchesPactRow(charId, rowId)) {
+      return rowId;
+    }
+
+    if (typeof findObjs !== 'function') {
+      return '';
+    }
+
+    var attrs = findObjs({ _type: 'attribute', _characterid: charId }) || [];
+    for (var i = 0; i < attrs.length; i += 1) {
+      var attr = attrs[i];
+      var name = attr && attr.get('name');
+      if (!name || name.indexOf('repeating_inventory_') !== 0) {
+        continue;
+      }
+      if (!/_itemname$/.test(name)) {
+        continue;
+      }
+      if ((attr.get('current') || '') === PACT_ITEM_NAME) {
+        var parts = name.split('_');
+        if (parts.length >= 4) {
+          rowId = normalizeRowId(parts[2]);
+          if (matchesPactRow(charId, rowId)) {
+            return rowId;
+          }
+        }
+      }
+    }
+
+    return '';
+  }
+
   function ensurePactInventoryRow(charId) {
     if (!charId) {
       return null;
     }
 
-    var storedRow = getAttrCurrent(charId, PACT_ROW_ATTR);
-    var rowId = normalizeRowId(storedRow);
-
-    function matchesRow(id) {
-      var normalized = normalizeRowId(id);
-      if (!normalized) {
-        return false;
-      }
-      var nameAttr = findAttr(charId, 'repeating_inventory_' + normalized + '_itemname');
-      return !!(nameAttr && nameAttr.get('current') === PACT_ITEM_NAME);
-    }
-
-    if (!matchesRow(rowId)) {
-      rowId = '';
-    }
-
-    if (!rowId) {
-      var attrs = findObjs({ _type: 'attribute', _characterid: charId }) || [];
-      for (var i = 0; i < attrs.length; i += 1) {
-        var attr = attrs[i];
-        var name = attr && attr.get('name');
-        if (!name || name.indexOf('repeating_inventory_') !== 0) {
-          continue;
-        }
-        if (!/_itemname$/.test(name)) {
-          continue;
-        }
-        if ((attr.get('current') || '') === PACT_ITEM_NAME) {
-          var parts = name.split('_');
-          if (parts.length >= 4) {
-            rowId = normalizeRowId(parts[2]);
-            break;
-          }
-        }
-      }
-    }
+    var rowId = findExistingPactRowId(charId);
 
     var created = false;
     if (!rowId) {
@@ -203,6 +217,63 @@
     ensureAttrValue(charId, PACT_FLAG_ATTR, 1);
 
     return rowId;
+  }
+
+  function removeAttribute(charId, name) {
+    var attr = findAttr(charId, name);
+    if (!attr || typeof attr.remove !== 'function') {
+      return false;
+    }
+
+    try {
+      attr.remove();
+      return true;
+    } catch (err) {
+      warn('Failed to remove attribute ' + name + ' for ' + charId + ': ' + (err.message || err));
+      return false;
+    }
+  }
+
+  function removePactInventoryRow(charId) {
+    if (!charId || typeof findObjs !== 'function') {
+      return 0;
+    }
+
+    var rowId = findExistingPactRowId(charId);
+    if (!rowId) {
+      return 0;
+    }
+
+    var removed = 0;
+    var prefix = 'repeating_inventory_' + rowId + '_';
+    var attrs = findObjs({ _type: 'attribute', _characterid: charId }) || [];
+
+    for (var i = 0; i < attrs.length; i += 1) {
+      var attr = attrs[i];
+      if (!attr || typeof attr.get !== 'function' || typeof attr.remove !== 'function') {
+        continue;
+      }
+
+      var name = '';
+      try {
+        name = attr.get('name') || '';
+      } catch (errName) {
+        name = '';
+      }
+
+      if (!name || name.indexOf(prefix) !== 0) {
+        continue;
+      }
+
+      try {
+        attr.remove();
+        removed += 1;
+      } catch (errRemove) {
+        warn('Failed to remove pact inventory attr ' + name + ' for ' + charId + ': ' + (errRemove.message || errRemove));
+      }
+    }
+
+    return removed;
   }
 
   function setPactEquipped(charId, rowId, enable) {
@@ -886,7 +957,9 @@ function buildTransfusionDescriptionAction() {
       setPactEquipped(charId, String(rowId).trim(), false);
     }
 
-    ensureAttrValue(charId, PACT_FLAG_ATTR, 0);
+    removePactInventoryRow(charId);
+    removeAttribute(charId, PACT_FLAG_ATTR);
+    removeAttribute(charId, PACT_ROW_ATTR);
   }
 
   if (typeof on === 'function') {
