@@ -398,6 +398,63 @@
     sendChat('Seraphine','/w "'+who+'" Overheat cleared. (Start of your turn reminder.)');
   }
 
+  // !seraphine-staff-dmg [--char <id>] [--crit 0|1]
+  function handleStaffDamageCommand(msg, args){
+    var who = msgWho(msg);
+    var opts = parseOpts(args||[]);
+    var charId = charFromMsgOrArg(msg, opts.char);
+    if (!charId){ sendChat('Seraphine','/w "'+who+'" ⚠️ Select a token (or use --char <id>).'); return; }
+
+    var rest = opts.rest || [];
+    var critFlag = 0;
+    for (var i = 0; i < rest.length; i++){
+      var raw = String(rest[i]||'');
+      var low = raw.toLowerCase();
+      if (low === '--crit'){
+        var next = rest[i+1];
+        critFlag = parseInt(next||'0', 10);
+        if (isNaN(critFlag)) critFlag = 0;
+        i++;
+      } else if (low.indexOf('--crit=') === 0){
+        var val = raw.split('=')[1];
+        critFlag = parseInt(val||'0', 10);
+        if (isNaN(critFlag)) critFlag = 0;
+      }
+    }
+    critFlag = critFlag ? 1 : 0;
+
+    var spellMod = getSpellModFromSheet(charId);
+    var overheated = isOverheated(charId);
+
+    var baseDice = critFlag ? 2 : 1;
+    var dmgRoll = '[[ ' + baseDice + 'd8 + (' + spellMod + ') ]]';
+
+    var tmpl = [
+      '&{template:dmg}',
+      '{{rname=Emberwright’s Staff}}',
+      '{{range=melee}}',
+      '{{damage=1}}',
+      '{{dmg1flag=1}}',
+      '{{dmg1=' + dmgRoll + '}}',
+      '{{dmg1type=bludgeoning (magical)}}'
+    ];
+
+    if (overheated){
+      var fireDice = critFlag ? 4 : 2;
+      tmpl.push('{{dmg2flag=1}}');
+      tmpl.push('{{dmg2=[[ ' + fireDice + 'd8 ]]}}');
+      tmpl.push('{{dmg2type=fire (Overheat)}}');
+      tmpl.push('{{desc=Overheated: Staff gains +2d8 fire (doubled on crit) and reach 15 ft until your next turn. Use !seraphine-overheat-clear at the start of your turn.}}');
+    } else {
+      tmpl.push('{{dmg2flag=0}}');
+      tmpl.push('{{desc=On hit: Stoke +25 Heat (cantrip: +10). Overheated hits add +2d8 fire.}}');
+    }
+
+    tmpl.push('{{always=1}}');
+
+    sendChat('Seraphine', tmpl.join(' '));
+  }
+
   // !seraphine-staff-attack [--char <id>]
   function handleStaffAttackCommand(msg, args){
     var who = msgWho(msg);
@@ -419,6 +476,7 @@
       if (cmd === '!seraphine-heat')              handleHeatCommand(msg, args);
       else if (cmd === '!seraphine-vent')         handleVentCommand(msg, args);
       else if (cmd === '!seraphine-overheat-clear') handleOverheatClear(msg, args);
+      else if (cmd === '!seraphine-staff-dmg')    handleStaffDamageCommand(msg, args);
       else if (cmd === '!seraphine-staff-attack') handleStaffAttackCommand(msg, args);
     });
 
