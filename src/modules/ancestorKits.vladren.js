@@ -117,7 +117,7 @@
     // Single 5E dmg template: save banner + damage + link to the description ability.
     return (
       '&{template:dmg} ' +
-      '{{rname=🩸 Transfusion}} ' +
+      '{{rname=[🩸 Transfusion](~selected|Transfusion - Description)}} ' +
       '{{range=60 ft}} ' +
       '{{damage=1}} ' +
       '{{dmg1flag=1}} ' +
@@ -126,8 +126,7 @@
       '{{save=1}} ' +
       '{{saveattr=CON}} ' +
       '{{savedc=' + saveDC + '}} ' +
-      '{{savedesc=Half damage on success.}} ' +
-      '{{desc=[Ability Description](~selected|Transfusion — Description)}}'
+      '{{savedesc=Half damage on success.}}'
     );
   }
 
@@ -611,7 +610,7 @@
       abilities: [
         { name: 'Crimson Pact (Info)', action: buildCrimsonPactAction(), tokenAction: true },
         { name: 'Transfusion (Bonus)', action: buildTransfusionAction(), tokenAction: true },
-        { name: 'Transfusion — Description', action: buildTransfusionDescriptionAction(), tokenAction: false },
+        { name: 'Transfusion - Description', action: buildTransfusionDescriptionAction(), tokenAction: false },
         { name: 'Sanguine Pool (Reaction • 1/room)', action: buildSanguinePoolAction(), tokenAction: true },
         { name: 'Hemoplague (1/room)', action: buildHemoplagueAction(), tokenAction: true }
       ],
