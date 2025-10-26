@@ -8,7 +8,7 @@ This guide captures the quick checks we run whenever the Hoard Run mod fails to 
 ```js
 on('ready', () => {
   log('=== Hoard Run v1.0.0 initialized ===');
-  sendChat('Hoard Run', '/w gm ✅ Hoard Run ready. Type !startrun to begin.');
+  sendChat('Hoard Run', '/w gm ✅ Hoard Run ready. Type !start to begin.');
 });
 ```
 

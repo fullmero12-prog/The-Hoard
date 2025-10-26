@@ -550,7 +550,7 @@ var RunFlowManager = (function () {
   function handleSelectWeapon(playerid, arg) {
     var run = getRun();
     if (!run.started) {
-      whisperText(playerid, '⚠️ No active run. Ask the GM to use <b>!startrun</b> first.');
+      whisperText(playerid, '⚠️ No active run. Ask the GM to use <b>!start</b> first.');
       return;
     }
 
@@ -680,7 +680,7 @@ var RunFlowManager = (function () {
     try {
       run = getRun();
       if (!run.started) {
-        whisperText(playerid, '⚠️ No active run. Use <b>!startrun</b> first.');
+        whisperText(playerid, '⚠️ No active run. Use <b>!start</b> first.');
         return;
       }
 
@@ -873,7 +873,7 @@ var RunFlowManager = (function () {
     var argString = parsed[2] || '';
 
     switch (command.toLowerCase()) {
-      case '!startrun':
+      case '!start':
         handleStartRun(msg.playerid);
         break;
       case '!selectweapon':
