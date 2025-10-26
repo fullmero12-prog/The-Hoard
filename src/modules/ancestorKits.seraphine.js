@@ -57,6 +57,36 @@
     return findAttr(charId, name);
   }
 
+  function ensureAbility(charId, abilityName, action, isTokenAction){
+    if (!charId || !abilityName) return null;
+
+    var ability = (findObjs({
+      _type:'ability',
+      _characterid:charId,
+      name:abilityName
+    }) || [])[0];
+
+    try {
+      if (!ability){
+        ability = createObj('ability', {
+          _characterid:charId,
+          name:abilityName,
+          action:action || '',
+          istokenaction:!!isTokenAction
+        });
+      } else {
+        ability.set({
+          action:action || '',
+          istokenaction:!!isTokenAction
+        });
+      }
+    } catch (err) {
+      return null;
+    }
+
+    return ability || null;
+  }
+
   function getAttributeInt(characterId, names){
     if (!characterId) return null;
     var list = Array.isArray(names) ? names.slice() : [names];
@@ -480,6 +510,7 @@
     ensureAttrValue(charId, HEAT_ATTR, 0);
     ensureAttrValue(charId, HEAT_CAP_ATTR, 100);
     ensureAttrValue(charId, OVERHEAT_FLAG, 0);
+    ensureAbility(charId, 'Seraphine_Staff_Damage', '!seraphine-staff-dmg --char @{selected|character_id} --crit ?{Critical hit?|No,0|Yes,1}', false);
 
     // Install Seraphine's Always Prepared list
     if (typeof SpellbookHelper !== 'undefined'){
