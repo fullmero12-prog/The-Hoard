@@ -85,22 +85,22 @@
     if (!toHit) toHit = pb + sm;
 
     var ohActive = isOverheated(charId);
-    var dmg2flag = ohActive ? '1' : '0';
-    var dmg2roll = ohActive ? '[[ 2d8 ]]' : '0';
+    var desc = 'Use your spellcasting ability for attack & damage. On hit: click the staff name above to roll damage, then press <b>Stoke +25</b> (cantrip hit = <b>Stoke +10</b>).';
+    if (ohActive){
+      desc += ' <b>Overheated:</b> Staff damage adds +2d8 fire and reach is 15 ft until your next turn.';
+    } else {
+      desc += ' Overheated hits add +2d8 fire and extend reach to 15 ft until your next turn.';
+    }
 
     return (
       '&{template:atk} ' +
       '{{attack=1}} ' +
-      '{{rname=Emberwright’s Staff}} {{rnamec=Emberwright’s Staff}} ' +
+      '{{rname=[Emberwright’s Staff](~selected|Seraphine_Staff_Damage)}} {{rnamec=Emberwright’s Staff}} ' +
       '{{mod=' + toHit + '}} ' +
       '{{r1=[[ 1d20 + ' + toHit + ' ]]}} ' +
       '{{r2=[[ 1d20 + ' + toHit + ' ]]}} ' +
       '{{range=melee (reach 10 ft; 15 ft while Overheated)}} ' +
-      '{{desc=Use your spellcasting ability for attack & damage. On hit: click <b>Stoke +25</b> (cantrip hit = <b>Stoke +10</b>).}} ' +
-      '{{damage=1}} ' +
-      '{{dmg1flag=1}} {{dmg1=[[ 1d8 + ' + sm + ' ]]}} {{dmg1type=bludgeoning (magical)}} ' +
-      '{{crit1=[[ 1d8 ]]}} ' +
-      '{{dmg2flag=' + dmg2flag + '}} {{dmg2=' + dmg2roll + '}} {{dmg2type=fire (Overheat)}} ' +
+      '{{desc=' + desc + '}} ' +
       '{{always=1}}'
     );
   }
