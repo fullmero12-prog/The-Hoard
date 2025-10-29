@@ -27,10 +27,15 @@ var BoonDataLoader = (function () {
     }
   }
 
-  function fromRegistry() {
+  function buildDeckSource() {
+    if (typeof BoonData !== 'undefined' && BoonData && typeof BoonData.getDecks === 'function') {
+      return BoonData.getDecks();
+    }
+
     if (typeof AncestorRegistry !== 'undefined' && AncestorRegistry && typeof AncestorRegistry.getBoonDecks === 'function') {
       return AncestorRegistry.getBoonDecks();
     }
+
     return {};
   }
 
@@ -39,14 +44,14 @@ var BoonDataLoader = (function () {
       state.HoardRun = {};
     }
 
-    var decks = fromRegistry();
+    var decks = buildDeckSource();
     state.HoardRun.boons = decks;
 
     var count = Object.keys(decks).length;
     if (count > 0) {
-      info('Loaded ' + count + ' ancestor boon decks from registry.');
+      info('Loaded ' + count + ' ancestor boon decks from catalog.');
     } else {
-      warn('Registry returned no boon decks; state.HoardRun.boons is empty.');
+      warn('Boon catalog returned no decks; state.HoardRun.boons is empty.');
     }
   }
 
