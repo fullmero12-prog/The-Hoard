@@ -1116,6 +1116,7 @@ var DevTools = (function () {
     var apCleanup = { abilitiesRemoved: 0, attributesRemoved: 0 };
     var tokenAbilityCleanup = removeHoardTokenAbilities();
     var relicRowCleanup = { rowsRemoved: 0, relicsProcessed: 0 };
+    var effectCleanup = { trackedRemoved: 0, wipeRemoved: 0, orphanRemoved: 0, charactersCleared: 0 };
     if (
       typeof SpellbookHelper !== 'undefined' &&
       SpellbookHelper &&
@@ -1192,6 +1193,83 @@ var DevTools = (function () {
       }
     }
 
+    if (state && state.HoardRun && state.HoardRun.players) {
+      var playerMap = state.HoardRun.players;
+      for (var effectPid in playerMap) {
+        if (!playerMap.hasOwnProperty(effectPid)) {
+          continue;
+        }
+
+        var effectState = playerMap[effectPid] || {};
+
+        if (
+          typeof StateManager !== 'undefined' &&
+          StateManager &&
+          typeof StateManager.releaseTrackedEffects === 'function'
+        ) {
+          effectCleanup.trackedRemoved += StateManager.releaseTrackedEffects(effectPid, { silent: true });
+        } else if (
+          effectState.effectHandles &&
+          effectState.effectHandles.length &&
+          typeof EffectEngine !== 'undefined' &&
+          EffectEngine &&
+          typeof EffectEngine.remove === 'function'
+        ) {
+          for (var eh = 0; eh < effectState.effectHandles.length; eh += 1) {
+            try {
+              var handleId = effectState.effectHandles[eh];
+              if (!handleId) {
+                continue;
+              }
+              var removeResult = EffectEngine.remove(handleId);
+              if (removeResult && removeResult.ok) {
+                effectCleanup.trackedRemoved += 1;
+              }
+            } catch (effectErr) {
+              // Ignore; handled via wipe below.
+            }
+          }
+          effectState.effectHandles = [];
+        }
+
+        if (
+          effectState.boundCharacterId &&
+          typeof EffectEngine !== 'undefined' &&
+          EffectEngine &&
+          typeof EffectEngine.wipeCharacter === 'function'
+        ) {
+          var removedInstances = EffectEngine.wipeCharacter(effectState.boundCharacterId) || 0;
+          if (removedInstances && removedInstances > 0) {
+            effectCleanup.wipeRemoved += removedInstances;
+          }
+          effectCleanup.charactersCleared += 1;
+        }
+      }
+    }
+
+    if (
+      typeof EffectEngine !== 'undefined' &&
+      EffectEngine &&
+      typeof EffectEngine.listActiveEffects === 'function' &&
+      typeof EffectEngine.remove === 'function'
+    ) {
+      var lingering = EffectEngine.listActiveEffects();
+      for (var li = 0; li < lingering.length; li += 1) {
+        var record = lingering[li];
+        if (!record || !record.id) {
+          continue;
+        }
+        try {
+          var removal = EffectEngine.remove(record.id);
+          if (removal && removal.ok) {
+            effectCleanup.orphanRemoved += 1;
+          }
+        } catch (lingerErr) {
+          // Suppress — manual cleanup may be required.
+        }
+      }
+    }
+
     resetHandouts();
     var removedAttrs = purgeHelperAttributes();
     delete state.HoardRun;
@@ -1214,6 +1292,22 @@ var DevTools = (function () {
     var hoardTokenSuffix = hoardTokenActionsRemoved === 1 ? '' : 's';
     var hoardInventoryRowsRemoved = relicRowCleanup && relicRowCleanup.rowsRemoved ? relicRowCleanup.rowsRemoved : 0;
     var hoardInventorySuffix = hoardInventoryRowsRemoved === 1 ? '' : 's';
+    var totalEffectsRemoved = effectCleanup.trackedRemoved + effectCleanup.wipeRemoved + effectCleanup.orphanRemoved;
+    var effectSuffix = totalEffectsRemoved === 1 ? '' : 's';
+    var effectCharSuffix = effectCleanup.charactersCleared === 1 ? '' : 's';
+    var effectSummary = '';
+    if (totalEffectsRemoved > 0 || effectCleanup.charactersCleared > 0) {
+      effectSummary =
+        ' Cleared ' +
+        totalEffectsRemoved +
+        ' stored effect instance' +
+        effectSuffix +
+        (effectCleanup.charactersCleared > 0
+          ? ' across ' + effectCleanup.charactersCleared + ' character' + effectCharSuffix
+          : '') +
+        '.';
+    }
+
     gmSay(
       '⚙️ HoardRun state has been reset. Removed ' +
         removedAttrs +
@@ -1248,7 +1342,9 @@ var DevTools = (function () {
         hoardInventoryRowsRemoved +
         ' Hoard inventory row' +
         hoardInventorySuffix +
-        '. Relic-item pipeline automation is offline; apply sheet adjustments manually until it returns.'
+        '.' +
+        effectSummary +
+        ' Relic-item pipeline automation is offline; apply sheet adjustments manually until it returns.'
     );
   }
 
