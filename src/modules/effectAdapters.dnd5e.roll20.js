@@ -1706,8 +1706,7 @@
     return { applied: applied };
   }
 
-  if (adapterRegistry) {
-    adapterRegistry.registerAdapter({
+  var roll20AdapterDefinition = {
     name: 'dnd5e-roll20',
     detect: function (character) {
       var charId = character ? character.id : null;
@@ -1735,7 +1734,15 @@
     purgeHoardInventory: function (charId) {
       return purgeHoardRelicInventory(charId);
     }
-  });
+  };
+
+  if (adapterRegistry && typeof adapterRegistry.registerAdapter === 'function') {
+    adapterRegistry.registerAdapter(roll20AdapterDefinition);
+  } else {
+    if (!root.__HoardPendingAdapters) {
+      root.__HoardPendingAdapters = [];
+    }
+    root.__HoardPendingAdapters.push(roll20AdapterDefinition);
   }
 
   var helper = root.EffectAdaptersDnd5eRoll20 || {};
@@ -1749,6 +1756,10 @@
   helper.applyAdapterPatch = function (charId, patch, effect) {
     return applyPatch(charId, patch, effect);
   };
+  helper.removeAdapterPatch = function (charId, patch, effect) {
+    return removePatch(charId, patch, effect);
+  };
   helper.applyAdapterPatches = applyAdapterPatches;
+  helper.purgeHoardInventory = purgeHoardRelicInventory;
   root.EffectAdaptersDnd5eRoll20 = helper;
 })();
