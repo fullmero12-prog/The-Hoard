@@ -27,6 +27,18 @@ on('ready', function () {
     SpellbookHelper.register();
   }
 
+  if (typeof EffectAdapters !== 'undefined' && EffectAdapters.register) {
+    EffectAdapters.register();
+  }
+
+  if (typeof EffectRegistry !== 'undefined' && EffectRegistry.register) {
+    EffectRegistry.register();
+  }
+
+  if (typeof EffectEngine !== 'undefined' && EffectEngine.register) {
+    EffectEngine.register();
+  }
+
   if (typeof AncestorRegistry !== 'undefined' && AncestorRegistry.register) {
     AncestorRegistry.register();
   }

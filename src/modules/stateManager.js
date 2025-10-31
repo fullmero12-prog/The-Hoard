@@ -191,7 +191,15 @@ var StateManager = (function () {
       SpellbookHelper.removeAlwaysPreparedForCharacter(existing.boundCharacterId);
     }
 
-    // TODO: Wire up the replacement effect pipeline to clean relic/boon artifacts during resets.
+    if (
+      existing &&
+      existing.boundCharacterId &&
+      typeof EffectEngine !== 'undefined' &&
+      EffectEngine &&
+      typeof EffectEngine.wipeCharacter === 'function'
+    ) {
+      EffectEngine.wipeCharacter(existing.boundCharacterId);
+    }
 
     var fresh = cloneDefaultPlayerState();
     state.HoardRun.players[playerid] = fresh;
