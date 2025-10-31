@@ -1292,35 +1292,80 @@ var ShopManager = (function () {
         }
       }
     } else if (slot.type === "boon") {
+      record.effectInstanceId = null;
       playerState.boons.push(record);
 
       var boonCharId = playerState && playerState.boundCharacterId;
-      var boonHelper = (typeof EffectAdaptersDnd5eRoll20 !== 'undefined') ? EffectAdaptersDnd5eRoll20 : null;
       var boonName = slot.cardName || 'Ancestor Boon';
       var boonDescription = extractBoonDescription(slot, card);
       var buyer = getPlayerDisplayName(playerid);
 
       if (!boonCharId) {
         whisperGM('Boon "' + boonName + '" bought by ' + buyer + ' has no bound character. Token action not created.');
-      } else if (!boonHelper) {
-        whisperGM('Boon "' + boonName + '" for ' + buyer + ' could not auto-apply — helper unavailable.');
       } else {
-        if (typeof boonHelper.ensureBoonAbility === 'function') {
-          var boonAbility = boonHelper.ensureBoonAbility(boonCharId, {
-            boonName: boonName,
-            ancestor: slot.ancestorName,
-            description: boonDescription
-          });
-          if (!boonAbility || !boonAbility.ok) {
-            whisperGM('Boon "' + boonName + '" for ' + buyer + ' could not create a token action.');
+        var effectApplied = false;
+        var effectIdForBoon = normalizeEffectId(
+          (record && record.effectId) ||
+          slot.effectId ||
+          (record && record.data && (record.data.effectId || record.data.id)) ||
+          record.id ||
+          cardId ||
+          slot.cardName
+        );
+
+        if (effectIdForBoon && typeof EffectEngine !== 'undefined' && EffectEngine && typeof EffectEngine.apply === 'function') {
+          var effectOptions = {
+            characterId: boonCharId,
+            card: record && record.data ? record.data : (slot.cardData || null),
+            description: boonDescription,
+            source: {
+              type: 'boon',
+              ancestor: slot.ancestorName || record.ancestor || null,
+              playerId: playerid || null,
+              playerName: buyer,
+              boonId: record.id || (record.data && (record.data.id || record.data.cardId)) || null,
+              boonName: boonName,
+              rarity: record.rarity || slot.rarity || null,
+              shopPurchase: true
+            },
+            boon: record
+          };
+
+          var boonEffectResult = EffectEngine.apply(effectIdForBoon, effectOptions);
+          if (boonEffectResult && boonEffectResult.ok) {
+            record.effectInstanceId = boonEffectResult.instanceId || null;
+            effectApplied = true;
+          } else {
+            var effectReason = (boonEffectResult && boonEffectResult.reason) ? boonEffectResult.reason : 'unknown';
+            whisperGM('EffectEngine could not apply boon "' + boonName + '" for ' + buyer + ' (reason: ' + effectReason + '). Falling back to legacy macro creation.');
           }
+        } else if (effectIdForBoon && (typeof EffectEngine === 'undefined' || !EffectEngine || typeof EffectEngine.apply !== 'function')) {
+          whisperGM('EffectEngine unavailable when granting boon "' + boonName + '" for ' + buyer + '. Falling back to legacy macro creation.');
         }
 
-        if (boonDescription && typeof boonHelper.needsAttributeAssistance === 'function' && boonHelper.needsAttributeAssistance(boonDescription)) {
-          if (typeof boonHelper.appendBoonNote === 'function') {
-            boonHelper.appendBoonNote(boonCharId, boonName + ': ' + boonDescription);
+        if (!effectApplied) {
+          var boonHelper = (typeof EffectAdaptersDnd5eRoll20 !== 'undefined') ? EffectAdaptersDnd5eRoll20 : null;
+          if (!boonHelper) {
+            whisperGM('Boon "' + boonName + '" for ' + buyer + ' could not auto-apply — helper unavailable.');
+          } else {
+            if (typeof boonHelper.ensureBoonAbility === 'function') {
+              var boonAbility = boonHelper.ensureBoonAbility(boonCharId, {
+                boonName: boonName,
+                ancestor: slot.ancestorName,
+                description: boonDescription
+              });
+              if (!boonAbility || !boonAbility.ok) {
+                whisperGM('Boon "' + boonName + '" for ' + buyer + ' could not create a token action.');
+              }
+            }
+
+            if (boonDescription && typeof boonHelper.needsAttributeAssistance === 'function' && boonHelper.needsAttributeAssistance(boonDescription)) {
+              if (typeof boonHelper.appendBoonNote === 'function') {
+                boonHelper.appendBoonNote(boonCharId, boonName + ': ' + boonDescription);
+              }
+              whisperGM('Boon "' + boonName + '" for ' + buyer + ' may require manual attribute adjustments.');
+            }
           }
-          whisperGM('Boon "' + boonName + '" for ' + buyer + ' may require manual attribute adjustments.');
         }
       }
     } else if (slot.type === "upgrade") {
