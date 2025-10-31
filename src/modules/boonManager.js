@@ -198,24 +198,63 @@ var BoonManager = (function () {
     return '';
   }
 
-  function applyBoonToCharacter(playerState, boonRecord, ancestorName, playerLabel) {
+  function applyBoonToCharacter(playerState, boonRecord, ancestorName, playerLabel, playerid) {
+    var outcome = { ok: false, effectInstanceId: null };
+
     if (!playerState) {
-      return;
+      return outcome;
     }
 
     var charId = playerState.boundCharacterId;
     if (!charId) {
       gmSay('Boon "' + _.escape(boonRecord.name) + '" for ' + playerLabel + ' could not attach to a character — no binding set.');
-      return;
+      return outcome;
+    }
+
+    var description = boonRecord.description || resolveBoonDescription(boonRecord.data || boonRecord);
+    var effectId = normalizeEffectId(boonRecord && (boonRecord.effectId || (boonRecord.data && (boonRecord.data.effectId || boonRecord.data.id)) || boonRecord.id || boonRecord.name));
+    var cardData = boonRecord && boonRecord.data ? boonRecord.data : null;
+    var resolvedAncestor = ancestorName || (boonRecord && boonRecord.ancestor) || null;
+    var resolvedRarity = (boonRecord && boonRecord.rarity) || (cardData && (cardData._rarity || cardData.rarity || cardData.rarityLabel)) || null;
+
+    if (effectId && typeof EffectEngine !== 'undefined' && EffectEngine && typeof EffectEngine.apply === 'function') {
+      var effectOptions = {
+        characterId: charId,
+        card: cardData,
+        description: description,
+        source: {
+          type: 'boon',
+          ancestor: resolvedAncestor,
+          playerId: playerid || null,
+          playerName: playerLabel || null,
+          boonId: (boonRecord && boonRecord.id) || (cardData && (cardData.id || cardData.cardId)) || null,
+          boonName: (boonRecord && boonRecord.name) || (cardData && cardData.name) || null,
+          rarity: resolvedRarity
+        },
+        boon: boonRecord
+      };
+
+      var engineResult = EffectEngine.apply(effectId, effectOptions);
+      if (engineResult && engineResult.ok) {
+        outcome.ok = true;
+        outcome.effectInstanceId = engineResult.instanceId || null;
+        outcome.mode = 'effect-engine';
+        outcome.result = engineResult;
+        return outcome;
+      }
+
+      var reason = (engineResult && engineResult.reason) ? engineResult.reason : 'unknown';
+      gmSay('EffectEngine could not apply boon "' + _.escape(boonRecord.name || effectId) + '" for ' + playerLabel + ' (reason: ' + reason + '). Falling back to legacy macro creation.');
+    } else if (effectId && (typeof EffectEngine === 'undefined' || !EffectEngine || typeof EffectEngine.apply !== 'function')) {
+      gmSay('EffectEngine unavailable when granting boon "' + _.escape(boonRecord.name || effectId) + '" to ' + playerLabel + '. Falling back to legacy macro creation.');
     }
 
     var helper = (typeof EffectAdaptersDnd5eRoll20 !== 'undefined') ? EffectAdaptersDnd5eRoll20 : null;
     if (!helper) {
       gmSay('Effect helper unavailable when granting boon "' + _.escape(boonRecord.name) + '" to ' + playerLabel + '.');
-      return;
+      return outcome;
     }
 
-    var description = boonRecord.description || resolveBoonDescription(boonRecord.data || boonRecord);
     var abilityResult = null;
     if (typeof helper.ensureBoonAbility === 'function') {
       abilityResult = helper.ensureBoonAbility(charId, {
@@ -227,6 +266,8 @@ var BoonManager = (function () {
 
     if (!abilityResult || !abilityResult.ok) {
       gmSay('Failed to create a token action for boon "' + _.escape(boonRecord.name) + '" on the bound character.');
+    } else {
+      outcome.ok = true;
     }
 
     if (description && typeof helper.needsAttributeAssistance === 'function' && helper.needsAttributeAssistance(description)) {
@@ -236,6 +277,8 @@ var BoonManager = (function () {
       }
       gmSay('Manual follow-up may be required for boon "' + _.escape(boonRecord.name) + '" (' + playerLabel + '): attribute adjustments not automated.');
     }
+
+    return outcome;
   }
 
   function buildOwnedBoonMap(playerid) {
@@ -687,7 +730,7 @@ var BoonManager = (function () {
 
     var effectId = normalizeEffectId(picked.effectId || picked.id || picked.name);
     var description = resolveBoonDescription(picked);
-    ps.boons.push({
+    var storedRecord = {
       id: picked.id || picked.name,
       name: picked.name,
       effectId: effectId,
@@ -695,8 +738,11 @@ var BoonManager = (function () {
       ancestor: offer.ancestor,
       acquiredAt: new Date().toISOString(),
       cost: cost,
-      description: description
-    });
+      description: description,
+      effectInstanceId: null
+    };
+
+    ps.boons.push(storedRecord);
 
     delete offers[playerid];
 
@@ -705,13 +751,19 @@ var BoonManager = (function () {
     ensureBoonHandout(playerid, picked, offer.ancestor);
 
     var playerName = getPlayerName(playerid);
-    applyBoonToCharacter(ps, {
+    var application = applyBoonToCharacter(ps, {
       name: picked.name,
       effectId: effectId,
       ancestor: offer.ancestor,
       description: description,
-      data: picked
-    }, offer.ancestor, playerName);
+      data: picked,
+      rarity: rarity,
+      id: picked.id || picked.name
+    }, offer.ancestor, playerName, playerid);
+
+    if (application && application.effectInstanceId) {
+      storedRecord.effectInstanceId = application.effectInstanceId;
+    }
 
     var message = '🌟 You gained <b>' + _.escape(picked.name) + '</b> (' + rarityLabel(rarity) + ')';
     if (cost > 0) {
