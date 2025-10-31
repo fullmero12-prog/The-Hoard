@@ -25,6 +25,14 @@ var StateManager = (function () {
     }
   }
 
+  function warn(message) {
+    if (logger && logger.warn) {
+      logger.warn('StateManager', message);
+    } else {
+      log('[Hoard Run] [StateManager] ⚠️ ' + message);
+    }
+  }
+
   var DEFAULT_PLAYER_STATE = {
     focus: null,
     ancestor_id: null,
@@ -38,7 +46,8 @@ var StateManager = (function () {
     firstClearAwarded: false,
     boons: [],
     relics: [],
-    upgrades: []
+    upgrades: [],
+    effectHandles: []
   };
 
   function cloneDefaultPlayerState() {
@@ -74,6 +83,46 @@ var StateManager = (function () {
     return normalized;
   }
 
+  function normalizeEffectHandles(entries) {
+    var normalized = [];
+    var seen = {};
+
+    if (!entries || !Array.isArray(entries)) {
+      return normalized;
+    }
+
+    for (var i = 0; i < entries.length; i += 1) {
+      var handle = entries[i];
+      var id = null;
+
+      if (!handle) {
+        continue;
+      }
+
+      if (typeof handle === 'string') {
+        id = handle;
+      } else if (typeof handle === 'number') {
+        id = String(handle);
+      } else if (typeof handle === 'object' && handle.id) {
+        id = String(handle.id);
+      }
+
+      if (!id) {
+        continue;
+      }
+
+      id = String(id).trim();
+      if (!id || seen[id]) {
+        continue;
+      }
+
+      seen[id] = true;
+      normalized.push(id);
+    }
+
+    return normalized;
+  }
+
   function applyDefaultStateShape(playerState) {
     var defaults = cloneDefaultPlayerState();
     var result = playerState || {};
@@ -86,6 +135,7 @@ var StateManager = (function () {
     }
 
     result.relics = normalizeRelicList(result.relics);
+    result.effectHandles = normalizeEffectHandles(result.effectHandles);
 
     return result;
   }
@@ -181,6 +231,11 @@ var StateManager = (function () {
     init();
 
     var existing = state.HoardRun.players[playerid] || null;
+
+    if (existing) {
+      releaseTrackedEffects(playerid, { silent: true });
+    }
+
     if (
       existing &&
       existing.boundCharacterId &&
@@ -204,6 +259,50 @@ var StateManager = (function () {
     var fresh = cloneDefaultPlayerState();
     state.HoardRun.players[playerid] = fresh;
     return state.HoardRun.players[playerid];
+  }
+
+  function releaseTrackedEffects(playerid, options) {
+    options = options || {};
+    init();
+
+    var players = state.HoardRun.players || {};
+    var playerState = players[playerid];
+    if (!playerState) {
+      return 0;
+    }
+
+    var handles = normalizeEffectHandles(playerState.effectHandles);
+    var removed = 0;
+
+    if (
+      handles.length &&
+      typeof EffectEngine !== 'undefined' &&
+      EffectEngine &&
+      typeof EffectEngine.remove === 'function'
+    ) {
+      for (var i = 0; i < handles.length; i += 1) {
+        var handle = handles[i];
+        try {
+          var result = EffectEngine.remove(handle);
+          if (result && result.ok) {
+            removed += 1;
+          }
+        } catch (err) {
+          if (!options.silent) {
+            warn('Failed to remove effect instance ' + handle + ' during cleanup: ' + err.message);
+          }
+        }
+      }
+    }
+
+    playerState.effectHandles = [];
+    players[playerid] = playerState;
+
+    if (removed && !options.silent) {
+      info('Removed ' + removed + ' effect instance(s) for player ' + playerid + '.');
+    }
+
+    return removed;
   }
 
   /**
@@ -351,6 +450,48 @@ var StateManager = (function () {
 
   /** Clears all data (use with care!) */
   function resetAll() {
+    init();
+
+    var players = state.HoardRun.players || {};
+    for (var pid in players) {
+      if (!players.hasOwnProperty(pid)) {
+        continue;
+      }
+
+      releaseTrackedEffects(pid, { silent: true });
+
+      var snapshot = players[pid];
+      if (
+        snapshot &&
+        snapshot.boundCharacterId &&
+        typeof EffectEngine !== 'undefined' &&
+        EffectEngine &&
+        typeof EffectEngine.wipeCharacter === 'function'
+      ) {
+        EffectEngine.wipeCharacter(snapshot.boundCharacterId);
+      }
+    }
+
+    if (
+      typeof EffectEngine !== 'undefined' &&
+      EffectEngine &&
+      typeof EffectEngine.listActiveEffects === 'function' &&
+      typeof EffectEngine.remove === 'function'
+    ) {
+      var remaining = EffectEngine.listActiveEffects();
+      for (var r = 0; r < remaining.length; r += 1) {
+        var record = remaining[r];
+        if (!record || !record.id) {
+          continue;
+        }
+        try {
+          EffectEngine.remove(record.id);
+        } catch (err) {
+          warn('Failed to purge lingering effect instance ' + record.id + ' during global reset: ' + err.message);
+        }
+      }
+    }
+
     state.HoardRun = { players: {}, shops: {} };
     info('All HoardRun data cleared.');
   }
@@ -371,6 +512,7 @@ var StateManager = (function () {
     addCurrency: addCurrency,
     findPlayersByCharacter: findPlayersByCharacter,
     resetPlayerRun: resetPlayerRun,
+    releaseTrackedEffects: releaseTrackedEffects,
     setCurrentRoom: setCurrentRoom,
     incrementRoom: incrementRoom,
     getCorridor: getCorridor,
