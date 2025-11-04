@@ -257,11 +257,20 @@ var BoonManager = (function () {
 
     var abilityResult = null;
     if (typeof helper.ensureBoonAbility === 'function') {
-      abilityResult = helper.ensureBoonAbility(charId, {
+      var abilityPayload = {
         boonName: boonRecord.name,
         ancestor: ancestorName,
         description: description
-      });
+      };
+
+      if (effectId === 'vladren_sovereign_pool') {
+        abilityPayload.rows = [
+          { label: 'Recharge Roll', value: '[[ 1d6 ]] → 5–6 refreshes Sanguine Pool while you have ≥10 temp HP.' },
+          { label: 'Movement Bonus', value: '+15 ft move when you enter Sanguine Pool while you have ≥10 temp HP.' }
+        ];
+      }
+
+      abilityResult = helper.ensureBoonAbility(charId, abilityPayload);
     }
 
     if (!abilityResult || !abilityResult.ok) {
