@@ -37,4 +37,5 @@
 - `!seraphine-vent [--char <id>]` — Resolves the Vent action (drops Heat to 0 and prints the Dex save DC and damage dice).
 - `!seraphine-overheat-clear [--char <id>]` — Clears the Overheat reminder flag (typically at the start of the turn after Overheating).
 - `!seraphine-staff-attack [--char <id>]` — Provides the Emberwright’s Staff attack template (uses sheet spell attack bonus and spellcasting modifier for damage).
+- `!morvox-malice [add|spend|set <N>|setmax <N>|reset|show] [--char <id>]` — Adjust or inspect Morvox’s Phenomenal Malice pool for the selected token. Adds defaults of +1/-1 when no value is supplied and whispers the updated total/max to the controller.
 
