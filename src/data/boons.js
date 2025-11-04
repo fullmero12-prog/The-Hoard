@@ -242,7 +242,7 @@ var BoonData = (function () {
       id: 'vladren_sovereign_pool',
       effectId: 'vladren_sovereign_pool',
       name: 'Sovereign Pool',
-      text_in_run: 'Sanguine Pool gains +15 ft move when you enter it and recharges on 5–6 at the start of your turn while you have ≥10 temp HP.',
+      text_in_run: 'Sanguine Pool gains +15 ft move when you enter it. While you have ≥10 temp HP, roll 1d6 at the start of your turn; on 5–6, Sanguine Pool refreshes.',
       hook: 'Resource'
     },
     {

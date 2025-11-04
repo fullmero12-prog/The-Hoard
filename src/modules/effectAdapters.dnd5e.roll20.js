@@ -1573,6 +1573,35 @@
     return '&{template:default}{{name=' + safeTitle + '}}{{Effect=' + safeBody + '}}';
   }
 
+  function buildTemplateRowsAction(title, rows) {
+    var safeTitle = escapeTemplateSegment(title);
+    var parts = ['&{template:default}{{name=' + safeTitle + '}}'];
+
+    if (rows && rows.length) {
+      for (var i = 0; i < rows.length; i += 1) {
+        var row = rows[i];
+        if (!row) {
+          continue;
+        }
+
+        var key = escapeTemplateSegment(row.label || row.key || '');
+        if (!key) {
+          continue;
+        }
+
+        var value = row.value;
+        if (value === undefined || value === null) {
+          value = row.text || '';
+        }
+
+        var safeValue = escapeTemplateSegment(value).replace(/\r?\n/g, ' ');
+        parts.push('{{' + key + '=' + (safeValue || ' ') + '}}');
+      }
+    }
+
+    return parts.join('');
+  }
+
   /**
    * Developer note – helper payloads:
    *
@@ -1580,6 +1609,8 @@
    *   • Requires charId.
    *   • payload.boonName (preferred) or payload.name builds the button label.
    *   • payload.description is optional; blank becomes "See Hoard handout...".
+   *   • payload.rows optionally supplies template rows ({label,value}) instead of description.
+   *   • payload.action optionally provides a full macro (rows/description ignored when present).
    *   • payload.ancestor is optional and appended to the label when present.
    *
    * ensureRelicAbility(charId, payload)
@@ -1605,7 +1636,14 @@
       label += ' — ' + payload.ancestor;
     }
 
-    var action = buildTemplateAction(label, payload.description || '');
+    var action = null;
+    if (payload.action) {
+      action = payload.action;
+    } else if (payload.rows && payload.rows.length) {
+      action = buildTemplateRowsAction(label, payload.rows);
+    } else {
+      action = buildTemplateAction(label, payload.description || '');
+    }
     var ability = ensureAbility(charId, label, action, true);
     return ability ? { ok: true, abilityId: ability.id } : { ok: false };
   }
